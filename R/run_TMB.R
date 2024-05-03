@@ -10,6 +10,8 @@ library(R2admb)
 library(tidyverse)
 library(TMB)
 
+source(here("R", "Francis_Reweight.R"))
+
 # Read in data
 tem_dat <- dget(here('data', 'tem.rdat'))
 ageing_dat <- dget(here('data', 'test.rdat'))
@@ -27,9 +29,9 @@ waa_m <- tem_dat$growthmat$wt.m.block1 # male WAA
 mat <- tem_dat$growthmat$mage.block2 # maturity
 m_f <- exp(tem_par$coefficients[names(tem_par$coefficients) == "logm"])
 m_m <- m_f-0.00819813327864 # male M
- 
+
 ### Recruitment -------------------------------------------------------------
-rec <- tem_dat$t.series$Recr # total recruitment 
+rec <- tem_dat$t.series$Recr # total recruitment
 init_age <- matrix(cbind(tem_dat$natage.female[1,-1] , tem_dat$natage.male[1,-1] ), ncol = 2) # initial ages
 mean_rec <- tem_par$coefficients[names(tem_par$coefficients) == "log_mean_rec"] # mean recruitment
 init_rec_devs <- rev(tem_par$coefficients[str_detect(names(tem_par$coefficients), "rec_dev") ][1:28]) # initial devs
@@ -54,10 +56,12 @@ data$n_fish_fleets <- 2 # number of fishery fleets (fixed gear, trawl gear)
 data$n_srv_fleets <- 3 # number of survey fleets (domestic ll survey, domestic trawl survey, coop jp ll survey)
 data$init_F_prop <- 0.1 # initial F proportion
 data$do_rec_bias_ramp <- 1 # do bias ramp
-data$bias_year <- c(length(1960:1979), length(1960:1989), (length(1960:2023) - 6), length(1960:2022) - 1) 
+data$bias_year <- c(length(1960:1979), length(1960:1989), (length(1960:2023) - 6), length(1960:2022) - 1)
 data$sigmaR_switch <- as.integer(length(1960:1975)) - 1 # when to switch sigmaR from 0.4 to 1.04
 data$likelihood_type <- 0 # ADMB likelihood
 data$share_sel <- 0 # share index selectivity across sexes
+data$normalize_fish_sel <- c(0,1) # normalize selectivity to max at 1s
+data$normalize_srv_sel <- c(0,1,0) # normalize survey selectivity to max at 1s (0 = dont normalize, 1 = normalize)
 
 # Recruitment stuff
 data$sexratio <- as.vector(c(0.5, 0.5)) # recruitment sex ratio
@@ -72,7 +76,7 @@ data$MatAA <- array(0,  dim = c(length(data$yrs), length(data$ages), data$n_sexe
 data$MatAA[1:64,,1] <- aperm(replicate(length(1:64), mat), c(2,1))
 data$MatAA[1:64,,2] <- aperm(replicate(length(1:64), mat), c(2,1))
 data$AgeingError <- as.matrix(ageing_dat$age_error) # ageing error matrix
-data$SizeAgeTrans <- array(0, dim = c(length(data$yrs), length(data$lens), length(data$ages), data$n_sexes)) # size age transition matrix 
+data$SizeAgeTrans <- array(0, dim = c(length(data$yrs), length(data$lens), length(data$ages), data$n_sexes)) # size age transition matrix
 rownames(data$SizeAgeTrans) <- data$yrs
 # Size age transition, first time block
 data$SizeAgeTrans[1:35,,,1] <- aperm(replicate(length(1:35), tem_dat$sizeage.f.block1), perm = c(3,2,1)) # female
@@ -92,6 +96,7 @@ data$ObsCatch[,2] <- as.numeric(strsplit(tem_admb_dat[48], split = " ")[[1]]) # 
 data$ObsCatch[data$ObsCatch == 0] <- NA # set 0 catches to NA so we aren't fitting
 data$UseCatch <- matrix(1, nrow = length(1:64), ncol = data$n_fish_fleets)
 data$UseCatch[1:3,2] <- 0 # don't use first 3 years of trawl catches (0)
+data$Catch_Constant <- c(0.01, 0.8) # catch constants
 data$Catch_sd <- c(0.01,0.01)
 
 # Fishery Indices
@@ -132,7 +137,7 @@ data$Wt_FishAgeComps[1,1] <- 0.797868466479416 # Weight for fixed gear age comps
 data$ObsFishLenComps <- array(NA, dim = c(length(data$yrs), length(data$lens), data$n_sexes, data$n_fish_fleets))
 rownames(data$ObsFishLenComps) <- data$yrs # define row years
 
-# observed fixed gear fishery length comps 
+# observed fixed gear fishery length comps
 data$ObsFishLenComps[rownames(data$ObsFishLenComps) %in% rownames(tem_dat$olc.fish1.f),,1,1] <- tem_dat$olc.fish1.f # females
 data$ObsFishLenComps[rownames(data$ObsFishLenComps) %in% rownames(tem_dat$olc.fish1.m),,2,1] <- tem_dat$olc.fish1.m # males
 
@@ -156,7 +161,7 @@ data$ISS_FishLenComps[rownames(data$ISS_FishLenComps) %in% rownames(tem_dat$olc.
 data$Wt_FishLenComps <- array(0, dim = c(data$n_sexes, data$n_fish_fleets)) # weights for fishery age comps
 data$Wt_FishLenComps[1,1] <- 4.94489032547033 # Weight for fixed gear len comps females
 data$Wt_FishLenComps[2,1] <- 5.21629903889062 # Weight for fixed gear len comps males
-data$Wt_FishLenComps[1,2] <- 0.35007890900583 # Weight for trawl gear len comps females 
+data$Wt_FishLenComps[1,2] <- 0.35007890900583 # Weight for trawl gear len comps females
 data$Wt_FishLenComps[2,2] <- 0.255150139457704 # Weight for trawl gear len comps males
 
 ### Survey Observations -----------------------------------------------------
@@ -172,7 +177,7 @@ rownames(data$ObsSrvIdx_SE) <- data$yrs # define row years
 data$ObsSrvIdx[rownames(data$ObsSrvIdx) %in% rownames(tem_dat$obssrv3),1] <- as.numeric(strsplit(tem_admb_dat[93], split = " ")[[1]])
 data$ObsSrvIdx_SE[rownames(data$ObsSrvIdx_SE) %in% rownames(tem_dat$obssrv3),1] <- as.numeric(strsplit(tem_admb_dat[95], split = " ")[[1]])
 
-# Domestic Trawl Survey 
+# Domestic Trawl Survey
 data$ObsSrvIdx[rownames(data$ObsSrvIdx) %in% rownames(tem_dat$obssrv7),2] <- as.numeric(strsplit(tem_admb_dat[161], split = " ")[[1]])
 data$ObsSrvIdx_SE[rownames(data$ObsFishIdx_SE) %in% rownames(tem_dat$obssrv7),2] <- as.numeric(strsplit(tem_admb_dat[163], split = " ")[[1]])
 
@@ -208,15 +213,15 @@ data$Wt_SrvAgeComps[1,3] <- 1.27151115308662 # Weight for coop jp survey ll gear
 data$ObsSrvLenComps <- array(NA, dim = c(length(data$yrs), length(data$lens), data$n_sexes, data$n_srv_fleets))
 rownames(data$ObsSrvLenComps) <- data$yrs # define row years
 
-# observed domestic survey ll length comps 
+# observed domestic survey ll length comps
 data$ObsSrvLenComps[rownames(data$ObsSrvLenComps) %in% rownames(tem_dat$olc.srv1.f),,1,1] <- tem_dat$olc.srv1.f # females
 data$ObsSrvLenComps[rownames(data$ObsSrvLenComps) %in% rownames(tem_dat$olc.srv1.m),,2,1] <- tem_dat$olc.srv1.m # males
 
-# observed domestic trawl survey length comps 
+# observed domestic trawl survey length comps
 data$ObsSrvLenComps[rownames(data$ObsSrvLenComps) %in% rownames(tem_dat$olc.srv7.f),,1,2] <- tem_dat$olc.srv7.f # females
 data$ObsSrvLenComps[rownames(data$ObsSrvLenComps) %in% rownames(tem_dat$olc.srv7.m),,2,2] <- tem_dat$olc.srv7.m # males
 
-# observed coop jp ll survey length comps 
+# observed coop jp ll survey length comps
 srv_trawl_iss <- as.numeric(strsplit(tem_admb_dat[580], split = " ")[[1]]) # get ISS from trawl survey
 data$ObsSrvLenComps[rownames(data$ObsSrvLenComps) %in% rownames(tem_dat$olc.srv2.f),,1,3] <- tem_dat$olc.srv2.f # females
 data$ObsSrvLenComps[rownames(data$ObsSrvLenComps) %in% rownames(tem_dat$olc.srv2.m),,2,3] <- tem_dat$olc.srv2.m # males
@@ -261,7 +266,7 @@ data$fish_sel_model <- matrix(nrow = length(data$yrs), ncol = data$n_fish_fleets
 data$fish_sel_model[,1] <- 0 # Logistic selectivity for fixed gear
 data$fish_sel_model[,2] <- 1 # Gamma selectivity for trawl fishery
 
-# Catchability 
+# Catchability
 # Time Block Specification
 data$fish_q_blocks <- data$fish_sel_blocks # catchability blocks are same as selectivity blocks
 data$fish_idx_type <- as.vector(c(1,1)) # fishery index type (0 == abundance, 1 == biomass)
@@ -320,12 +325,12 @@ parameters$ln_fish_fixed_sel_pars[,1,2,2] <- c(2.1048e+000, 2.3315e+000) # Male 
 parameters$ln_fish_fixed_sel_pars[,2,2,2] <- c(2.1048e+000, 2.3315e+000) # Male trawl fishery first time block parameters (amax and then power)
 parameters$ln_fish_fixed_sel_pars[,3,2,2] <- c(2.1048e+000, 2.3315e+000) # Male trawl fishery first time block parameters (amax and then power)
 
-# Fishery Catchability 
+# Fishery Catchability
 # Fixed Gear Fishery Catchability
 parameters$ln_fish_q <- array(0, dim = c(max_fish_blks, data$n_fish_fleets))
 parameters$ln_fish_q[1,1] <- 1.5737e+000 # first fixed gear fishery time block
-parameters$ln_fish_q[1,1] <- -6.5299e+000 # second fixed gear fishery time block
-parameters$ln_fish_q[2,1] <- -7.2336e+000 # third fixed gear fishery time block
+parameters$ln_fish_q[2,1] <- -6.5299e+000 # second fixed gear fishery time block
+parameters$ln_fish_q[3,1] <- -7.2336e+000 # third fixed gear fishery time block
 
 # Trawl Gear Fishery Catchability
 parameters$ln_fish_q[,2] <- 0 # trawl gear fishery time block (none and no index used)
@@ -355,7 +360,7 @@ max_q_srv_blks <- 1 # maximum catchability blocks
 
 # Longline Survey Catchability
 parameters$ln_srv_q <- array(0, dim = c(max_q_srv_blks, data$n_srv_fleets))
-parameters$ln_srv_q[,1] <- 1.8582e+000 # first longline survey (domestic) time block 
+parameters$ln_srv_q[,1] <- 1.8582e+000 # first longline survey (domestic) time block
 
 # Trawl Survey Catchability
 parameters$ln_srv_q[,2] <- -1.5314e-001 # trawl survey time block
@@ -377,36 +382,36 @@ parameters$ln_sigmaR_late <- log(1.044523) # late sigma R
 # Mapping -----------------------------------------------------------------
 ### Fixing all parameters for checking --------------------------------------
 mapping <- list()
-# mapping$ln_fish_fixed_sel_pars <- factor(rep(NA, length(parameters$ln_fish_fixed_sel_pars))) # fix all fishery selectivity parameters for now
-# mapping$ln_srv_fixed_sel_pars <- factor(rep(NA, length(parameters$ln_srv_fixed_sel_pars))) # fix all survey selectivity parameters for now
-# mapping$ln_fish_q <- factor(rep(NA, length(parameters$ln_fish_q))) # fix all fishery catchability parameters for now
-# mapping$ln_srv_q <- factor(rep(NA, length(parameters$ln_srv_q))) # fix all fishery catchability parameters for now
-# mapping$ln_F_mean <- factor(rep(NA, length(parameters$ln_F_mean))) # fix all fishery mort parameters for now
-# mapping$ln_F_devs <- factor(rep(NA, length(parameters$ln_F_devs))) # fix all fishery mort parameters for now
+mapping$ln_fish_fixed_sel_pars <- factor(rep(NA, length(parameters$ln_fish_fixed_sel_pars))) # fix all fishery selectivity parameters for now
+mapping$ln_srv_fixed_sel_pars <- factor(rep(NA, length(parameters$ln_srv_fixed_sel_pars))) # fix all survey selectivity parameters for now
+mapping$ln_fish_q <- factor(rep(NA, length(parameters$ln_fish_q))) # fix all fishery catchability parameters for now
+mapping$ln_srv_q <- factor(rep(NA, length(parameters$ln_srv_q))) # fix all fishery catchability parameters for now
+mapping$ln_F_mean <- factor(rep(NA, length(parameters$ln_F_mean))) # fix all fishery mort parameters for now
+mapping$ln_F_devs <- factor(rep(NA, length(parameters$ln_F_devs))) # fix all fishery mort parameters for now
 mapping$ln_M <- factor(NA) # fix natural mortality
 mapping$ln_R0 <- factor(NA) # fix mean recruitment
-# mapping$ln_InitDevs <- factor(rep(NA, length(parameters$ln_InitDevs)))
-mapping$ln_RecDevs <- factor(rep(NA, length(parameters$ln_RecDevs)))
+mapping$ln_InitDevs <- factor(rep(NA, length(parameters$ln_InitDevs)))
+# mapping$ln_RecDevs <- factor(rep(NA, length(parameters$ln_RecDevs)))
 mapping$ln_sigmaR_late <- factor(NA) # fix late sigma R
 mapping$ln_sigmaR_early <- factor(NA) # fix early sigma R
-mapping$M_offset <- factor(NA) # fix natural mortality offset
+mapping$M_offset <- factor(NA) # fix natural mortality offset]
 
 ### Esimating parameters with sharing ---------------------------------------
 # mapping <- list()
 mapping$dummy <- factor(NA)
-mapping$ln_F_devs <- factor(c(1:length(data$yrs), rep(NA, 3), 65:(128-3))) # fix all fishery mort parameters for now
-mapping$ln_fish_q <- factor(c(1,2,3,rep(NA,3))) # estimate catchabilities only for first fishery with index
+# mapping$ln_F_devs <- factor(c(1:length(data$yrs), rep(NA, 3), 65:(128-3))) # fix all fishery mort parameters for now
+# mapping$ln_fish_q <- factor(c(1,2,3,rep(NA,3))) # estimate catchabilities only for first fishery with index
 # sharing delta across sexes from early domestic fishery (first time block)
 # also fixing parameters so that no time block for trawl fishery
-mapping$ln_fish_fixed_sel_pars <- factor(c(1:7, 2, 8:11, rep(12:13,3), rep(c(14,13),3)))
+# mapping$ln_fish_fixed_sel_pars <- factor(c(1:7, 2, 8:11, rep(12:13,3), rep(c(14,13),3)))
 
 # ll survey, share delta female (index 2) across time blocks and to the coop jp ll survey delta
 # ll survey, share delta male (index 5) across time blocks and to the coop jp ll survey delta
 # coop jp survey does not estimate parameters and shares deltas with longline survey
 # single time block with trawl survey and only one parameter hence, only one parameter estimated across blocks (indices 7 and 8)
-mapping$ln_srv_fixed_sel_pars <- factor(c(1:3, 2, 4:6, 5,
-                                          rep(7,4), rep(8, 4),
-                                          rep(c(NA,2), 2), rep(c(NA, 5), 2)))
+# mapping$ln_srv_fixed_sel_pars <- factor(c(1:3, 2, 4:6, 5,
+#                                           rep(7,4), rep(8, 4),
+#                                           rep(c(NA,2), 2), rep(c(NA, 5), 2)))
 
 # TMB Model -------------------------------------------------------------------
 setwd(here("src"))
@@ -420,7 +425,7 @@ sabie_model <- MakeADFun(data = data, parameters = parameters,
                        map = mapping, random = NULL,
                        DLL = "SabieTMB")
 # Now, optimize the function
-sabie_optim <- stats::nlminb(sabie_model$par, sabie_model$fn, sabie_model$gr,  
+sabie_optim <- stats::nlminb(sabie_model$par, sabie_model$fn, sabie_model$gr,
                            control = list(iter.max = 1e5, eval.max = 1e5))
 
 # newton steps
@@ -437,98 +442,15 @@ sabie_model$optim <- sabie_optim # Save optimized model results
 sabie_model$rep <- sabie_model$report(sabie_model$env$last.par.best) # Get report
 sabie_model$sd_rep <- sdreport(sabie_model) # Get sd report
 
+
+# Likelihoods -------------------------------------------------------------
+
+sum(sabie_model$rep$Catch_nLL) * 50 # 3.75378 (admb)
+sum(sabie_model$rep$Init_Rec_nLL, sabie_model$rep$Rec_nLL) * 1.5 * 0.5 # 27.9273 (admb)
+sum(sabie_model$rep$Fmort_Pen) * 0.1 # 6.04329 (admb)
+sabie_model$rep$M_Pen # 0.766277 (admb)
+
 # Check consistency -------------------------------------------------------
-(exp(sabie_model$sd_rep$par.fixed[names(sabie_model$sd_rep$par.fixed) == "ln_R0"]) - exp(parameters$ln_R0)) / exp(parameters$ln_R0)  * 100
-(exp(sabie_model$sd_rep$par.fixed[names(sabie_model$sd_rep$par.fixed) == "ln_sigmaR_late"]) - exp(parameters$ln_sigmaR_late)) / exp(parameters$ln_sigmaR_late)* 100
-(exp(sabie_model$sd_rep$par.fixed[names(sabie_model$sd_rep$par.fixed) == "ln_M"]) - exp(parameters$ln_M)) / exp(parameters$ln_M) * 100
-
-1.5 * 0.5 * sum(sabie_model$rep$Rec_nLL, sabie_model$rep$Init_Rec_nLL)
-sum(sabie_model$rep$Fmort_Pen)
-plot(1960:2022, sabie_model$rep$bias_ramp[-64], type = 'l')
-
-par(mfrow = c(2,2))
-plot(1960:2023, rowSums(sabie_model$rep$NAA[,1,]), col = "red", type = 'l', xlab = "Year", ylab = "Recruitment", lwd = 3)
-lines(1960:2023, rec, lwd = 3)
-legend(x = 1980, y = 100, legend = c("TMB", "ADMB"), fill = c("red", "black"))
-
-# Predicted SSB
-# par(mfrow = c(1,2))
-plot(1960:2023, sabie_model$rep$SSB, type = 'l', col = "red", lty = 1, lwd = 3, xlab = "Yr", ylab = "SSB")
-legend(x = 1990, y = 250, legend = c("TMB", "ADMB"), fill = c("red", "black"))
-lines(1960:2023, ssb, lwd = 3)
-plot(1960:2023, (rowSums(sabie_model$rep$NAA[,1,]) - rec) / rec * 100,
-     ylab = "Relative Difference Recruitment (%)", xlab = "Year", type = 'l', col = 'darkgreen') 
-plot(1960:2023, (sabie_model$rep$SSB - ssb) / ssb * 100, 
-     ylab = "Relative Difference SSB (%)", xlab = "Year", type = 'l', col = 'blue')
-
-dev.off()
-
-# Predicted Total Numbers
-plot(rowSums(sabie_model$rep$NAA[,,1]), type = "l", col = "red")
-lines(rowSums(tem_dat$natage.female), type = "l")
-plot((rowSums(sabie_model$rep$NAA[,,1]) - rowSums(tem_dat$natage.female)) / rowSums(tem_dat$natage.female) * 100, type = 'l')
-
-
-plot(rowSums(sabie_model$rep$NAA[,,2]), type = "l", col = "red")
-lines(rowSums(tem_dat$natage.male), type = "l")
-
-# 
-# # 
-# # # Predicted Catches
-plot(sabie_model$rep$PredCatch[,1], type = 'l', col = "red")
-lines(tem_dat$t.series$Catch_HAL)
-#
-plot(sabie_model$rep$PredCatch[,2], type = 'l')
-lines(tem_dat$t.series$Catch_TWL)
-
-plot(rowSums(sabie_model$rep$Fmort[,]), type = 'l', col = "red")
-lines(tem_dat$t.series$fmort)
-plot((rowSums(sabie_model$rep$Fmort[,]) - tem_dat$t.series$fmort )/ tem_dat$t.series$fmort * 100)
-
-#
-# # Fishery Selectivity check
-plot(sabie_model$rep$fish_sel[1,,1,1])
-#
-plot(sabie_model$rep$fish_sel[1,,2,1])
-#
-plot(sabie_model$rep$fish_sel[40,,1,1])
-#
-plot(sabie_model$rep$fish_sel[40,,2,1])
-#
-plot(sabie_model$rep$fish_sel[60,,1,1])
-#
-plot(sabie_model$rep$fish_sel[60,,2,1])
-#
-plot(sabie_model$rep$fish_sel[1,,1,2])
-lines(tem_dat$agesel$fish3sel.f)
-
-plot(sabie_model$rep$fish_sel[1,,2,2])
-lines(tem_dat$agesel$fish3sel.m)
-
-#
-# # Survey Selectivity Checks
-plot(sabie_model$rep$srv_sel[1,,1,1], ylim = c(0,1))
-#
-plot(sabie_model$rep$srv_sel[1,,2,1], ylim = c(0,1))
-lines(tem_dat$agesel$srv1sel.m)
-
-plot(sabie_model$rep$srv_sel[60,,1,1], ylim = c(0,1))
-lines(tem_dat$agesel$srv10sel.f)
-#
-plot(sabie_model$rep$srv_sel[60,,2,1], ylim = c(0,1))
-lines(tem_dat$agesel$srv10sel.m)
-
-plot(sabie_model$rep$srv_sel[64,,1,2], ylim = c(0,1))
-lines(tem_dat$agesel$srv7sel.f)
-#
-plot(sabie_model$rep$srv_sel[64,,2,2], ylim = c(0,1))
-lines(tem_dat$agesel$srv7sel.m)
-
-plot(sabie_model$rep$srv_sel[64,,1,3], ylim = c(0,1))
-lines(tem_dat$agesel$srv2sel.f)
-#
-plot(sabie_model$rep$srv_sel[64,,2,3], ylim = c(0,1))
-lines(tem_dat$agesel$srv2sel.m)
 
 # # Predicted Indices
 fish_idx <- sabie_model$rep$PredFishIdx
@@ -537,45 +459,90 @@ plot(tem_dat$obssrv6$obssrv6)
 lines(fish_idx[rownames(fish_idx) %in% rownames(tem_dat$obssrv6), 1], col = "red") # Domestic + JP Fishery (1960 - 1994)
 lines(tem_dat$obssrv6$predsrv6)
 
-plot(sabie_model$rep$PredFishIdx[36:64,1], col = "red", type = 'l') # Fixed Gear Fishery (1995 - terminal)
+plot((fish_idx[rownames(fish_idx) %in% rownames(tem_dat$obssrv6), 1] - tem_dat$obssrv6$predsrv6) / tem_dat$obssrv6$predsrv6 * 100)
+
+plot(sabie_model$rep$PredFishIdx[36:63,1], col = "red", type = 'l') # Fixed Gear Fishery (1995 - terminal)
 lines(tem_dat$obssrv5$predsrv5)
 points((tem_dat$obssrv5$obssrv5))
+
+plot((sabie_model$rep$PredFishIdx[36:63,1] - tem_dat$obssrv5$predsrv5) / tem_dat$obssrv5$predsrv5 * 100)
 
 # # Survey Index
 plot(tem_dat$obssrv3$obssrv3)
 lines(sabie_model$rep$PredSrvIdx[31:64,1], col = "red")
 lines(tem_dat$obssrv3$predsrv3)
+plot((sabie_model$rep$PredSrvIdx[31:64,1] - tem_dat$obssrv3$predsrv3) / tem_dat$obssrv3$predsrv3 * 100)
+
 #
 srv <- sabie_model$rep$PredSrvIdx
 rownames(srv) <- data$yrs
 plot(tem_dat$obssrv4$obssrv4)
 lines(srv[rownames(srv) %in% rownames(tem_dat$obssrv4),3], col = "red")
 lines(tem_dat$obssrv4$predsrv4)
-#
-plot(tem_dat$obssrv7$obssrv7)
-lines(srv[rownames(srv) %in% rownames(tem_dat$obssrv7),2], col = "red")
-lines(tem_dat$obssrv7$predsrv7)
+plot((srv[rownames(srv) %in% rownames(tem_dat$obssrv4),3]- tem_dat$obssrv4$predsrv4) / tem_dat$obssrv4$predsrv4 * 100)
 
-sabie_model$rep$Catch_nLL
-sabie_model$rep$FishLenComps_nLL
-sabie_model$rep$FishAgeComps_nLL
-sabie_model$rep$SrvLenComps_nLL
-sabie_model$rep$SrvAgeComps_nLL
-sabie_model$rep$SrvIdx_nLL
-sabie_model$rep$M_Pen
-sabie_model$rep$jnLL
-sabie_model$rep$FishIdx_nLL
-sabie_model$rep$Rec_nLL
 
-sum(sabie_model$rep$Catch_nLL)
-sum(sabie_model$rep$FishLenComps_nLL)
-sum(sabie_model$rep$FishAgeComps_nLL)
-sum(sabie_model$rep$SrvLenComps_nLL)
-sum(sabie_model$rep$SrvAgeComps_nLL)
-sum(sabie_model$rep$SrvIdx_nLL)
-sum(sabie_model$rep$M_Pen)
-sabie_model$rep$Fmort_Pen
-sabie_model$rep$jnLL
+50 * sum(sabie_model$rep$Catch_nLL)
+
+y <- 20
+
+# Check ZAA with actual admb
+data$ZAA[y,,1] - sabie_model$rep$natmort[y,,1] - (sabie_model$rep$fish_sel[y,,1,1] * sabie_model$rep$Fmort[y,1] +
+                                                  sabie_model$rep$fish_sel[y,,1,2]  * sabie_model$rep$Fmort[y,2])
+
+# Check mortality with ADMB
+sabie_model$rep$natmort[y,,1] - exp(parameters$ln_M)
+
+# Check fishing mortality with ADMB (fixed gear)
+sabie_model$rep$Fmort[y,1] - exp(parameters$ln_F_mean[1] + parameters$ln_F_devs[y,1])
+
+# Check fishing mortality with ADMB (trawl gear)
+sabie_model$rep$Fmort[y,2] - exp(parameters$ln_F_mean[2] + parameters$ln_F_devs[y,2])
+
+# Check selectivity (fixed gear)
+sabie_model$rep$fish_sel[1,,1,1] - tem_dat$agesel$fish1sel.f
+sabie_model$rep$fish_sel[1,,2,1] - tem_dat$agesel$fish1sel.m
+
+sabie_model$rep$fish_sel[50,,1,1] - tem_dat$agesel$fish4sel.f
+sabie_model$rep$fish_sel[50,,2,1] - tem_dat$agesel$fish4sel.m
+
+# Trawl Gear selectivity
+sabie_model$rep$fish_sel[y,,1,2] - tem_dat$agesel$fish3sel.f
+
+
+# Check fishing mortality AA with ADMB FAA (fixed gear)
+(sabie_model$rep$fish_sel[y,,1,1] * sabie_model$rep$Fmort[y,1]) - 
+(tem_dat$agesel$fish1sel.f * exp(parameters$ln_F_mean[1] + parameters$ln_F_devs[y,1]))
+
+# Check fishing mortality AA with ADMB FAA (trawl gear)
+(sabie_model$rep$fish_sel[y,,1,2]  * sabie_model$rep$Fmort[y,2]) - 
+(tem_dat$agesel$fish3sel.f * exp(parameters$ln_F_mean[2] + parameters$ln_F_devs[y,2]))
+
+
+
+
+
+
+
+
+
+
+
+   
+                                
+(sabie_model$rep$fish_sel[y,,1,1] * sabie_model$rep$Fmort[y,1] +
+ sabie_model$rep$fish_sel[y,,1,2]  * sabie_model$rep$Fmort[y,2]) 
+
+(tem_dat$agesel$fish1sel.f * exp(parameters$ln_F_mean[1] + parameters$ln_F_devs[y,1]) +
+tem_dat$agesel$fish3sel.f * exp(parameters$ln_F_mean[2] + parameters$ln_F_devs[y,2]))
+
+data$ZAA[y,,1] - sabie_model$rep$natmort[y,,1] - (sabie_model$rep$fish_sel[y,,1,1] * sabie_model$rep$Fmort[y,1] +
+                                                  sabie_model$rep$fish_sel[y,,1,2]  * sabie_model$rep$Fmort[y,2])
+sabie_model$rep$TotalFAA[y,,1] - 
+(sabie_model$rep$fish_sel[y,,1,1] * sabie_model$rep$Fmort[y,1] +
+sabie_model$rep$fish_sel[y,,1,2]  * sabie_model$rep$Fmort[y,2])
+
+
 
 # Data weighting ----------------------------------------------------------
 # Francis reweighting
@@ -616,35 +583,189 @@ sabie_model$rep$jnLL
 #   data$Wt_SrvAgeComps <- new_weights$new_srv_age_wts
 #   data$Wt_SrvLenComps <- new_weights$new_srv_len_wts
 # } # end i loop
-
-
-# Checking inital abundance -----------------------------------------------
-
-plot(sabie_model$rep$NAA[1,,1])
-lines(tem_dat$natage.female[1,])
-plot((sabie_model$rep$NAA[1,,1] - tem_dat$natage.female[1,]) / tem_dat$natage.female[1,] * 100)
-
-plot(sabie_model$rep$NAA[1,,2])
-lines(tem_dat$natage.male[1,])
-plot((sabie_model$rep$NAA[1,,2] - tem_dat$natage.male[1,]) / tem_dat$natage.male[1,] * 100)
 # 
-# vec <- vector()
-# init_F <-  0.1 * exp(parameters$ln_F_mean)[1]
-# # 
-# # vec[1] = tem_dat$natage.female[1,1]
-# for(i in 2:30) {
-#   if(i >= 2 &  i <= 29) {
-#     vec[i] = exp(parameters$ln_R0 + init_rec_devs[i-1] - (i - 1) *
-#                    (exp(parameters$ln_M) + init_F * tem_dat$agesel$fish1sel.f[i])) * 0.5
-#   }
-#   if(i == 30) {
-#     vec[i] = exp(parameters$ln_R0 - ((i - 1) * (exp(parameters$ln_M) + init_F * tem_dat$agesel$fish1sel.f[i]))) /
-#                  (1 - exp(- (exp(parameters$ln_M) + init_F * tem_dat$agesel$fish1sel.f[i]))) * 0.5
-#   }
-# }
-# # # 
-# plot(vec)
-# lines(tem_dat$natage.female[1,])
-# 
-# plot((vec - tem_dat$natage.female[1,]) / tem_dat$natage.female[1,], type = 'l')
+# sabie_model$sd_rep <- sdreport(sabie_model)
+
+# Check consistency -------------------------------------------------------
+
+# Get parameters
+M_df <- data.frame(Par = "ln_M", 
+                   TMB = sabie_model$sd_rep$par.fixed[names(sabie_model$sd_rep$par.fixed) == "ln_M"], 
+                   ADMB = parameters$ln_M)
+
+R0_df <- data.frame(Par = "ln_R0", 
+                    TMB = sabie_model$sd_rep$par.fixed[names(sabie_model$sd_rep$par.fixed) == "ln_R0"], 
+                    ADMB = parameters$ln_R0)
+
+rec_sigmaRlate_df <- data.frame(Par = "ln_recSigma", 
+                                TMB = sabie_model$sd_rep$par.fixed[names(sabie_model$sd_rep$par.fixed) == "ln_sigmaR_late"], 
+                                ADMB = parameters$ln_sigmaR_late)
+
+srv_q_df <- data.frame(Par = c('ln_srv_domLL_q', 'ln_srv_trwl_q', 'ln_srv_coopLL_q'),
+                       TMB = sabie_model$sd_rep$par.fixed[names(sabie_model$sd_rep$par.fixed) == "ln_srv_q"],
+                       ADMB = parameters$ln_srv_q[1,])
+
+fish_q_df <- data.frame(Par = c('ln_fish_domLL_q1', 'ln_fish_domLL_q2', 'ln_fish_domLL_q3'),
+                        TMB = sabie_model$sd_rep$par.fixed[names(sabie_model$sd_rep$par.fixed) == "ln_fish_q"],
+                        ADMB = parameters$ln_fish_q[,1])
+
+par_df <- rbind(M_df, R0_df, rec_sigmaRlate_df, srv_q_df, fish_q_df)
+
+# Get time series
+rec_series <- data.frame(Par = "Recruitment", 
+                         Year = 1960:2022, 
+                         TMB = rowSums(sabie_model$rep$NAA[-c(64,65),1,]), 
+                         ADMB = rec[-64])
+
+f_series <- data.frame(Par = "Total F", 
+                         Year = 1960:2023, 
+                         TMB = rowSums(sabie_model$rep$Fmort), 
+                         ADMB = tem_dat$t.series$fmort)
+
+ssb_series <- data.frame(Par = "SSB", 
+                         Year = 1960:2023, 
+                         TMB = sabie_model$rep$SSB, 
+                         ADMB = ssb)
+
+ts_df <- rbind(rec_series, f_series, ssb_series)
+
+# Get selectivities
+dom_ll_fish_f1 <- data.frame(Age = 1:30, 
+                             TMB = sabie_model$rep$fish_sel[1,,1,1],
+                             ADMB = tem_dat$agesel$fish1sel.f,
+                             Type = "Domestic LL Fishery Female Block 1")
+
+dom_ll_fish_m1 <- data.frame(Age = 1:30, 
+                             TMB = sabie_model$rep$fish_sel[1,,2,1],
+                             ADMB = tem_dat$agesel$fish1sel.m,
+                             Type = "Domestic LL Fishery Male Block 1")
+
+dom_ll_fish_f2 <- data.frame(Age = 1:30, 
+                             TMB = sabie_model$rep$fish_sel[40,,1,1],
+                             ADMB = tem_dat$agesel$fish4sel.f,
+                             Type = "Domestic LL Fishery Female Block 2")
+
+dom_ll_fish_m2 <- data.frame(Age = 1:30, 
+                             TMB = sabie_model$rep$fish_sel[40,,2,1],
+                             ADMB = tem_dat$agesel$fish4sel.m,
+                             Type = "Domestic LL Fishery Male Block 2")
+
+dom_ll_fish_f3 <- data.frame(Age = 1:30, 
+                             TMB = sabie_model$rep$fish_sel[60,,1,1],
+                             ADMB = tem_dat$agesel$fish5sel.f,
+                             Type = "Domestic LL Fishery Female Block 3")
+
+dom_ll_fish_m3 <- data.frame(Age = 1:30, 
+                             TMB = sabie_model$rep$fish_sel[60,,2,1],
+                             ADMB = tem_dat$agesel$fish5sel.m,
+                             Type = "Domestic LL Fishery Male Block 3")
+
+dom_trwl_fish_f <- data.frame(Age = 1:30, 
+                              TMB = sabie_model$rep$fish_sel[1,,1,2],
+                              ADMB = tem_dat$agesel$fish3sel.f,
+                              Type = "Domestic Trawl Female")
+
+dom_trwl_fish_m <- data.frame(Age = 1:30, 
+                              TMB = sabie_model$rep$fish_sel[1,,2,2],
+                              ADMB = tem_dat$agesel$fish3sel.m,
+                              Type = "Domestic Trawl Male")
+
+dom_ll_srv_f1 <- data.frame(Age = 1:30, 
+                            TMB = sabie_model$rep$srv_sel[1,,1,1],
+                            ADMB = tem_dat$agesel$srv1sel.f,
+                            Type = "Domestic LL Survey Female Block 1")
+
+dom_ll_srv_m1 <- data.frame(Age = 1:30, 
+                            TMB = sabie_model$rep$srv_sel[1,,2,1],
+                            ADMB = tem_dat$agesel$srv1sel.m,
+                            Type = "Domestic LL Survey Male Block 1")
+
+dom_ll_srv_f2 <- data.frame(Age = 1:30, 
+                            TMB = sabie_model$rep$srv_sel[60,,1,1],
+                            ADMB = tem_dat$agesel$srv10sel.f,
+                            Type = "Domestic LL Survey Female Block 2")
+
+dom_ll_srv_m2 <- data.frame(Age = 1:30, 
+                            TMB = sabie_model$rep$srv_sel[60,,2,1],
+                            ADMB = tem_dat$agesel$srv10sel.m,
+                            Type = "Domestic LL Survey Male Block 2")
+
+dom_trwl_srv_f2 <- data.frame(Age = 1:30, 
+                              TMB = sabie_model$rep$srv_sel[60,,1,2],
+                              ADMB = tem_dat$agesel$srv7sel.f,
+                              Type = "Domestic Trawl Survey Female")
+
+dom_trwl_srv_m2 <- data.frame(Age = 1:30, 
+                              TMB = sabie_model$rep$srv_sel[60,,2,2],
+                              ADMB = tem_dat$agesel$srv7sel.m,
+                              Type = "Domestic Trawl Survey Male")
+
+coop_ll_srv_f2 <- data.frame(Age = 1:30, 
+                             TMB = sabie_model$rep$srv_sel[60,,1,3],
+                             ADMB = tem_dat$agesel$srv2sel.f,
+                             Type = "Coop LL Survey Female")
+
+coop_ll_srv_m2 <- data.frame(Age = 1:30, 
+                             TMB = sabie_model$rep$srv_sel[60,,2,3],
+                             ADMB = tem_dat$agesel$srv2sel.m,
+                             Type = "Coop LL Survey Male")
+
+combined_sel <- rbind(
+  dom_ll_fish_m1,
+  dom_ll_fish_f2,
+  dom_ll_fish_m2,
+  dom_ll_fish_f3,
+  dom_ll_fish_m3,
+  dom_trwl_fish_f,
+  dom_trwl_fish_m,
+  dom_ll_srv_f1,
+  dom_ll_srv_m1,
+  dom_ll_srv_f2,
+  dom_ll_srv_m2,
+  dom_trwl_srv_f2,
+  dom_trwl_srv_m2,
+  coop_ll_srv_f2,
+  coop_ll_srv_m2
+)
+
+# Plots -------------------------------------------------------------------
+
+pdf(here("figs", "Comparison.pdf"), width = 15)
+
+ggplot() +
+  geom_line(ts_df, mapping  = aes(x = Year, y = TMB, color = "TMB"), size = 1.3) +
+  geom_line(ts_df, mapping  = aes(x = Year, y = ADMB, color = "ADMB"), size = 1.3) +
+  scale_color_manual(labels = c("TMB", "ADMB"), values = c("red", "black")) +
+  facet_wrap(~Par, scales = "free") +
+  theme_bw()
+
+ggplot(ts_df, aes(x = Year, y = (TMB - ADMB) / ADMB, color = Par)) +
+  geom_line(size = 1.3) +
+  geom_hline(yintercept = 0, lty = 2, size = 1.3) +
+  coord_cartesian(ylim = c(-0.05, 0.05)) +
+  theme_bw()
+
+ggplot(par_df, aes(x = Par, y = (exp(TMB) - exp(ADMB)) / exp(ADMB), group = Par)) +
+  geom_point(size = 5) +
+  geom_hline(yintercept = 0, lty = 2, size = 1.3) +
+  coord_cartesian(ylim = c(-0.05, 0.05)) +
+  labs(y = "(TMB - ADMB) / ADMB") +
+  theme_bw()
+
+ggplot() +
+  geom_line(combined_sel, mapping = aes(x = Age , y = (TMB - ADMB)), lwd = 1.3) +
+  facet_wrap(~Type) +   
+  geom_hline(yintercept = 0, lty = 2, size = 1.3) +
+  coord_cartesian(ylim = c(-0.05, 0.05)) +
+  labs(y = "Selex (TMB - ADMB)") +
+  theme_bw()
+
+ggplot() +
+  geom_line(combined_sel, mapping = aes(x = Age , y = TMB, color = "TMB")) +
+  geom_line(combined_sel, mapping = aes(x = Age , y = ADMB, color = "ADMB")) +
+  scale_color_manual(labels = c("TMB", "ADMB"), values = c("red", "black")) +
+  facet_wrap(~Type) +
+  labs(y = "Selex") +
+  theme_bw()
+dev.off()
 

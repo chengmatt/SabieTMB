@@ -31,10 +31,15 @@ Type objective_function<Type>::operator() ()
   DATA_MATRIX(AgeingError); // matrix of ageing error (n_ages, n_ages) 
   DATA_ARRAY(SizeAgeTrans); // array for size age transition (n_years, n_lens, n_ages, n_sexes)
   DATA_VECTOR(sexratio); // vector of recruitment sex ratio (n_sexes)
-
+  DATA_IVECTOR(normalize_fish_sel); // normalize fishery selectivity to max at 1 == 0, no normalization, == 1 normalize
+  DATA_IVECTOR(normalize_srv_sel); // normalize survey selectivity to max at 1 == 0, no normalization, == 1 normalize
+  // DATA_ARRAY(NAA);
+  // DATA_ARRAY(ZAA);
+  
   // Observations (Data)
   // Catches
   DATA_SCALAR(init_F_prop); // initial F proportion for initial age structure (fished age structure)
+  DATA_VECTOR(Catch_Constant); // vector of catch constants to add (0.01 for fixed gear, 0.8 for trawl)
   DATA_MATRIX(ObsCatch); // matrix of observed catches (n_years, n_fish_fleets)
   DATA_VECTOR(Catch_sd); // vector of catch sd (n_fish_fleets)
   DATA_IMATRIX(UseCatch); // indicator for using catch (n_years, n_fish_fleets), == 0 not using, == 1 using
@@ -120,7 +125,7 @@ Type objective_function<Type>::operator() ()
   int n_lens = lens.size(); // number of lengths
   
   // Population Dynamics Processes
-  array<Type> NAA(n_yrs, n_ages, n_sexes); // array of numbers-at-age
+  array<Type> NAA(n_yrs + 1, n_ages, n_sexes); // array of numbers-at-age
   array<Type> ZAA(n_yrs, n_ages, n_sexes); // array of total mortality at age
   array<Type> SAA(n_yrs, n_ages, n_sexes); // array of survival at age annual
   array<Type> SAA_mid(n_yrs, n_ages, n_sexes); // array of survival at age midpoint
@@ -130,7 +135,6 @@ Type objective_function<Type>::operator() ()
   Type sigmaR2_late = pow(exp(ln_sigmaR_late),2); // calculate sigmaR2 for late period
   
   // Fishery Processes
-  Type init_F = init_F_prop * exp(ln_F_mean(0)); // get initial age structure F
   matrix<Type> Fmort(n_yrs, n_fish_fleets); // matrix of fully selected fishing mortality
   array<Type> FAA(n_yrs, n_ages, n_sexes, n_fish_fleets); // array of fishing mortality at age
   array<Type> TotalFAA(n_yrs, n_ages, n_sexes); // array of total fishing mortality at age
@@ -213,10 +217,16 @@ Type objective_function<Type>::operator() ()
           fish_sel(y,a,s,f) = Get_Selex(fish_age_idx, fish_sel_model(y,f), tmp_fish_sel_vec);
         } // end a loop 
         
+        // Normalize to max out at 1
+        if(normalize_fish_sel(f)) {
+          Type tmp_max_fish_sel = max(fish_sel.col(f).col(s).transpose().col(y).vec()); // get max
+          for(int a = 0; a < n_ages; a++) fish_sel.col(f).col(s).col(a).col(y) /= tmp_max_fish_sel; // normalize
+        } // normalize selectivity to max at 1
+          
       } // end s loop
     } // end f loop
   } // end y loop
-   
+  
   // Survey Selectivity
   for(int y = 0; y < n_yrs; y++) {
     for(int sf = 0; sf < n_srv_fleets; sf++) {
@@ -233,6 +243,12 @@ Type objective_function<Type>::operator() ()
           srv_sel(y,a,s,sf) = Get_Selex(srv_age_idx, srv_sel_model(y,sf), tmp_srv_sel_vec);
         } // end a loop 
         
+        // Normalize to max out at 1
+        if(normalize_srv_sel(sf) == 1) {
+          Type tmp_max_srv_sel = max(srv_sel.col(sf).col(s).rotate(1).col(y).vec()); // get max
+          for(int a = 0; a < n_ages; a++) srv_sel.col(sf).col(s).col(a).col(y) /= tmp_max_srv_sel; // normalize
+        } // normalize selectivity to max at 1
+
       } // end s loop
     } // end sf loop
   } // end y loop
@@ -242,20 +258,24 @@ Type objective_function<Type>::operator() ()
     for(int a = 0; a < n_ages; a++) {
       for(int s = 0; s < n_sexes; s++) {
         
+        // Fishing mortality at age calculation
         for(int f = 0; f < n_fish_fleets; f++) {
-          // if else for when we have catch data
-          if(isNA(ObsCatch(y,f))) Fmort(y,f) = 0; // set F to zero if not catch data
-          else Fmort(y,f) = exp(ln_F_mean(f) + ln_F_devs(y,f)); // get fully selected F
-          // Remaining calculations
-          FAA(y,a,s,f) = Fmort(y,f) * fish_sel(y,a,s,f); // fishing mortality at age calculation
-          TotalFAA(y,a,s) += FAA(y,a,s,f); // increment total FAA
+          if(isNA(ObsCatch(y,f))) { // w/o catch data
+            Fmort(y,f) = 0; // set F to zero if not catch data
+            FAA(y,a,s,f) = 0; 
+          } else {
+            Fmort(y,f) = exp(ln_F_mean(f) + ln_F_devs(y,f)); // get fully selected F to report
+            FAA(y,a,s,f) = exp(ln_F_mean(f) + ln_F_devs(y,f)) * fish_sel(y,a,s,f); // fishing mortality at age calculation
+          } // w / catch data
+          TotalFAA(y,a,s) += FAA(y,a,s,f); // get total FAA
         } // end f loop
         
+        // Calculate population mortality/survival
         if(s == 0) natmort(y,a,s) = exp(ln_M); // get natural mortality (females)
         if(s == 1) natmort(y,a,s) = exp(ln_M) + M_offset; // get natural mortality (males)
         ZAA(y,a,s) = TotalFAA(y,a,s) + natmort(y,a,s); // Total FAA and natmort to get ZAA
-        SAA(y,a,s) = exp(Type(-1.0) * ZAA(y,a,s)); // Calculate survival fraction annually
-        SAA_mid(y,a,s) = exp(Type(-0.5) * ZAA(y,a,s)); // Calculate survival fraction during midpoint of year
+        SAA(y,a,s) = exp(-1.0 * ZAA(y,a,s)); // Calculate survival fraction annually
+        SAA_mid(y,a,s) = exp(-0.5 * ZAA(y,a,s)); // Calculate survival fraction during midpoint of year
         
       } // end s loop
     } // end a loop
@@ -275,19 +295,20 @@ Type objective_function<Type>::operator() ()
   } // end y loop
   
   // Initial age-structure
-  for(int a = 1; a < n_ages; a++) { // (minus the first recruitment deviation) 
+  Type init_F = init_F_prop * exp(ln_F_mean(0)); // get initial age structure F
+  for(int a = 1; a < n_ages; a++) { // (minus the first recruitment deviation)
     for(int s = 0; s < n_sexes; s++) {
       // Initialize age structure
       if(a < n_ages - 1) {
-        NAA(0, a, s) = exp(ln_R0  + ln_InitDevs(a-1) - 
-                      (Type(a) * (natmort(0,a,s) + (init_F * fish_sel(0,a,s,0)) ))) * sexratio(s); 
+        NAA(0, a, s) = exp(ln_R0  + ln_InitDevs(a-1) -
+                      (Type(a) * (natmort(0,a,s) + (init_F * fish_sel(0,a,s,0)) ))) * sexratio(s);
       } // other ages (a-1 for initdevs because of TMB indexing)
-      
+
       if(a == n_ages - 1) {
         NAA(0,n_ages - 1,s) = exp(ln_R0 - (Type(n_ages - 1) * (natmort(0,n_ages - 1,s) + (init_F * fish_sel(0,n_ages - 1,s,0))) )) /
                               (1 - exp(-(natmort(0,n_ages - 1,s) + (init_F * fish_sel(0,n_ages - 1,s,0)) ) )) * sexratio(s);
       } // plus group
-      
+
     } // end s loop
   } // end a loop
   
@@ -302,24 +323,18 @@ Type objective_function<Type>::operator() ()
   } // end y loop
   
   // Project Population Forward
-  for(int y = 1; y < n_yrs; y++) { // (Exponential mortality model)
-    for(int a = 1; a < n_ages; a++) {
+  for(int y = 0; y < n_yrs; y++) { // (Exponential mortality model)
+    for(int a = 0; a < n_ages; a++) {
       for(int s = 0; s < n_sexes; s++) {
-        
+
         // Project ages and years forward
-        if(a < (n_ages-1)) { // Not in Plus Group
-          NAA(y,a,s) = NAA(y-1,a-1,s) * SAA(y-1,a-1,s);
-        } // if a < n_ages - 1
-        
-        if(a == n_ages-1){ // Plus group calculation
-          NAA(y,n_ages-1,s) = (NAA(y-1,n_ages-1,s) * SAA(y-1,n_ages-1,s)) + 
-                              (NAA(y-1,n_ages-2,s) * SAA(y-1,n_ages-2,s));
-        } // if a == n_ages - 1
-        
+        if(a < n_ages-1) NAA(y+1,a+1,s) = NAA(y,a,s) * SAA(y,a,s); // not plus group
+        if(a == n_ages-1) NAA(y+1,n_ages-1,s) += (NAA(y,n_ages-1,s) * SAA(y,n_ages-1,s)); // plus group
+
       } // end s loop
     } // end a loop
   } // end y loop
-  
+
   // Spawning biomass calculation
   for(int y = 0; y < n_yrs; y++) {
     for(int a = 0; a < n_ages; a++) {
@@ -391,13 +406,13 @@ Type objective_function<Type>::operator() ()
       
       // Fishery Catches -----------------------------------------------------
       // ADMB likelihood
-      if(likelihood_type == 0 && !isNA(ObsCatch(y,f))) Catch_nLL(y,f) += UseCatch(y,f) * square(log(ObsCatch(y,f)+0.0001) - log(PredCatch(y,f)+0.0001));
+      if(likelihood_type == 0 && !isNA(ObsCatch(y,f))) Catch_nLL(y,f) += UseCatch(y,f) * square(log(ObsCatch(y,f)+Catch_Constant(f)) - log(PredCatch(y,f)+Catch_Constant(f)));
       // TMB likelihood
-      if(likelihood_type == 1 && !isNA(ObsCatch(y,f))) Catch_nLL(y,f) -= UseCatch(y,f) * dnorm(log(ObsCatch(y,f)+0.0001), log(PredCatch(y,f)+0.0001), Catch_sd(f), true);
+      if(likelihood_type == 1 && !isNA(ObsCatch(y,f))) Catch_nLL(y,f) -= UseCatch(y,f) * dnorm(log(ObsCatch(y,f)+0.01), log(PredCatch(y,f)+0.01), Catch_sd(f), true);
         
       // Fishery Indices -----------------------------------------------------
       // ADMB likelihood
-      if(likelihood_type == 0 && !isNA(ObsFishIdx(y,f))) FishIdx_nLL(y,f) += UseFishIdx(y,f) * square(log(ObsFishIdx(y,f)+0.0001) - log(PredFishIdx(y,f)+0.0001)) / (2.0 * square(ObsFishIdx_SE(y,f) / ObsFishIdx(y,f)));
+      if(likelihood_type == 0 && !isNA(ObsFishIdx(y,f))) FishIdx_nLL(y,f) += UseFishIdx(y,f) * square(log(ObsFishIdx(y,f)+0.0001) - log(PredFishIdx(y,f)+0.0001)) / (2* square(ObsFishIdx_SE(y,f) / ObsFishIdx(y,f)));
       // TMB likelihood
       if(likelihood_type == 1 && !isNA(ObsFishIdx(y,f))) FishIdx_nLL(y,f) -= UseFishIdx(y,f) * dnorm(log(ObsFishIdx(y,f)+0.0001), log(PredFishIdx(y,f)+0.0001), Type(ObsFishIdx_SE(y,f) / ObsFishIdx(y,f)), true);
       
@@ -420,7 +435,10 @@ Type objective_function<Type>::operator() ()
           ESS_FishAgeComps(y,0,f) = ISS_FishAgeComps(y,0,f) * Wt_FishAgeComps(0,f); 
           
           // Compute ADMB Multinomial Likelihood
-          if(likelihood_type == 0) FishAgeComps_nLL(y,0,f) -= ESS_FishAgeComps(y,0,f) * UseFishAgeComps(y,f) * ((tmp_ObsFishAgeComps + 0.001) * log(tmp_Agg_CAA + 0.001)).sum();
+          if(likelihood_type == 0) {
+            FishAgeComps_nLL(y,0,f) -= ESS_FishAgeComps(y,0,f) * UseFishAgeComps(y,f) * ((tmp_ObsFishAgeComps + 0.001) * log(tmp_ObsFishAgeComps + 0.001)).sum();
+            FishAgeComps_nLL(y,0,f) -= ESS_FishAgeComps(y,0,f) * UseFishAgeComps(y,f) * ((tmp_ObsFishAgeComps + 0.001) * log(tmp_Agg_CAA + 0.001)).sum();
+          }
           // TMB likelihood
           if(likelihood_type == 1) FishAgeComps_nLL(y,0,f) -= UseFishAgeComps(y,f) * dmultinom(vector<Type> (ESS_FishAgeComps(y,0,f) * tmp_ObsFishAgeComps + 0.001), vector<Type> (tmp_Agg_CAA + 0.001), true);
             
@@ -441,7 +459,10 @@ Type objective_function<Type>::operator() ()
         ESS_FishLenComps(y,s,f) = ISS_FishLenComps(y,s,f) * Wt_FishLenComps(s,f);
 
         // Compute ADMB Multinomial Likelihood
-        if(likelihood_type == 0) FishLenComps_nLL(y,s,f) -= ESS_FishLenComps(y,s,f) * UseFishLenComps(y,f) * ((tmp_ObsFishLenComps + 0.001) * log(tmp_CAL + 0.001)).sum();
+        if(likelihood_type == 0) {
+          FishLenComps_nLL(y,s,f) -= ESS_FishLenComps(y,s,f) * UseFishLenComps(y,f) * ((tmp_ObsFishLenComps + 0.001) * log(tmp_ObsFishLenComps + 0.001)).sum();
+          FishLenComps_nLL(y,s,f) -= ESS_FishLenComps(y,s,f) * UseFishLenComps(y,f) * ((tmp_ObsFishLenComps + 0.001) * log(tmp_CAL + 0.001)).sum();
+        }
         // TMB likelihood
         if(likelihood_type == 1) FishLenComps_nLL(y,s,f) -= UseFishLenComps(y,f) * dmultinom(vector<Type> (ESS_FishLenComps(y,s,f) * tmp_ObsFishLenComps + 0.001), vector<Type> (tmp_CAL + 0.001), true);
 
@@ -457,7 +478,7 @@ Type objective_function<Type>::operator() ()
       
       // Survey Indices ------------------------------------------------------
       // ADMB likelihood
-      if(likelihood_type == 0 && !isNA(ObsSrvIdx(y,sf))) SrvIdx_nLL(y,sf) += UseSrvIdx(y,sf) * square(log(ObsSrvIdx(y,sf)+0.0001) - log(PredSrvIdx(y,sf)+0.0001)) / (2.0 * square(ObsSrvIdx_SE(y,sf) / ObsSrvIdx(y,sf)));
+      if(likelihood_type == 0 && !isNA(ObsSrvIdx(y,sf))) SrvIdx_nLL(y,sf) += UseSrvIdx(y,sf) * square(log(ObsSrvIdx(y,sf)+0.0001) - log(PredSrvIdx(y,sf)+0.0001)) / (2 * square(ObsSrvIdx_SE(y,sf) / ObsSrvIdx(y,sf)));
       // TMB likelihood
       if(likelihood_type == 1 && !isNA(ObsSrvIdx(y,sf))) SrvIdx_nLL(y,sf) -= UseSrvIdx(y,sf) * dnorm(log(ObsSrvIdx(y,sf)+0.0001), log(PredSrvIdx(y,sf)+0.0001), Type(ObsSrvIdx_SE(y,sf) / ObsSrvIdx(y,sf)), true);
       
@@ -480,7 +501,10 @@ Type objective_function<Type>::operator() ()
           ESS_SrvAgeComps(y,0,sf) = ISS_SrvAgeComps(y,0,sf) * Wt_SrvAgeComps(0,sf); 
           
           // Compute ADMB Multinomial Likelihood
-          if(likelihood_type == 0) SrvAgeComps_nLL(y,0,sf) -= ESS_SrvAgeComps(y,0,sf) * UseSrvAgeComps(y,sf) * ((tmp_ObsSrvAgeComps + 0.001) * log(tmp_Agg_SrvIAA + 0.001)).sum(); 
+          if(likelihood_type == 0) {
+            SrvAgeComps_nLL(y,0,sf) -= ESS_SrvAgeComps(y,0,sf) * UseSrvAgeComps(y,sf) * ((tmp_ObsSrvAgeComps + 0.001) * log(tmp_ObsSrvAgeComps + 0.001)).sum(); 
+            SrvAgeComps_nLL(y,0,sf) -= ESS_SrvAgeComps(y,0,sf) * UseSrvAgeComps(y,sf) * ((tmp_ObsSrvAgeComps + 0.001) * log(tmp_Agg_SrvIAA + 0.001)).sum(); 
+          }
           // TMB likelihood
           if(likelihood_type == 1) SrvAgeComps_nLL(y,0,sf) -= UseSrvAgeComps(y,sf) * dmultinom(vector<Type> (ESS_SrvAgeComps(y,0,sf) * tmp_ObsSrvAgeComps + 0.001), vector<Type> (tmp_Agg_SrvIAA + 0.001), true);
           
@@ -505,7 +529,10 @@ Type objective_function<Type>::operator() ()
           ESS_SrvLenComps(y,s,sf) = ISS_SrvLenComps(y,s,sf) * Wt_SrvLenComps(s,sf);
           
           // Compute ADMB Multinomial Likelihood
-          if(likelihood_type == 0) SrvLenComps_nLL(y,s,sf) -= ESS_SrvLenComps(y,s,sf) * UseSrvLenComps(y,sf) * ((tmp_ObsSrvLenComps + 0.001) * log(tmp_SrvIAL + 0.001)).sum();
+          if(likelihood_type == 0) {
+            SrvLenComps_nLL(y,s,sf) -= ESS_SrvLenComps(y,s,sf) * UseSrvLenComps(y,sf) * ((tmp_ObsSrvLenComps + 0.001) * log(tmp_ObsSrvLenComps + 0.001)).sum();
+            SrvLenComps_nLL(y,s,sf) -= ESS_SrvLenComps(y,s,sf) * UseSrvLenComps(y,sf) * ((tmp_ObsSrvLenComps + 0.001) * log(tmp_SrvIAL + 0.001)).sum();
+          }
           // TMB likelihood
           if(likelihood_type == 1) SrvLenComps_nLL(y,s,sf) -= UseSrvLenComps(y,sf) * dmultinom(vector<Type> (ESS_SrvLenComps(y,s,sf) * tmp_ObsSrvLenComps + 0.001), vector<Type> (tmp_SrvIAL + 0.001), true);
 
@@ -522,7 +549,7 @@ Type objective_function<Type>::operator() ()
   } // end f loop
   
   // Natural Mortality (Prior)
-  if(Use_M_prior == 1) M_Pen += square(ln_M - log(M_prior(0))) / (2 * square(M_prior(1)));
+  if(Use_M_prior == 1) M_Pen = square(ln_M - log(M_prior(0))) / (2 * square(M_prior(1)));
 
   // Recruitment (Penalty)
   // Initial Age Structure
@@ -542,11 +569,12 @@ Type objective_function<Type>::operator() ()
          SrvLenComps_nLL.sum() + 
          (0.1 * Fmort_Pen.sum()) + 
          M_Pen + 
-         (1.5 * 0.5 * Rec_nLL.sum()) + 
-         (1.5 * 0.5 * Init_Rec_nLL.sum());
+         (1.5 *  0.5 * Rec_nLL.sum()) + 
+         (1.5 *  0.5 * Init_Rec_nLL.sum());
 
   // REPORT SECTION ------------------------------------------------------------
   REPORT(NAA);
+  REPORT(SAA_mid);
   REPORT(ZAA);
   REPORT(SSB);
   REPORT(natmort); 
@@ -583,6 +611,8 @@ Type objective_function<Type>::operator() ()
   REPORT(Rec_nLL);
   REPORT(Init_Rec_nLL);
   REPORT(init_F);
+  
+  ADREPORT(SSB);
   
   return jnLL; 
 } // end objective function
