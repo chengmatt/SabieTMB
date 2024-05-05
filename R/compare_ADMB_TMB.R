@@ -396,7 +396,7 @@ mapping$ln_sigmaR_late <- factor(NA) # fix late sigma R
 mapping$ln_sigmaR_early <- factor(NA) # fix early sigma R
 mapping$M_offset <- factor(NA) # fix natural mortality offset]
 
-# TMB Model -------------------------------------------------------------------
+# TMB Model (Deterministic) -------------------------------------------------------------------
 setwd(here("src"))
 compile("SabieTMB.cpp")
 dyn.load(dynlib('SabieTMB'))
@@ -585,7 +585,7 @@ ggplot() +
 dev.off()
 
 
-### Esimating parameters with sharing ---------------------------------------
+### Esimating parameters with sharing (Estimation) ---------------------------------------
 mapping <- list()
 mapping$ln_sigmaR_early <- factor(NA) # fix early sigma R
 mapping$M_offset <- factor(NA) # fix natural mortality offset
