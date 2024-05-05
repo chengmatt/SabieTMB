@@ -42,6 +42,16 @@ Type Get_Selex(Type age,
   return selex;
 } // end function
 
+template <class Type> // sum to zero constraint
+vector<Type> sum_to_zero(vector<Type> vec, Type dev_NA) {
+  Type sum_of_vec = 0; // initialize
+  Type adjustment = 0; // initialize
+  vector<Type> vec1(vec.size());
+  sum_of_vec = vec.sum(); // get sum of vector
+  adjustment = -sum_of_vec / (vec.size() - dev_NA); // get adjustement factor
+  for(int i = 0; i < vec1.size(); i++) vec1(i) = vec(i) + adjustment;
+  return vec1;
+} // end function
 
 template <class Type> // Square a variable
 Type square(Type x){return x*x;}

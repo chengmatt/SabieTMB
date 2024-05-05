@@ -1,0 +1,21 @@
+"","Data Source","2023 Model 23.5","2022 Model 21.12"
+"1","Fixed Gear Fishery Age Comp",0.798,0.799
+"2","NOAA Domestic LL Survey Age Comp",3.724,3.961
+"3","Japanese Coop LL Survey Age Comp",1.272,1.142
+"4","Fixed Gear Fishery Male Length Comp",5.216,5.592
+"5","Fixed Gear Fishery Female Length Comp",4.945,5.099
+"6","NOAA Domestic LL Survey Male Length Comp",1.115,1.389
+"7","NOAA Domestic LL Survey Female Length Comp",1.5,1.658
+"8","Japenese Coop LL Survey Male Length Comp",0.902,1.086
+"9","Japanese Coop LL Survey Female Length Comp",1.268,1.622
+"10","Trawl Fishery Male Length Comp",0.255,0.272
+"11","Trawl Fishery Female Length Comp",0.35,0.372
+"12","NOAA GOA Trawl Survey Male Length Comp",0.45,0.599
+"13","NOAA GOA Trawl Survey Female Length Comp",0.673,0.773
+"14","Fixed Gear Fishery Catch",50,50
+"15","Trawl Gear Fishery Catch",50,50
+"16","NOAA Domestic LL Survey RPN Index",0.448,0.448
+"17","Japenese Coop LL Survey RPN Index",0.448,0.448
+"18","Fixed Gear Fishery CPUE Index",0.448,0.448
+"19","Japanese LL Fishery CPUE Index",0.448,0.448
+"20","NOAA GOA Trawl Survey Biomass Index",0.448,0.448

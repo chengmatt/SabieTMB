@@ -1,0 +1,1 @@
+NOTE: tem_corrected.tpl has the correct bias correction to use for future SAFE models.

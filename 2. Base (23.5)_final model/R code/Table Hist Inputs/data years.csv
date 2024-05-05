@@ -1,0 +1,13 @@
+﻿Source,Data,Years
+Fixed gear fisheries,Catch,1960 – 2022
+Trawl fisheries,Catch,1960 – 2022
+Japanese longline fishery,Catch-per-unit-effort (CPUE),1964 – 1981
+U.S. fixed gear fishery,"CPUE, length",1990 – 2021
+,Age,1999 – 2021
+U.S. trawl fisheries,Length,"1990,1991,1999, 2005 – 2021"
+Japan-U.S. cooperative longline survey,"RPNs, length",1979 - 1994
+,Age,"1981, 1983, 1985, 1987, 1989, 1991, 1993"
+Domestic longline survey,"RPNs, length",1990 – 2022
+,Age,1996 – 2021
+NMFS GOA trawl survey,Biomass index,"1984, 1987, 1990, 1993, 1996, 1999, 2003, 2005, 2007, 2009, 2011, 2013, 2015, 2017, 2019, 2021"
+,Lengths,"1984, 1987, 1990, 1993, 1996, 1999, 2003, 2005, 2007, 2009, 2011, 2013, 2015, 2017, 2019, 2021"

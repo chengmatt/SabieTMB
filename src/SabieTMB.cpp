@@ -130,6 +130,7 @@ Type objective_function<Type>::operator() ()
   array<Type> SAA(n_yrs, n_ages, n_sexes); // array of survival at age annual
   array<Type> SAA_mid(n_yrs, n_ages, n_sexes); // array of survival at age midpoint
   vector<Type> SSB(n_yrs); // spawning stock biomass vector
+  vector<Type> Rec(n_yrs); // recruitment vector
   array<Type> natmort(n_yrs, n_ages, n_sexes); // array of natural mortality
   Type sigmaR2_early = pow(exp(ln_sigmaR_early),2); // calculate sigmaR2 for early period
   Type sigmaR2_late = pow(exp(ln_sigmaR_late),2); // calculate sigmaR2 for late period
@@ -286,11 +287,9 @@ Type objective_function<Type>::operator() ()
     if(do_rec_bias_ramp == 0) bias_ramp(y) = 1; // don't do bias ramp correction
     if(do_rec_bias_ramp == 1) {
       if(y < bias_year(0) || y == bias_year(3)) bias_ramp(y) = 0; // no bias correction during poor data
-      // if(y >= bias_year(0) && y < bias_year(1)) bias_ramp(y) = 1 * ((y - bias_year(0)) / (bias_year(1) - bias_year(0))); // bias correction once we get more data
-      if(y >= bias_year(0) && y < bias_year(1)) bias_ramp(y) = 1 * (1-((y-bias_year(0))/(bias_year(1)-bias_year(0)))); // incorrect ascending limb
+      if(y >= bias_year(0) && y < bias_year(1)) bias_ramp(y) = 1 * ((y - bias_year(0)) / (bias_year(1) - bias_year(0))); // bias correction once we get more data
       if(y >= bias_year(1) && y < bias_year(2)) bias_ramp(y) = 1; // full bias correction
-      // if(y >= bias_year(2) && y < bias_year(3)) bias_ramp(y) = 1 * (1 - ((y - bias_year(2)) / (bias_year(3) - bias_year(2)))); // descending limb for less rec data
-      if(y >= bias_year(2) && y < bias_year(3)) bias_ramp(y) = 1 * (1 - ((bias_year(2) - y) / (bias_year(3) - bias_year(2)))); // incorrect descending limb for less rec data
+      if(y >= bias_year(2) && y < bias_year(3)) bias_ramp(y) = 1 * (1 - ((y - bias_year(2)) / (bias_year(3) - bias_year(2)))); // descending limb for less rec data
     } // if we want to do bias ramp
   } // end y loop
   
@@ -318,7 +317,8 @@ Type objective_function<Type>::operator() ()
       // Annual mean recruitment
       if(y < sigmaR_switch) NAA(y,0,s) = exp(ln_R0 + ln_RecDevs(y) - (bias_ramp(y) * sigmaR2_early/2)) * sexratio(s); // early period
       if(y >= sigmaR_switch && y < (n_yrs - 1)) NAA(y,0,s) = exp(ln_R0 + ln_RecDevs(y) - (bias_ramp(y) * sigmaR2_late/2)) * sexratio(s); // late period
-      if(y == (n_yrs - 1)) NAA(n_yrs - 1,0,s) = exp(ln_R0) * sexratio(s); // last year = mean recruitment
+      if(y == (n_yrs - 1)) NAA(y,0,s) = exp(ln_R0) * sexratio(s); 
+      Rec(y) += NAA(y,0,s); // get vector of predicted recruitments
     } // end s loop
   } // end y loop
   
@@ -435,10 +435,7 @@ Type objective_function<Type>::operator() ()
           ESS_FishAgeComps(y,0,f) = ISS_FishAgeComps(y,0,f) * Wt_FishAgeComps(0,f); 
           
           // Compute ADMB Multinomial Likelihood
-          if(likelihood_type == 0) {
-            FishAgeComps_nLL(y,0,f) -= ESS_FishAgeComps(y,0,f) * UseFishAgeComps(y,f) * ((tmp_ObsFishAgeComps + 0.001) * log(tmp_ObsFishAgeComps + 0.001)).sum();
-            FishAgeComps_nLL(y,0,f) -= ESS_FishAgeComps(y,0,f) * UseFishAgeComps(y,f) * ((tmp_ObsFishAgeComps + 0.001) * log(tmp_Agg_CAA + 0.001)).sum();
-          }
+          if(likelihood_type == 0) FishAgeComps_nLL(y,0,f) -= ESS_FishAgeComps(y,0,f) * UseFishAgeComps(y,f) * ((tmp_ObsFishAgeComps + 0.001) * log(tmp_Agg_CAA + 0.001)).sum();
           // TMB likelihood
           if(likelihood_type == 1) FishAgeComps_nLL(y,0,f) -= UseFishAgeComps(y,f) * dmultinom(vector<Type> (ESS_FishAgeComps(y,0,f) * tmp_ObsFishAgeComps + 0.001), vector<Type> (tmp_Agg_CAA + 0.001), true);
             
@@ -460,7 +457,6 @@ Type objective_function<Type>::operator() ()
 
         // Compute ADMB Multinomial Likelihood
         if(likelihood_type == 0) {
-          FishLenComps_nLL(y,s,f) -= ESS_FishLenComps(y,s,f) * UseFishLenComps(y,f) * ((tmp_ObsFishLenComps + 0.001) * log(tmp_ObsFishLenComps + 0.001)).sum();
           FishLenComps_nLL(y,s,f) -= ESS_FishLenComps(y,s,f) * UseFishLenComps(y,f) * ((tmp_ObsFishLenComps + 0.001) * log(tmp_CAL + 0.001)).sum();
         }
         // TMB likelihood
@@ -502,7 +498,6 @@ Type objective_function<Type>::operator() ()
           
           // Compute ADMB Multinomial Likelihood
           if(likelihood_type == 0) {
-            SrvAgeComps_nLL(y,0,sf) -= ESS_SrvAgeComps(y,0,sf) * UseSrvAgeComps(y,sf) * ((tmp_ObsSrvAgeComps + 0.001) * log(tmp_ObsSrvAgeComps + 0.001)).sum(); 
             SrvAgeComps_nLL(y,0,sf) -= ESS_SrvAgeComps(y,0,sf) * UseSrvAgeComps(y,sf) * ((tmp_ObsSrvAgeComps + 0.001) * log(tmp_Agg_SrvIAA + 0.001)).sum(); 
           }
           // TMB likelihood
@@ -530,7 +525,6 @@ Type objective_function<Type>::operator() ()
           
           // Compute ADMB Multinomial Likelihood
           if(likelihood_type == 0) {
-            SrvLenComps_nLL(y,s,sf) -= ESS_SrvLenComps(y,s,sf) * UseSrvLenComps(y,sf) * ((tmp_ObsSrvLenComps + 0.001) * log(tmp_ObsSrvLenComps + 0.001)).sum();
             SrvLenComps_nLL(y,s,sf) -= ESS_SrvLenComps(y,s,sf) * UseSrvLenComps(y,sf) * ((tmp_ObsSrvLenComps + 0.001) * log(tmp_SrvIAL + 0.001)).sum();
           }
           // TMB likelihood
@@ -544,8 +538,9 @@ Type objective_function<Type>::operator() ()
   // Priors and Penalties
   // Fishing Mortality (Penalty)
   for(int f = 0; f < n_fish_fleets; f++) {
-    vector<Type> tmp_ln_F_devs = ln_F_devs.col(f); // extract out f deviations
-    Fmort_Pen(f) = square(tmp_ln_F_devs).sum(); // SSQ penalize
+    for(int y = 0; y < n_yrs; y++) {
+      if(!isNA(ObsCatch(y,f))) Fmort_Pen(f) += square(ln_F_devs(y,f)); // SSQ penalize
+    } // end y loop
   } // end f loop
   
   // Natural Mortality (Prior)
@@ -562,7 +557,7 @@ Type objective_function<Type>::operator() ()
   // Apply likelihood weights here and compute joint negative log likelihood
   jnLL = (50 * Catch_nLL.sum()) + 
          (0.448 * FishIdx_nLL.sum()) + 
-         FishAgeComps_nLL.sum() + 
+         FishAgeComps_nLL.sum() +
          FishLenComps_nLL.sum() +
          (0.448 * SrvIdx_nLL.sum()) + 
          SrvAgeComps_nLL.sum() +
@@ -613,6 +608,7 @@ Type objective_function<Type>::operator() ()
   REPORT(init_F);
   
   ADREPORT(SSB);
+  ADREPORT(Rec);
   
   return jnLL; 
 } // end objective function
