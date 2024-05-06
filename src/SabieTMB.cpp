@@ -24,24 +24,19 @@ Type objective_function<Type>::operator() ()
 
   // Biological Processes
   DATA_INTEGER(do_rec_bias_ramp); // switch for if we want to do bias ramp from Methot and Taylor 2011 (==0 no ramp), (==1 ramp)
-  DATA_VECTOR(bias_year); // breakpoints for when to change bias ramp (slot 0 = period w/o bias correction, slot 1 = ascending, slot 2 = descending)
-  DATA_INTEGER(sigmaR_switch); // switch for sigmaR (year we want to switch sigmaR)
+  DATA_VECTOR(bias_year); // breakpoints for when to change bias ramp (slot 0 = period w/o bias correction, slot 1 = ascending, slot 2 = descending, slot 3 = no bias correction in last year)
+  DATA_INTEGER(sigmaR_switch); // switch for sigmaR (year we want to switch sigmaR - from low rec variability to high rec variability)
   DATA_ARRAY(WAA); // array of weight-at-age (n_years, n_ages, n_sexes)
   DATA_ARRAY(MatAA); // array of maturity at age (n_years, n_ages, n_sexes)
+  DATA_VECTOR(sexratio); // vector of recruitment sex ratio (n_sexes)
   DATA_MATRIX(AgeingError); // matrix of ageing error (n_ages, n_ages) 
   DATA_ARRAY(SizeAgeTrans); // array for size age transition (n_years, n_lens, n_ages, n_sexes)
-  DATA_VECTOR(sexratio); // vector of recruitment sex ratio (n_sexes)
-  DATA_IVECTOR(normalize_fish_sel); // normalize fishery selectivity to max at 1 == 0, no normalization, == 1 normalize
-  DATA_IVECTOR(normalize_srv_sel); // normalize survey selectivity to max at 1 == 0, no normalization, == 1 normalize
-  // DATA_ARRAY(NAA);
-  // DATA_ARRAY(ZAA);
   
   // Observations (Data)
   // Catches
   DATA_SCALAR(init_F_prop); // initial F proportion for initial age structure (fished age structure)
   DATA_VECTOR(Catch_Constant); // vector of catch constants to add (0.01 for fixed gear, 0.8 for trawl)
   DATA_MATRIX(ObsCatch); // matrix of observed catches (n_years, n_fish_fleets)
-  DATA_VECTOR(Catch_sd); // vector of catch sd (n_fish_fleets)
   DATA_IMATRIX(UseCatch); // indicator for using catch (n_years, n_fish_fleets), == 0 not using, == 1 using
   
   // Indices
@@ -81,22 +76,28 @@ Type objective_function<Type>::operator() ()
   // Model Specifications
   // Specifications for Fishery Processes
   DATA_INTEGER(share_sel); // whether to share sex specific selectivity for index calculations (sablefish specific)
+  DATA_IVECTOR(normalize_fish_sel); // normalize fishery selectivity to max at 1 == 0, no normalization, == 1 normalize
   DATA_IMATRIX(fish_sel_blocks); // matrix of specifying fishery selectivity blocks (n_years, n_fish_fleets)
   DATA_IMATRIX(fish_q_blocks); // matrix of specifying fishery catchability blocks (n_years, n_fish_fleets)
   DATA_IVECTOR(fish_idx_type); // vector of specifying fishery index type (n_fish_fleets), == 0, abundance, == biomass
   DATA_IMATRIX(fish_sel_model); // matrix of specifying fishery selectivity models (n_years, n_fish_fleets)
   
   // Specifications for Survey Processes
+  DATA_IVECTOR(normalize_srv_sel); // normalize survey selectivity to max at 1 == 0, no normalization, == 1 normalize
   DATA_IMATRIX(srv_sel_blocks); // matrix of specifying survey selectivity blocks (n_years, n_srv_fleets)
   DATA_IMATRIX(srv_q_blocks); // matrix of specifying survey catchability blocks (n_years, n_srv_fleets)
   DATA_IVECTOR(srv_idx_type); // vector of specifying survey index type (n_srv_fleets), == 0, abundance, == biomass
   DATA_IMATRIX(srv_sel_model); // matrix of specifying survey selectivity models (n_years, n_srv_fleets)
   
   // Likelihoods and priors
+  DATA_SCALAR(Wt_Catch); // Scalar value for catch weights
+  DATA_SCALAR(Wt_FishIdx); // Scalar value for fishery index weights
+  DATA_SCALAR(Wt_SrvIdx); // Scalar value for survey index weights
+  DATA_SCALAR(Wt_Rec); // Scalar value for recruitment weights
+  DATA_SCALAR(Wt_F); // Scalar value for fishiery penalty weights
   DATA_INTEGER(Use_M_prior); // indicator for using natural mortality prior (== 0, don't use, == 1, use)
   DATA_VECTOR(M_prior); // prior for natural mortality dim 1 = mean, dim 2 = sd
-  DATA_INTEGER(likelihood_type); // integer of whether or not to use ADMB likelihoods (0) or TMB likelihoods (1)
-  
+
   // PARAMETER SECTION ---------------------------------------------------------
   PARAMETER(dummy); // dummy parameter for testing
   
@@ -287,9 +288,9 @@ Type objective_function<Type>::operator() ()
     if(do_rec_bias_ramp == 0) bias_ramp(y) = 1; // don't do bias ramp correction
     if(do_rec_bias_ramp == 1) {
       if(y < bias_year(0) || y == bias_year(3)) bias_ramp(y) = 0; // no bias correction during poor data
-      if(y >= bias_year(0) && y < bias_year(1)) bias_ramp(y) = 1 * ((y - bias_year(0)) / (bias_year(1) - bias_year(0))); // bias correction once we get more data
+      if(y >= bias_year(0) && y < bias_year(1)) bias_ramp(y) = 1 * ((y - bias_year(0)) / (bias_year(1) - bias_year(0))); // ascending limb
       if(y >= bias_year(1) && y < bias_year(2)) bias_ramp(y) = 1; // full bias correction
-      if(y >= bias_year(2) && y < bias_year(3)) bias_ramp(y) = 1 * (1 - ((y - bias_year(2)) / (bias_year(3) - bias_year(2)))); // descending limb for less rec data
+      if(y >= bias_year(2) && y < bias_year(3)) bias_ramp(y) = 1 * (1 - ((y - bias_year(2)) / (bias_year(3) - bias_year(2)))); // descending limb 
     } // if we want to do bias ramp
   } // end y loop
   
@@ -405,17 +406,11 @@ Type objective_function<Type>::operator() ()
     for(int f = 0; f < n_fish_fleets; f++) {
       
       // Fishery Catches -----------------------------------------------------
-      // ADMB likelihood
-      if(likelihood_type == 0 && !isNA(ObsCatch(y,f))) Catch_nLL(y,f) += UseCatch(y,f) * square(log(ObsCatch(y,f)+Catch_Constant(f)) - log(PredCatch(y,f)+Catch_Constant(f)));
-      // TMB likelihood
-      if(likelihood_type == 1 && !isNA(ObsCatch(y,f))) Catch_nLL(y,f) -= UseCatch(y,f) * dnorm(log(ObsCatch(y,f)+0.01), log(PredCatch(y,f)+0.01), Catch_sd(f), true);
-        
+      if(!isNA(ObsCatch(y,f))) Catch_nLL(y,f) += UseCatch(y,f) * square(log(ObsCatch(y,f)+Catch_Constant(f)) - log(PredCatch(y,f)+Catch_Constant(f)));
+
       // Fishery Indices -----------------------------------------------------
-      // ADMB likelihood
-      if(likelihood_type == 0 && !isNA(ObsFishIdx(y,f))) FishIdx_nLL(y,f) += UseFishIdx(y,f) * square(log(ObsFishIdx(y,f)+0.0001) - log(PredFishIdx(y,f)+0.0001)) / (2* square(ObsFishIdx_SE(y,f) / ObsFishIdx(y,f)));
-      // TMB likelihood
-      if(likelihood_type == 1 && !isNA(ObsFishIdx(y,f))) FishIdx_nLL(y,f) -= UseFishIdx(y,f) * dnorm(log(ObsFishIdx(y,f)+0.0001), log(PredFishIdx(y,f)+0.0001), Type(ObsFishIdx_SE(y,f) / ObsFishIdx(y,f)), true);
-      
+      if(!isNA(ObsFishIdx(y,f))) FishIdx_nLL(y,f) += UseFishIdx(y,f) * square(log(ObsFishIdx(y,f)+0.0001) - log(PredFishIdx(y,f)+0.0001)) / (2* square(ObsFishIdx_SE(y,f) / ObsFishIdx(y,f)));
+
       // Aggregating Fishery Age Compositions --------------------------------
       if(AggFishAgeComps(y,f) == 0) { 
         if(!isNA(ObsFishAgeComps.col(f).col(0).rotate(1).col(y).sum())) { // only evaluate when there aren't NAs in data
@@ -435,10 +430,8 @@ Type objective_function<Type>::operator() ()
           ESS_FishAgeComps(y,0,f) = ISS_FishAgeComps(y,0,f) * Wt_FishAgeComps(0,f); 
           
           // Compute ADMB Multinomial Likelihood
-          if(likelihood_type == 0) FishAgeComps_nLL(y,0,f) -= ESS_FishAgeComps(y,0,f) * UseFishAgeComps(y,f) * ((tmp_ObsFishAgeComps + 0.001) * log(tmp_Agg_CAA + 0.001)).sum();
-          // TMB likelihood
-          if(likelihood_type == 1) FishAgeComps_nLL(y,0,f) -= UseFishAgeComps(y,f) * dmultinom(vector<Type> (ESS_FishAgeComps(y,0,f) * tmp_ObsFishAgeComps + 0.001), vector<Type> (tmp_Agg_CAA + 0.001), true);
-            
+          FishAgeComps_nLL(y,0,f) -= ESS_FishAgeComps(y,0,f) * UseFishAgeComps(y,f) * ((tmp_ObsFishAgeComps + 0.001) * log(tmp_Agg_CAA + 0.001)).sum();
+
         } // if there are age composition data for a given fleet
       } // if aggregating fishery age comps
       
@@ -456,11 +449,7 @@ Type objective_function<Type>::operator() ()
         ESS_FishLenComps(y,s,f) = ISS_FishLenComps(y,s,f) * Wt_FishLenComps(s,f);
 
         // Compute ADMB Multinomial Likelihood
-        if(likelihood_type == 0) {
-          FishLenComps_nLL(y,s,f) -= ESS_FishLenComps(y,s,f) * UseFishLenComps(y,f) * ((tmp_ObsFishLenComps + 0.001) * log(tmp_CAL + 0.001)).sum();
-        }
-        // TMB likelihood
-        if(likelihood_type == 1) FishLenComps_nLL(y,s,f) -= UseFishLenComps(y,f) * dmultinom(vector<Type> (ESS_FishLenComps(y,s,f) * tmp_ObsFishLenComps + 0.001), vector<Type> (tmp_CAL + 0.001), true);
+        FishLenComps_nLL(y,s,f) -= ESS_FishLenComps(y,s,f) * UseFishLenComps(y,f) * ((tmp_ObsFishLenComps + 0.001) * log(tmp_CAL + 0.001)).sum();
 
         } // if len comps for a given fleet
       } // end s loop
@@ -474,10 +463,8 @@ Type objective_function<Type>::operator() ()
       
       // Survey Indices ------------------------------------------------------
       // ADMB likelihood
-      if(likelihood_type == 0 && !isNA(ObsSrvIdx(y,sf))) SrvIdx_nLL(y,sf) += UseSrvIdx(y,sf) * square(log(ObsSrvIdx(y,sf)+0.0001) - log(PredSrvIdx(y,sf)+0.0001)) / (2 * square(ObsSrvIdx_SE(y,sf) / ObsSrvIdx(y,sf)));
-      // TMB likelihood
-      if(likelihood_type == 1 && !isNA(ObsSrvIdx(y,sf))) SrvIdx_nLL(y,sf) -= UseSrvIdx(y,sf) * dnorm(log(ObsSrvIdx(y,sf)+0.0001), log(PredSrvIdx(y,sf)+0.0001), Type(ObsSrvIdx_SE(y,sf) / ObsSrvIdx(y,sf)), true);
-      
+      if(!isNA(ObsSrvIdx(y,sf))) SrvIdx_nLL(y,sf) += UseSrvIdx(y,sf) * square(log(ObsSrvIdx(y,sf)+0.0001) - log(PredSrvIdx(y,sf)+0.0001)) / (2 * square(ObsSrvIdx_SE(y,sf) / ObsSrvIdx(y,sf)));
+
       // Aggregating Survey Age Compositions ---------------------------------
       if(AggSrvAgeComps(y,sf) == 0) { 
         if(!isNA(ObsSrvAgeComps.col(sf).col(0).rotate(1).col(y).sum())) { // only evaluate when there aren't NAs in data
@@ -496,13 +483,9 @@ Type objective_function<Type>::operator() ()
           // Calculate effective sample size for fishery age compositions
           ESS_SrvAgeComps(y,0,sf) = ISS_SrvAgeComps(y,0,sf) * Wt_SrvAgeComps(0,sf); 
           
-          // Compute ADMB Multinomial Likelihood
-          if(likelihood_type == 0) {
-            SrvAgeComps_nLL(y,0,sf) -= ESS_SrvAgeComps(y,0,sf) * UseSrvAgeComps(y,sf) * ((tmp_ObsSrvAgeComps + 0.001) * log(tmp_Agg_SrvIAA + 0.001)).sum(); 
-          }
-          // TMB likelihood
-          if(likelihood_type == 1) SrvAgeComps_nLL(y,0,sf) -= UseSrvAgeComps(y,sf) * dmultinom(vector<Type> (ESS_SrvAgeComps(y,0,sf) * tmp_ObsSrvAgeComps + 0.001), vector<Type> (tmp_Agg_SrvIAA + 0.001), true);
-          
+          // Compute Multinomial Likelihood
+          SrvAgeComps_nLL(y,0,sf) -= ESS_SrvAgeComps(y,0,sf) * UseSrvAgeComps(y,sf) * ((tmp_ObsSrvAgeComps + 0.001) * log(tmp_Agg_SrvIAA + 0.001)).sum(); 
+     
         } // if there are age composition data for a given survey fleet
       } // if aggregating survey age comps
     } // end sf loop
@@ -523,12 +506,8 @@ Type objective_function<Type>::operator() ()
           // Calculate effective sample size for survey length compositions
           ESS_SrvLenComps(y,s,sf) = ISS_SrvLenComps(y,s,sf) * Wt_SrvLenComps(s,sf);
           
-          // Compute ADMB Multinomial Likelihood
-          if(likelihood_type == 0) {
-            SrvLenComps_nLL(y,s,sf) -= ESS_SrvLenComps(y,s,sf) * UseSrvLenComps(y,sf) * ((tmp_ObsSrvLenComps + 0.001) * log(tmp_SrvIAL + 0.001)).sum();
-          }
-          // TMB likelihood
-          if(likelihood_type == 1) SrvLenComps_nLL(y,s,sf) -= UseSrvLenComps(y,sf) * dmultinom(vector<Type> (ESS_SrvLenComps(y,s,sf) * tmp_ObsSrvLenComps + 0.001), vector<Type> (tmp_SrvIAL + 0.001), true);
+          // Compute Multinomial Likelihood
+          SrvLenComps_nLL(y,s,sf) -= ESS_SrvLenComps(y,s,sf) * UseSrvLenComps(y,sf) * ((tmp_ObsSrvLenComps + 0.001) * log(tmp_SrvIAL + 0.001)).sum();
 
         } // if len comps for a given fleet
       } // end s loop
@@ -539,6 +518,7 @@ Type objective_function<Type>::operator() ()
   // Fishing Mortality (Penalty)
   for(int f = 0; f < n_fish_fleets; f++) {
     for(int y = 0; y < n_yrs; y++) {
+      // Only penalize when there are catch data
       if(!isNA(ObsCatch(y,f))) Fmort_Pen(f) += square(ln_F_devs(y,f)); // SSQ penalize
     } // end y loop
   } // end f loop
@@ -547,46 +527,48 @@ Type objective_function<Type>::operator() ()
   if(Use_M_prior == 1) M_Pen = square(ln_M - log(M_prior(0))) / (2 * square(M_prior(1)));
 
   // Recruitment (Penalty)
-  // Initial Age Structure
-  for(int a = 0; a < n_ages - 2; a++) Init_Rec_nLL(a) = square(ln_InitDevs(a) / exp(ln_sigmaR_early)); 
-  
-  // Recruitment deviations 
-  for(int y = 0; y < sigmaR_switch; y++) Rec_nLL(y) = square(ln_RecDevs(y)/exp(ln_sigmaR_early)) + bias_ramp(y)*ln_sigmaR_early;
-  for(int y = sigmaR_switch; y < (n_yrs - 1); y++) Rec_nLL(y) = square(ln_RecDevs(y)/exp(ln_sigmaR_late)) + bias_ramp(y)*ln_sigmaR_late;
+  for(int a = 0; a < n_ages - 2; a++) Init_Rec_nLL(a) = square(ln_InitDevs(a) / exp(ln_sigmaR_early)); // initial age structure
+  for(int y = 0; y < sigmaR_switch; y++) Rec_nLL(y) = square(ln_RecDevs(y)/exp(ln_sigmaR_early)) + bias_ramp(y)*ln_sigmaR_early; // early period
+  for(int y = sigmaR_switch; y < (n_yrs - 1); y++) Rec_nLL(y) = square(ln_RecDevs(y)/exp(ln_sigmaR_late)) + bias_ramp(y)*ln_sigmaR_late; // late period
   
   // Apply likelihood weights here and compute joint negative log likelihood
-  jnLL = (50 * Catch_nLL.sum()) + 
-         (0.448 * FishIdx_nLL.sum()) + 
-         FishAgeComps_nLL.sum() +
-         FishLenComps_nLL.sum() +
-         (0.448 * SrvIdx_nLL.sum()) + 
-         SrvAgeComps_nLL.sum() +
-         SrvLenComps_nLL.sum() + 
-         (0.1 * Fmort_Pen.sum()) + 
-         M_Pen + 
-         (1.5 *  0.5 * Rec_nLL.sum()) + 
-         (1.5 *  0.5 * Init_Rec_nLL.sum());
+  jnLL = (Wt_Catch* Catch_nLL.sum()) + // Catch likelihoods
+         (Wt_FishIdx * FishIdx_nLL.sum()) + // Fishery Index likelihood
+         FishAgeComps_nLL.sum() + // Fishery Age likelihood
+         FishLenComps_nLL.sum() + // Fishery Length likelihood
+         (Wt_SrvIdx * SrvIdx_nLL.sum()) + // Survey Index likelihood
+         SrvAgeComps_nLL.sum() + // Survey Age likelihood
+         SrvLenComps_nLL.sum() + // Survey Length likelihood
+         (Wt_F* Fmort_Pen.sum()) + // Fishery Mortality Penalty
+         M_Pen + // Natural Mortality Prior (Penalty)
+         (Wt_Rec * 0.5 * Rec_nLL.sum()) + // Recruitment Penalty
+         (Wt_Rec * 0.5 * Init_Rec_nLL.sum()); // Initial Age Penalty
 
   // REPORT SECTION ------------------------------------------------------------
+  // Biological Processes
   REPORT(NAA);
-  REPORT(SAA_mid);
   REPORT(ZAA);
-  REPORT(SSB);
   REPORT(natmort); 
+  REPORT(bias_ramp);
+  
+  // Fishery Processes
   REPORT(Fmort); 
   REPORT(FAA);
-  REPORT(TotalFAA);
   REPORT(CAA);
   REPORT(CAL);
-  REPORT(SrvIAA);
-  REPORT(SrvIAL);
   REPORT(PredCatch);
   REPORT(PredFishIdx);
   REPORT(fish_sel);
   REPORT(fish_q);
+  
+  // Survey Processes
   REPORT(PredSrvIdx);
   REPORT(srv_sel);
   REPORT(srv_q);
+  REPORT(SrvIAA);
+  REPORT(SrvIAL);
+  
+  // Likelihoods
   REPORT(Catch_nLL); 
   REPORT(FishIdx_nLL); 
   REPORT(SrvIdx_nLL); 
@@ -594,19 +576,20 @@ Type objective_function<Type>::operator() ()
   REPORT(SrvAgeComps_nLL); 
   REPORT(FishLenComps_nLL); 
   REPORT(SrvLenComps_nLL); 
+  REPORT(M_Pen);
+  REPORT(Fmort_Pen); 
+  REPORT(Rec_nLL);
+  REPORT(Init_Rec_nLL);
+  REPORT(Rec_nLL);
+  REPORT(jnLL);
+  
+  // Effective Sample Sizes
   REPORT(ESS_FishAgeComps); 
   REPORT(ESS_SrvAgeComps); 
   REPORT(ESS_FishLenComps); 
   REPORT(ESS_SrvLenComps); 
-  REPORT(M_Pen);
-  REPORT(Fmort_Pen); 
-  REPORT(Rec_nLL);
-  REPORT(jnLL);
-  REPORT(bias_ramp);
-  REPORT(Rec_nLL);
-  REPORT(Init_Rec_nLL);
-  REPORT(init_F);
   
+  // Report for derived quantities
   ADREPORT(SSB);
   ADREPORT(Rec);
   
