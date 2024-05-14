@@ -3,7 +3,6 @@
   # Date Created: 4/19/24
   # Note: TMB indexing begins at 0, and hence all comments and notes in this script follow the same fashion
   
-  
   # Set up ------------------------------------------------------------------
   
   library(here)
@@ -446,7 +445,6 @@
   sabie_model$rep <- sabie_model$report(sabie_model$env$last.par.best) # Get report
   sabie_model$sd_rep <- sdreport(sabie_model) # Get sd report
   
-  
   # Deterministic Comparisons -----------------------------------------------
   
   # Get time series
@@ -576,40 +574,52 @@
     coop_ll_srv_m2
   )
   
-  pdf(here("figs", "Deterministic_Comp.pdf"), width = 15)
-  
+
+# Plots -------------------------------------------------------------------
+
+  # Time Series Deterministic
   ggplot() +
     geom_line(ts_df, mapping  = aes(x = Year, y = TMB, color = "TMB"), size = 1.3, lty = 1) +
     geom_line(ts_df, mapping  = aes(x = Year, y = ADMB, color = "ADMB"), size = 1.3, lty = 2) +
     facet_wrap(~Par, scales = "free") +
-    labs(x = "Year", color = 'Model') +
+    labs(x = "Year", color = 'Model', y = "Value") +
     ggthemes::scale_color_hc() +
-    theme_bw()
+    theme_sablefish()
   
+  ggsave(filename = here("figs", "Bridging", "Deterministic_TS.png"))
+  
+  # Relative Error Time Series
   ggplot(ts_df, aes(x = Year, y = (TMB - ADMB) / ADMB, color = Par)) +
     geom_line(size = 2) +
     geom_hline(yintercept = 0, lty = 1.3, size = 1.3) +
     coord_cartesian(ylim = c(-0.1, 0.1)) +
     ggthemes::scale_color_hc() +
     labs(color = "Time Series") +
-    theme_bw()
+    theme_sablefish()
   
+  ggsave(filename = here("figs", "Bridging", "Deterministic_TS_RelErr.png"), width = 12)
+  
+  # Selectivity relative error
   ggplot() +
     geom_line(combined_sel, mapping = aes(x = Age , y = (TMB - ADMB)), lwd = 1.3) +
     facet_wrap(~Type) +   
     geom_hline(yintercept = 0, lty = 1.3, size = 1.3) +
     coord_cartesian(ylim = c(-0.1, 0.1)) +
     labs(y = "Selex (TMB - ADMB)") +
-    theme_bw()
+    theme_sablefish()
   
+  ggsave(filename = here("figs", "Bridging", "Deterministic_Selex_RelErr.png"), width = 19)
+  
+  # Selectivity curves
   ggplot() +
     geom_line(combined_sel, mapping  = aes(x = Age, y = TMB, color = "TMB"), size = 1.3, lty = 1) +
     geom_line(combined_sel, mapping  = aes(x = Age, y = ADMB, color = "ADMB"), size = 1.3, lty = 2) +
     ggthemes::scale_color_hc() +
     facet_wrap(~Type) +
     labs(y = "Selex", color = "Model") +
-    theme_bw()
-  dev.off()
+    theme_sablefish()
+  
+  ggsave(filename = here("figs", "Bridging", "Deterministic_SelexCurves.png"), width = 19)
   
   
   ### Esimating parameters with sharing (Estimation) ---------------------------------------
@@ -657,6 +667,9 @@
   sabie_model$optim <- sabie_optim # Save optimized model results
   sabie_model$rep <- sabie_model$report(sabie_model$env$last.par.best) # Get report
   sabie_model$sd_rep <- sdreport(sabie_model) # Get sd report
+  
+  dir.create(here('output', 'Model_23.5'))
+  saveRDS(sabie_model, here('output', 'Model_23.5', 'Model_23.5.RDS')) # save model
   
   # Check consistency -------------------------------------------------------
   
@@ -822,94 +835,57 @@
   
   # Plots -------------------------------------------------------------------
   
-  pdf(here("figs", "Estimated_Comparison.pdf"), width = 15)
-  
+  # Time Series Estimated
   ggplot() +
     geom_line(ts_df, mapping  = aes(x = Year, y = TMB, color = "TMB"), size = 1.3, lty = 1) +
     geom_line(ts_df, mapping  = aes(x = Year, y = ADMB, color = "ADMB"), size = 1.3, lty = 2) +
     facet_wrap(~Par, scales = "free") +
-    labs(x = "Year", color = 'Model') +
+    labs(x = "Year", color = 'Model', y = "Value") +
     ggthemes::scale_color_hc() +
-    theme_bw()
+    theme_sablefish()
   
+  ggsave(filename = here("figs", "Bridging", "Estimated_TS.png"))
+  
+  # Relative Error Time Series
   ggplot(ts_df, aes(x = Year, y = (TMB - ADMB) / ADMB, color = Par)) +
     geom_line(size = 2) +
-    geom_hline(yintercept = 0, lty = 2, size = 1.3) +
+    geom_hline(yintercept = 0, lty = 1.3, size = 1.3) +
     coord_cartesian(ylim = c(-0.1, 0.1)) +
     ggthemes::scale_color_hc() +
     labs(color = "Time Series") +
-    theme_bw()
+    theme_sablefish()
   
-  ggplot(par_df, aes(x = Par, y = (exp(TMB) - exp(ADMB)) / exp(ADMB), group = Par)) +
-    geom_point(size = 5) +
-    geom_hline(yintercept = 0, lty = 2, size = 1.3) +
-    coord_cartesian(ylim = c(-0.1, 0.1)) +
-    labs(y = "(TMB - ADMB) / ADMB") +
-    theme_bw()
+  ggsave(filename = here("figs", "Bridging", "Estimated_TS_RelErr.png"), width = 12)
   
+  # Selectivity relative error
   ggplot() +
     geom_line(combined_sel, mapping = aes(x = Age , y = (TMB - ADMB)), lwd = 1.3) +
     facet_wrap(~Type) +   
-    geom_hline(yintercept = 0, lty = 2, size = 1.3) +
+    geom_hline(yintercept = 0, lty = 1.3, size = 1.3) +
     coord_cartesian(ylim = c(-0.1, 0.1)) +
     labs(y = "Selex (TMB - ADMB)") +
-    theme_bw()
+    theme_sablefish()
   
+  ggsave(filename = here("figs", "Bridging", "Estimated_Selex_RelErr.png"), width = 19)
+  
+  # Selectivity curves
   ggplot() +
     geom_line(combined_sel, mapping  = aes(x = Age, y = TMB, color = "TMB"), size = 1.3, lty = 1) +
     geom_line(combined_sel, mapping  = aes(x = Age, y = ADMB, color = "ADMB"), size = 1.3, lty = 2) +
     ggthemes::scale_color_hc() +
     facet_wrap(~Type) +
     labs(y = "Selex", color = "Model") +
-    theme_bw()
-  dev.off()
+    theme_sablefish()
   
+  ggsave(filename = here("figs", "Bridging", "Estimated_SelexCurves.png"), width = 19)
   
-  # Data weighting ----------------------------------------------------------
-  # Francis reweighting
-  # for(i in 1:10) {
-  # 
-  #   if(i == 1) { # set weights to 1 at first iteration
-  #     data$Wt_FishAgeComps[!is.na(data$Wt_FishAgeComps)] <- 1
-  #     data$Wt_FishLenComps[!is.na(data$Wt_FishLenComps)] <- 1
-  #     data$Wt_SrvAgeComps[!is.na(data$Wt_SrvAgeComps)] <- 1
-  #     data$Wt_SrvLenComps[!is.na(data$Wt_SrvLenComps)] <- 1
-  #   } # if i == 1 set weights to 1
-  # 
-  #   # make AD model function
-  #   sabie_model <- MakeADFun(data = data, parameters = parameters,
-  #                            map = mapping, random = NULL,
-  #                            DLL = "SabieTMB")
-  #   # Now, optimize the function
-  #   sabie_optim <- stats::nlminb(sabie_model$par, sabie_model$fn, sabie_model$gr,
-  #                                control = list(iter.max = 1e5, eval.max = 1e5))
-  #   # newton steps
-  #   try_improve <- tryCatch(expr =
-  #                             for(i in 1:2) {
-  #                               g = as.numeric(sabie_model$gr(sabie_optim$par))
-  #                               h = optimHess(sabie_optim$par, fn = sabie_model$fn, gr = sabie_model$gr)
-  #                               sabie_optim$par = sabie_optim$par - solve(h,g)
-  #                               sabie_optim$objective = sabie_model$fn(sabie_optim$par)
-  #                             }
-  #                           , error = function(e){e}, warning = function(w){w})
-  # 
-  #   sabie_model$optim <- sabie_optim # Save optimized model results
-  #   sabie_model$rep <- sabie_model$report(sabie_model$env$last.par.best) # Get report
-  # 
-  #   # Get new francis weights
-  #   new_weights <- francis_rwgt(data = data, model = sabie_model)
-  # 
-  #   data$Wt_FishAgeComps <- new_weights$new_fish_age_wts
-  #   data$Wt_FishLenComps <- new_weights$new_fish_len_wts
-  #   data$Wt_SrvAgeComps <- new_weights$new_srv_age_wts
-  #   data$Wt_SrvLenComps <- new_weights$new_srv_len_wts
-  # } # end i loop
-  # 
-  # sabie_model$sd_rep <- sdreport(sabie_model)
+  ggplot(par_df, aes(x = Par, y = (exp(TMB) - exp(ADMB)) / exp(ADMB), group = Par)) +
+    geom_point(size = 5) +
+    geom_hline(yintercept = 0, lty = 2, size = 1.3) +
+    coord_cartesian(ylim = c(-0.1, 0.1)) +
+    labs(y = "(TMB - ADMB) / ADMB", x = "Parameter") +
+    theme_sablefish()
+  
+  ggsave(filename = here("figs", "Bridging", "Estimated_Pars_RE.png"), width = 19)
+  
 
-
-# MCMC --------------------------------------------------------------------
-
-# cores <- parallel::detectCores()-5
-# options(mc.cores = cores)
-# fit <- tmbstan::tmbstan(sabie_model, chains=cores, open_progress=FALSE)

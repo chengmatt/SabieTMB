@@ -590,6 +590,8 @@ Type objective_function<Type>::operator() ()
   REPORT(ESS_SrvLenComps); 
   
   // Report for derived quantities
+  REPORT(SSB);
+  REPORT(Rec); 
   ADREPORT(SSB);
   ADREPORT(Rec);
   
