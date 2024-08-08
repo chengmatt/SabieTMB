@@ -18,7 +18,7 @@ dyn.load(dynlib('SabieTMB'))
 sabie_model <- readRDS(here('output', 'Model_23.5', 'Model_23.5.rds')) 
 
 sd <- 0.25 # Specify CV/sd value from an rnorm
-n_jitter <- 50 # number of jitter runsa
+n_jitter <- 100 # number of jitter runsa
 n_newton <- 2 # number of newton steps to take (extr)
 
 # progress bar for parraellelization
@@ -38,9 +38,12 @@ jitter_all <- foreach(jit = 1:n_jitter, .packages = c("TMB", "here", "tidyverse"
   
   # Load in DLL
   dyn.load(dynlib('SabieTMB'))
+  
+  # Jitter parameters
+  jittered_pars <- sabie_model$par * exp(rnorm(length(sabie_model$par), 0, sd))
                      
   # Now, optimize the function
-  sabie_optim <- stats::nlminb(sabie_model$par + rnorm(length(sabie_model$par), 0, sd),
+  sabie_optim <- stats::nlminb(jittered_pars,
                                sabie_model$fn, sabie_model$gr, 
                                control = list(iter.max = 1e5, eval.max = 1e5))
   # newton steps
@@ -58,10 +61,20 @@ jitter_all <- foreach(jit = 1:n_jitter, .packages = c("TMB", "here", "tidyverse"
   sabie_model$sd_rep <- sdreport(sabie_model) # Get sd report
   
   # put jitter results into a dataframe
-  jitter_df <- data.frame(Year = 1:length(sabie_model$rep$SSB), 
+  jitter_ts_df <- data.frame(Year = 1:length(sabie_model$rep$SSB), 
                           SSB = sabie_model$rep$SSB, Rec = sabie_model$rep$Rec, 
-                          jitter = jit, Hessian = sabie_model$sd_rep$pdHess, jnLL = sabie_model$rep$jnLL,
+                          jitter = jit, Hessian = sabie_model$sd_rep$pdHess,
+                          jnLL = sabie_model$rep$jnLL,
                           Max_Gradient = max(abs(sabie_model$sd_rep$gradient.fixed)))
+  
+  # # Jitter parameters
+  # jitter_par_df <- data.frame(Par_Vals = sabie_model$par, Par_Names = names(sabie_model$par),
+  #                            Max_Gradient = max(abs(sabie_model$sd_rep$gradient.fixed)),
+  #                            jitter = jit, Hessian = sabie_model$sd_rep$pdHess, 
+  #                            jnLL = sabie_model$rep$jnLL)
+  # 
+  # # Output as list
+  # jitter_list <- list(TimeSeries = jitter_par_df, Parameters = jitter_par_df)
 }
 
 

@@ -632,7 +632,7 @@
   # sharing delta across sexes from early domestic fishery (first time block)
   # also fixing parameters so that no time block for trawl fishery
   mapping$ln_fish_fixed_sel_pars <- factor(c(1:7, 2, 8:11, rep(12:13,3), rep(c(14,13),3)))
-  
+
   # ll survey, share delta female (index 2) across time blocks and to the coop jp ll survey delta
   # ll survey, share delta male (index 5) across time blocks and to the coop jp ll survey delta
   # coop jp survey does not estimate parameters and shares deltas with longline survey
@@ -640,13 +640,13 @@
   mapping$ln_srv_fixed_sel_pars <- factor(c(1:3, 2, 4:6, 5,
                                             rep(7,4), rep(8, 4),
                                             rep(c(NA,2), 2), rep(c(NA, 5), 2)))
-  
+
   setwd(here("src"))
   compile("SabieTMB.cpp")
   dyn.load(dynlib('SabieTMB'))
   dyn.unload(dynlib('SabieTMB'))
   dyn.load(dynlib('SabieTMB'))
-  
+
   # make AD model function
   sabie_model <- MakeADFun(data = data, parameters = parameters,
                            map = mapping, random = NULL,
@@ -663,158 +663,158 @@
                               sabie_optim$objective = sabie_model$fn(sabie_optim$par)
                             }
                           , error = function(e){e}, warning = function(w){w})
-  
+
   sabie_model$optim <- sabie_optim # Save optimized model results
   sabie_model$rep <- sabie_model$report(sabie_model$env$last.par.best) # Get report
   sabie_model$sd_rep <- sdreport(sabie_model) # Get sd report
-  
+
   dir.create(here('output', 'Model_23.5'))
   saveRDS(sabie_model, here('output', 'Model_23.5', 'Model_23.5.RDS')) # save model
-  
-  # Check consistency -------------------------------------------------------
-  
+
+  # # Check consistency -------------------------------------------------------
+
   # Get parameters
   M_df <- data.frame(Par = "ln_M",
                      TMB = sabie_model$sd_rep$par.fixed[names(sabie_model$sd_rep$par.fixed) == "ln_M"],
                      ADMB = parameters$ln_M)
-  
+
   R0_df <- data.frame(Par = "ln_R0",
                       TMB = sabie_model$sd_rep$par.fixed[names(sabie_model$sd_rep$par.fixed) == "ln_R0"],
                       ADMB = parameters$ln_R0)
-  
+
   rec_sigmaRlate_df <- data.frame(Par = "ln_recSigma",
                                   TMB = sabie_model$sd_rep$par.fixed[names(sabie_model$sd_rep$par.fixed) == "ln_sigmaR_late"],
                                   ADMB = parameters$ln_sigmaR_late)
-  
+
   srv_q_df <- data.frame(Par = c('ln_srv_domLL_q', 'ln_srv_trwl_q', 'ln_srv_coopLL_q'),
                          TMB = sabie_model$sd_rep$par.fixed[names(sabie_model$sd_rep$par.fixed) == "ln_srv_q"],
                          ADMB = parameters$ln_srv_q[1,])
-  
+
   fish_q_df <- data.frame(Par = c('ln_fish_domLL_q1', 'ln_fish_domLL_q2', 'ln_fish_domLL_q3'),
                           TMB = sabie_model$sd_rep$par.fixed[names(sabie_model$sd_rep$par.fixed) == "ln_fish_q"],
                           ADMB = parameters$ln_fish_q[,1])
-  
+
   par_df <- rbind(M_df, R0_df, rec_sigmaRlate_df, srv_q_df, fish_q_df)
-  
+
   # Get time series
-  rec_series <- data.frame(Par = "Recruitment", 
-                           Year = 1960:2023, 
-                           TMB = sabie_model$sd_rep$value[names(sabie_model$sd_rep$value) == "Rec"], 
+  rec_series <- data.frame(Par = "Recruitment",
+                           Year = 1960:2023,
+                           TMB = sabie_model$sd_rep$value[names(sabie_model$sd_rep$value) == "Rec"],
                            ADMB = rec)
-  
-  rec_se_series <- data.frame(Par = "Recruitment (SE)", 
-                           Year = 1960:2023, 
-                           TMB = sabie_model$sd_rep$sd[names(sabie_model$sd_rep$value) == "Rec"], 
+
+  rec_se_series <- data.frame(Par = "Recruitment (SE)",
+                           Year = 1960:2023,
+                           TMB = sabie_model$sd_rep$sd[names(sabie_model$sd_rep$value) == "Rec"],
                            ADMB = tem_par$se[str_detect(names(tem_par$se), "pred_rec")])
-  
-  f_series <- data.frame(Par = "Total F", 
-                           Year = 1960:2023, 
-                           TMB = rowSums(sabie_model$rep$Fmort), 
+
+  f_series <- data.frame(Par = "Total F",
+                           Year = 1960:2023,
+                           TMB = rowSums(sabie_model$rep$Fmort),
                            ADMB = tem_dat$t.series$fmort)
-  
-  ssb_series <- data.frame(Par = "SSB", 
-                           Year = 1960:2023, 
-                           TMB = sabie_model$sd_rep$value[names(sabie_model$sd_rep$value) == "SSB"], 
+
+  ssb_series <- data.frame(Par = "SSB",
+                           Year = 1960:2023,
+                           TMB = sabie_model$sd_rep$value[names(sabie_model$sd_rep$value) == "SSB"],
                            ADMB = ssb)
-  
-  females_series <- data.frame(Par = "Total Females", 
-                           Year = 1960:2023, 
-                           TMB = rowSums(sabie_model$rep$NAA[-65,,1]), 
+
+  females_series <- data.frame(Par = "Total Females",
+                           Year = 1960:2023,
+                           TMB = rowSums(sabie_model$rep$NAA[-65,,1]),
                            ADMB = tem_dat$t.series$numbers.f)
-  
-  males_series <- data.frame(Par = "Total Males", 
-                           Year = 1960:2023, 
-                           TMB = rowSums(sabie_model$rep$NAA[-65,,2]), 
+
+  males_series <- data.frame(Par = "Total Males",
+                           Year = 1960:2023,
+                           TMB = rowSums(sabie_model$rep$NAA[-65,,2]),
                            ADMB = tem_dat$t.series$numbers.m)
-  
-  ssb_se_series <- data.frame(Par = "SSB (SE)", 
-                           Year = 1960:2023, 
-                           TMB = sabie_model$sd_rep$sd[names(sabie_model$sd_rep$value) == "SSB"], 
+
+  ssb_se_series <- data.frame(Par = "SSB (SE)",
+                           Year = 1960:2023,
+                           TMB = sabie_model$sd_rep$sd[names(sabie_model$sd_rep$value) == "SSB"],
                            ADMB = tem_par$se[str_detect(names(tem_par$se), "ssb")])
-  
+
   ts_df <- rbind(ssb_se_series, rec_series, rec_se_series, f_series, ssb_series, females_series, males_series)
-  
+
   # Get selectivities
-  dom_ll_fish_f1 <- data.frame(Age = 1:30, 
+  dom_ll_fish_f1 <- data.frame(Age = 1:30,
                                TMB = sabie_model$rep$fish_sel[1,,1,1],
                                ADMB = tem_dat$agesel$fish1sel.f,
                                Type = "Domestic LL Fishery Female Block 1")
-  
-  dom_ll_fish_m1 <- data.frame(Age = 1:30, 
+
+  dom_ll_fish_m1 <- data.frame(Age = 1:30,
                                TMB = sabie_model$rep$fish_sel[1,,2,1],
                                ADMB = tem_dat$agesel$fish1sel.m,
                                Type = "Domestic LL Fishery Male Block 1")
-  
-  dom_ll_fish_f2 <- data.frame(Age = 1:30, 
+
+  dom_ll_fish_f2 <- data.frame(Age = 1:30,
                                TMB = sabie_model$rep$fish_sel[40,,1,1],
                                ADMB = tem_dat$agesel$fish4sel.f,
                                Type = "Domestic LL Fishery Female Block 2")
-  
-  dom_ll_fish_m2 <- data.frame(Age = 1:30, 
+
+  dom_ll_fish_m2 <- data.frame(Age = 1:30,
                                TMB = sabie_model$rep$fish_sel[40,,2,1],
                                ADMB = tem_dat$agesel$fish4sel.m,
                                Type = "Domestic LL Fishery Male Block 2")
-  
-  dom_ll_fish_f3 <- data.frame(Age = 1:30, 
+
+  dom_ll_fish_f3 <- data.frame(Age = 1:30,
                                TMB = sabie_model$rep$fish_sel[60,,1,1],
                                ADMB = tem_dat$agesel$fish5sel.f,
                                Type = "Domestic LL Fishery Female Block 3")
-  
-  dom_ll_fish_m3 <- data.frame(Age = 1:30, 
+
+  dom_ll_fish_m3 <- data.frame(Age = 1:30,
                                TMB = sabie_model$rep$fish_sel[60,,2,1],
                                ADMB = tem_dat$agesel$fish5sel.m,
                                Type = "Domestic LL Fishery Male Block 3")
-  
-  dom_trwl_fish_f <- data.frame(Age = 1:30, 
+
+  dom_trwl_fish_f <- data.frame(Age = 1:30,
                                 TMB = sabie_model$rep$fish_sel[1,,1,2],
                                 ADMB = tem_dat$agesel$fish3sel.f,
                                 Type = "Domestic Trawl Female")
-  
-  dom_trwl_fish_m <- data.frame(Age = 1:30, 
+
+  dom_trwl_fish_m <- data.frame(Age = 1:30,
                                 TMB = sabie_model$rep$fish_sel[1,,2,2],
                                 ADMB = tem_dat$agesel$fish3sel.m,
                                 Type = "Domestic Trawl Male")
-  
-  dom_ll_srv_f1 <- data.frame(Age = 1:30, 
+
+  dom_ll_srv_f1 <- data.frame(Age = 1:30,
                               TMB = sabie_model$rep$srv_sel[1,,1,1],
                               ADMB = tem_dat$agesel$srv1sel.f,
                               Type = "Domestic LL Survey Female Block 1")
-  
-  dom_ll_srv_m1 <- data.frame(Age = 1:30, 
+
+  dom_ll_srv_m1 <- data.frame(Age = 1:30,
                               TMB = sabie_model$rep$srv_sel[1,,2,1],
                               ADMB = tem_dat$agesel$srv1sel.m,
                               Type = "Domestic LL Survey Male Block 1")
-  
-  dom_ll_srv_f2 <- data.frame(Age = 1:30, 
+
+  dom_ll_srv_f2 <- data.frame(Age = 1:30,
                               TMB = sabie_model$rep$srv_sel[60,,1,1],
                               ADMB = tem_dat$agesel$srv10sel.f,
                               Type = "Domestic LL Survey Female Block 2")
-  
-  dom_ll_srv_m2 <- data.frame(Age = 1:30, 
+
+  dom_ll_srv_m2 <- data.frame(Age = 1:30,
                               TMB = sabie_model$rep$srv_sel[60,,2,1],
                               ADMB = tem_dat$agesel$srv10sel.m,
                               Type = "Domestic LL Survey Male Block 2")
-  
-  dom_trwl_srv_f2 <- data.frame(Age = 1:30, 
+
+  dom_trwl_srv_f2 <- data.frame(Age = 1:30,
                                 TMB = sabie_model$rep$srv_sel[60,,1,2],
                                 ADMB = tem_dat$agesel$srv7sel.f,
                                 Type = "Domestic Trawl Survey Female")
-  
-  dom_trwl_srv_m2 <- data.frame(Age = 1:30, 
+
+  dom_trwl_srv_m2 <- data.frame(Age = 1:30,
                                 TMB = sabie_model$rep$srv_sel[60,,2,2],
                                 ADMB = tem_dat$agesel$srv7sel.m,
                                 Type = "Domestic Trawl Survey Male")
-  
-  coop_ll_srv_f2 <- data.frame(Age = 1:30, 
+
+  coop_ll_srv_f2 <- data.frame(Age = 1:30,
                                TMB = sabie_model$rep$srv_sel[60,,1,3],
                                ADMB = tem_dat$agesel$srv2sel.f,
                                Type = "Coop LL Survey Female")
-  
-  coop_ll_srv_m2 <- data.frame(Age = 1:30, 
+
+  coop_ll_srv_m2 <- data.frame(Age = 1:30,
                                TMB = sabie_model$rep$srv_sel[60,,2,3],
                                ADMB = tem_dat$agesel$srv2sel.m,
                                Type = "Coop LL Survey Male")
-  
+
   combined_sel <- rbind(
     dom_ll_fish_m1,
     dom_ll_fish_f2,
@@ -832,9 +832,9 @@
     coop_ll_srv_f2,
     coop_ll_srv_m2
   )
-  
+
   # Plots -------------------------------------------------------------------
-  
+
   # Time Series Estimated
   ggplot() +
     geom_line(ts_df, mapping  = aes(x = Year, y = TMB, color = "TMB"), size = 1.3, lty = 1) +
@@ -843,9 +843,9 @@
     labs(x = "Year", color = 'Model', y = "Value") +
     ggthemes::scale_color_hc() +
     theme_sablefish()
-  
+
   ggsave(filename = here("figs", "Bridging", "Estimated_TS.png"))
-  
+
   # Relative Error Time Series
   ggplot(ts_df, aes(x = Year, y = (TMB - ADMB) / ADMB, color = Par)) +
     geom_line(size = 2) +
@@ -854,20 +854,20 @@
     ggthemes::scale_color_hc() +
     labs(color = "Time Series") +
     theme_sablefish()
-  
+
   ggsave(filename = here("figs", "Bridging", "Estimated_TS_RelErr.png"), width = 12)
-  
+
   # Selectivity relative error
   ggplot() +
     geom_line(combined_sel, mapping = aes(x = Age , y = (TMB - ADMB)), lwd = 1.3) +
-    facet_wrap(~Type) +   
+    facet_wrap(~Type) +
     geom_hline(yintercept = 0, lty = 1.3, size = 1.3) +
     coord_cartesian(ylim = c(-0.1, 0.1)) +
     labs(y = "Selex (TMB - ADMB)") +
     theme_sablefish()
-  
+
   ggsave(filename = here("figs", "Bridging", "Estimated_Selex_RelErr.png"), width = 19)
-  
+
   # Selectivity curves
   ggplot() +
     geom_line(combined_sel, mapping  = aes(x = Age, y = TMB, color = "TMB"), size = 1.3, lty = 1) +
@@ -876,16 +876,79 @@
     facet_wrap(~Type) +
     labs(y = "Selex", color = "Model") +
     theme_sablefish()
-  
+
   ggsave(filename = here("figs", "Bridging", "Estimated_SelexCurves.png"), width = 19)
-  
+
   ggplot(par_df, aes(x = Par, y = (exp(TMB) - exp(ADMB)) / exp(ADMB), group = Par)) +
     geom_point(size = 5) +
     geom_hline(yintercept = 0, lty = 2, size = 1.3) +
     coord_cartesian(ylim = c(-0.1, 0.1)) +
     labs(y = "(TMB - ADMB) / ADMB", x = "Parameter") +
     theme_sablefish()
-  
+
   ggsave(filename = here("figs", "Bridging", "Estimated_Pars_RE.png"), width = 19)
+
+
+# RTMB Port ---------------------------------------------------------------
   
+data$srv_q_blocks = data$srv_q_blocks + 1
+data$fish_q_blocks = data$fish_q_blocks + 1
+data$fish_sel_blocks = data$fish_sel_blocks + 1
+data$srv_sel_blocks = data$srv_sel_blocks + 1
+data$bias_year = data$bias_year + 1
+data$sigmaR_switch = data$sigmaR_switch + 1
+  
+# make AD model function
+sabie_rtmb_model <- RTMB::MakeADFun(sabie_RTMB, parameters = parameters, map = mapping)
+  
+# Now, optimize the function
+sabie_optim <- stats::nlminb(sabie_rtmb_model$par, sabie_rtmb_model$fn, sabie_rtmb_model$gr,
+                             control = list(iter.max = 1e5, eval.max = 1e5))
+# newton steps
+try_improve <- tryCatch(expr =
+                          for(i in 1:3) {
+                            g = as.numeric(sabie_rtmb_model$gr(sabie_optim$par))
+                            h = optimHess(sabie_optim$par, fn = sabie_rtmb_model$fn, gr = sabie_rtmb_model$gr)
+                            sabie_optim$par = sabie_optim$par - solve(h,g)
+                            sabie_optim$objective = sabie_rtmb_model$fn(sabie_optim$par)
+                          }
+                        , error = function(e){e}, warning = function(w){w})
+
+sabie_rtmb_model$optim <- sabie_optim # Save optimized model results
+sabie_rtmb_model$rep <- sabie_rtmb_model$report(sabie_rtmb_model$env$last.par.best) # Get report
+sabie_rtmb_model$sd_rep <- sdreport(sabie_rtmb_model) # Get sd report
+
+sum(sabie_rtmb_model$rep$jnLL) - sum(sabie_model$rep$jnLL)
+sum(sabie_rtmb_model$rep$Rec_nLL) - sum(sabie_model$rep$Rec_nLL)
+sum(sabie_rtmb_model$rep$SrvIdx_nLL[,1] - sabie_model$rep$SrvIdx_nLL[,1])
+sum(sabie_rtmb_model$rep$SrvIdx_nLL[,2] - sabie_model$rep$SrvIdx_nLL[,2])
+sum(sabie_rtmb_model$rep$SrvIdx_nLL[,3] - sabie_model$rep$SrvIdx_nLL[,3])
+sum(sabie_rtmb_model$rep$FishIdx_nLL[,1] - sabie_model$rep$FishIdx_nLL[,1])
+sum(sabie_rtmb_model$rep$FishIdx_nLL) - sum(sabie_model$rep$FishIdx_nLL)
+sum(sabie_rtmb_model$rep$Init_Rec_nLL) - sum(sabie_model$rep$Init_Rec_nLL)
+sum(sabie_rtmb_model$rep$SrvAgeComps_nLL) - sum(sabie_model$rep$SrvAgeComps_nLL)
+sum(sabie_rtmb_model$rep$FishAgeComps_nLL) - sum(sabie_model$rep$FishAgeComps_nLL)
+sum(sabie_rtmb_model$rep$FishLenComps_nLL) - sum(sabie_model$rep$FishLenComps_nLL)
+sum(sabie_rtmb_model$rep$SrvLenComps_nLL) - sum(sabie_model$rep$SrvLenComps_nLL)
+sum(sabie_rtmb_model$rep$M_Pen) - sum(sabie_model$rep$M_Pen)
+sum(sabie_rtmb_model$rep$Fmort_Pen) - sum(sabie_model$rep$Fmort_Pen)
+sum(sabie_rtmb_model$rep$Catch_nLL) - sum(sabie_model$rep$Catch_nLL)
+
+
+par(mfrow = c(2,2))
+plot(ssb - sabie_model$rep$SSB, col = "black", type = 'l', ylab = 'ADMB - TMB (SSB)')
+plot(ssb - sabie_rtmb_model$rep$SSB, type = 'l', ylab = 'ADMB - RTMB (SSB)')
+plot(rec - sabie_model$rep$Rec, col = "black", type = 'l', ylab = 'ADMB - TMB (Rec)')
+plot(rec - sabie_rtmb_model$rep$Rec, type = 'l', ylab = 'ADMB - RTMB (Rec)')
+
+plot(sabie_model$rep$Rec)
+lines(sabie_rtmb_model$rep$Rec)
+plot((rec - sabie_model$rep$Rec) / rec * 100)
+
+
+fish_sel = sabie_model$rep$fish_sel
+ln_R0 = parameters$ln_R0
+ln_InitDevs = parameters$ln_InitDevs
+natmort = sabie_model$rep$natmort
+init_F = 0.1 * exp(parameters$ln_F_mean[1])
 

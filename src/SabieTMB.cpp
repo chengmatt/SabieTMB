@@ -1,6 +1,6 @@
-// Purpose: Generalized Age-Structured Model for Alaska Sablefish
-// Genearlizes ages, sexes, fishery fleets, and survey fleets
-// Able to generalize time block structure
+// Purpose: Generalized Age-Structured Model tailored for Alaska Sablefish
+// Generalizes ages, sexes, fishery fleets, and survey fleets
+// Generalizes time block structure
 
 #include<TMB.hpp>
 #include"Utility_Fxns.hpp"
@@ -26,6 +26,7 @@ Type objective_function<Type>::operator() ()
   DATA_INTEGER(do_rec_bias_ramp); // switch for if we want to do bias ramp from Methot and Taylor 2011 (==0 no ramp), (==1 ramp)
   DATA_VECTOR(bias_year); // breakpoints for when to change bias ramp (slot 0 = period w/o bias correction, slot 1 = ascending, slot 2 = descending, slot 3 = no bias correction in last year)
   DATA_INTEGER(sigmaR_switch); // switch for sigmaR (year we want to switch sigmaR - from low rec variability to high rec variability)
+  // DATA_VECTOR(mean_rec_period); // Vector for periods to use for mean recruitment
   DATA_ARRAY(WAA); // array of weight-at-age (n_years, n_ages, n_sexes)
   DATA_ARRAY(MatAA); // array of maturity at age (n_years, n_ages, n_sexes)
   DATA_VECTOR(sexratio); // vector of recruitment sex ratio (n_sexes)
@@ -151,7 +152,7 @@ Type objective_function<Type>::operator() ()
 
   // Survey Processes
   array<Type> SrvIAA(n_yrs, n_ages, n_sexes, n_srv_fleets); // array of survey index at age
-  array<Type> SrvIAL(n_yrs, n_ages, n_sexes, n_srv_fleets); // array of survey index at length
+  array<Type> SrvIAL(n_yrs, n_lens, n_sexes, n_srv_fleets); // array of survey index at length
   matrix<Type> PredSrvIdx(n_yrs, n_srv_fleets); // matrix of predicted survey index
   array<Type> srv_sel(n_yrs, n_ages, n_sexes, n_srv_fleets); // array of survey selectivity
   matrix<Type> srv_q(n_yrs, n_srv_fleets); // matrix of survey catchability
