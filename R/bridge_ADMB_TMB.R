@@ -425,7 +425,7 @@
   dyn.load(dynlib('SabieTMB'))
   
   # make AD model function
-  sabie_model <- MakeADFun(data = data, parameters = parameters,
+  sabie_model <- TMB::MakeADFun(data = data, parameters = parameters,
                          map = mapping, random = NULL,
                          DLL = "SabieTMB")
   # Now, optimize the function
@@ -443,7 +443,7 @@
   
   sabie_model$optim <- sabie_optim # Save optimized model results
   sabie_model$rep <- sabie_model$report(sabie_model$env$last.par.best) # Get report
-  sabie_model$sd_rep <- sdreport(sabie_model) # Get sd report
+  sabie_model$sd_rep <- TMB::sdreport(sabie_model) # Get sd report
   
   # Deterministic Comparisons -----------------------------------------------
   
@@ -648,7 +648,7 @@
   dyn.load(dynlib('SabieTMB'))
 
   # make AD model function
-  sabie_model <- MakeADFun(data = data, parameters = parameters,
+  sabie_model <- TMB::MakeADFun(data = data, parameters = parameters,
                            map = mapping, random = NULL,
                            DLL = "SabieTMB")
   # Now, optimize the function
@@ -666,7 +666,7 @@
 
   sabie_model$optim <- sabie_optim # Save optimized model results
   sabie_model$rep <- sabie_model$report(sabie_model$env$last.par.best) # Get report
-  sabie_model$sd_rep <- sdreport(sabie_model) # Get sd report
+  sabie_model$sd_rep <- TMB::sdreport(sabie_model) # Get sd report
 
   dir.create(here('output', 'Model_23.5'))
   saveRDS(sabie_model, here('output', 'Model_23.5', 'Model_23.5.RDS')) # save model
@@ -887,68 +887,3 @@
     theme_sablefish()
 
   ggsave(filename = here("figs", "Bridging", "Estimated_Pars_RE.png"), width = 19)
-
-
-# RTMB Port ---------------------------------------------------------------
-  
-data$srv_q_blocks = data$srv_q_blocks + 1
-data$fish_q_blocks = data$fish_q_blocks + 1
-data$fish_sel_blocks = data$fish_sel_blocks + 1
-data$srv_sel_blocks = data$srv_sel_blocks + 1
-data$bias_year = data$bias_year + 1
-data$sigmaR_switch = data$sigmaR_switch + 1
-  
-# make AD model function
-sabie_rtmb_model <- RTMB::MakeADFun(sabie_RTMB, parameters = parameters, map = mapping)
-  
-# Now, optimize the function
-sabie_optim <- stats::nlminb(sabie_rtmb_model$par, sabie_rtmb_model$fn, sabie_rtmb_model$gr,
-                             control = list(iter.max = 1e5, eval.max = 1e5))
-# newton steps
-try_improve <- tryCatch(expr =
-                          for(i in 1:3) {
-                            g = as.numeric(sabie_rtmb_model$gr(sabie_optim$par))
-                            h = optimHess(sabie_optim$par, fn = sabie_rtmb_model$fn, gr = sabie_rtmb_model$gr)
-                            sabie_optim$par = sabie_optim$par - solve(h,g)
-                            sabie_optim$objective = sabie_rtmb_model$fn(sabie_optim$par)
-                          }
-                        , error = function(e){e}, warning = function(w){w})
-
-sabie_rtmb_model$optim <- sabie_optim # Save optimized model results
-sabie_rtmb_model$rep <- sabie_rtmb_model$report(sabie_rtmb_model$env$last.par.best) # Get report
-sabie_rtmb_model$sd_rep <- sdreport(sabie_rtmb_model) # Get sd report
-
-sum(sabie_rtmb_model$rep$jnLL) - sum(sabie_model$rep$jnLL)
-sum(sabie_rtmb_model$rep$Rec_nLL) - sum(sabie_model$rep$Rec_nLL)
-sum(sabie_rtmb_model$rep$SrvIdx_nLL[,1] - sabie_model$rep$SrvIdx_nLL[,1])
-sum(sabie_rtmb_model$rep$SrvIdx_nLL[,2] - sabie_model$rep$SrvIdx_nLL[,2])
-sum(sabie_rtmb_model$rep$SrvIdx_nLL[,3] - sabie_model$rep$SrvIdx_nLL[,3])
-sum(sabie_rtmb_model$rep$FishIdx_nLL[,1] - sabie_model$rep$FishIdx_nLL[,1])
-sum(sabie_rtmb_model$rep$FishIdx_nLL) - sum(sabie_model$rep$FishIdx_nLL)
-sum(sabie_rtmb_model$rep$Init_Rec_nLL) - sum(sabie_model$rep$Init_Rec_nLL)
-sum(sabie_rtmb_model$rep$SrvAgeComps_nLL) - sum(sabie_model$rep$SrvAgeComps_nLL)
-sum(sabie_rtmb_model$rep$FishAgeComps_nLL) - sum(sabie_model$rep$FishAgeComps_nLL)
-sum(sabie_rtmb_model$rep$FishLenComps_nLL) - sum(sabie_model$rep$FishLenComps_nLL)
-sum(sabie_rtmb_model$rep$SrvLenComps_nLL) - sum(sabie_model$rep$SrvLenComps_nLL)
-sum(sabie_rtmb_model$rep$M_Pen) - sum(sabie_model$rep$M_Pen)
-sum(sabie_rtmb_model$rep$Fmort_Pen) - sum(sabie_model$rep$Fmort_Pen)
-sum(sabie_rtmb_model$rep$Catch_nLL) - sum(sabie_model$rep$Catch_nLL)
-
-
-par(mfrow = c(2,2))
-plot(ssb - sabie_model$rep$SSB, col = "black", type = 'l', ylab = 'ADMB - TMB (SSB)')
-plot(ssb - sabie_rtmb_model$rep$SSB, type = 'l', ylab = 'ADMB - RTMB (SSB)')
-plot(rec - sabie_model$rep$Rec, col = "black", type = 'l', ylab = 'ADMB - TMB (Rec)')
-plot(rec - sabie_rtmb_model$rep$Rec, type = 'l', ylab = 'ADMB - RTMB (Rec)')
-
-plot(sabie_model$rep$Rec)
-lines(sabie_rtmb_model$rep$Rec)
-plot((rec - sabie_model$rep$Rec) / rec * 100)
-
-
-fish_sel = sabie_model$rep$fish_sel
-ln_R0 = parameters$ln_R0
-ln_InitDevs = parameters$ln_InitDevs
-natmort = sabie_model$rep$natmort
-init_F = 0.1 * exp(parameters$ln_F_mean[1])
-

@@ -38,7 +38,7 @@ Get_Selex = function(Selex_Model, ln_Pars, Age) {
   n_lens = length(lens) # number of lengths
   
   # Recruitment stuff
-  Rec = vector(length = n_yrs) # Recruitment
+  Rec = rep(0, n_yrs) # Recruitment
   sigmaR2_early = exp(ln_sigmaR_early)^2 # recruitment variability for early period
   sigmaR2_late = exp(ln_sigmaR_late)^2 # recruitment variability for late period
   
@@ -48,7 +48,7 @@ Get_Selex = function(Selex_Model, ln_Pars, Age) {
   SAA = array(data = 0, dim = c(n_yrs, n_ages, n_sexes)) # Survival at age
   SAA_mid = array(data = 0, dim = c(n_yrs, n_ages, n_sexes)) # Survival at age (midpoint of the year)
   natmort = array(data = 0, dim = c(n_yrs, n_ages, n_sexes)) # natural mortaltity at age
-  SSB = vector(length = n_yrs) # Spawning stock biomass
+  SSB = rep(0, n_yrs) # Spawning stock biomass
   
   # Fishery Processes
   init_F = init_F_prop * exp(ln_F_mean[1]) # initial F for age structure
@@ -116,8 +116,8 @@ Get_Selex = function(Selex_Model, ln_Pars, Age) {
       } # end s loop
     } # end sf loop
   } # end y loop
-  
-  
+
+
   ## Mortality ---------------------------------------------------------------
   for(y in 1:n_yrs) {
     for(a in 1:n_ages) {
@@ -161,12 +161,12 @@ Get_Selex = function(Selex_Model, ln_Pars, Age) {
   init_age_idx = 1:(n_ages - 2) # Get initial age indexing
   for(s in 1:n_sexes) {
     NAA[1,init_age_idx + 1,s] = exp(ln_R0 + ln_InitDevs[init_age_idx] -
-                                      (init_age_idx * (natmort[1, init_age_idx + 1, s] + 
+                                      (init_age_idx * (natmort[1, init_age_idx + 1, s] +
                                       (init_F * fish_sel[1, init_age_idx + 1, s, 1])))) * sexratio[s] # not plus group
     # Plus group calculations
     NAA[1,n_ages,s] = exp(ln_R0 - ((n_ages - 1) * (natmort[1, n_ages, s] + (init_F * fish_sel[1, n_ages, s, 1]))) ) /
                       (1 - exp(-(natmort[1, n_ages, s] + (init_F * fish_sel[1, n_ages, s, 1])))) * sexratio[s]
-    
+
   } # end s loop
 
   ## Annual Recruitment ------------------------------------------------------
@@ -191,7 +191,7 @@ Get_Selex = function(Selex_Model, ln_Pars, Age) {
     } # end a loop
     SSB[y] = sum(NAA[y,,1] * WAA[y,,1] * MatAA[y,,1]) # Spawning stock biomass calculation
   } # end y loop
-
+  
 
   ## Fishery Observation Model -----------------------------------------------
   for(y in 1:n_yrs) {
@@ -240,7 +240,7 @@ Get_Selex = function(Selex_Model, ln_Pars, Age) {
   } # end y loop
 
 
-# # Likelihood Equations -------------------------------------------------------------
+# Likelihood Equations -------------------------------------------------------------
   # Fishery Likelihoods -----------------------------------------------------
   for(y in 1:n_yrs) {
     for(f in 1:n_fish_fleets) {
@@ -259,9 +259,10 @@ Get_Selex = function(Selex_Model, ln_Pars, Age) {
       ### Fishery Age Compositions ------------------------------------------------
       if(!is.na(sum(ObsFishAgeComps[y,,1,f]))) {
         tmp_Agg_CAA = CAA[y,,,f] / matrix(data = colSums(CAA[y,,,f]), nrow = nrow(CAA[y,,,f]), ncol = ncol(CAA[y,,,f]), byrow = TRUE) # normalize
-        tmp_Agg_CAA = as.vector(t((rowSums(tmp_Agg_CAA) / 2)) %*% AgeingError) # apply ageing error and aggregate
+        tmp_Agg_CAA = as.vector(rowSums(tmp_Agg_CAA) / 2) # apply ageing error and aggregate
         ESS_FishAgeComps[y,1,f] = ISS_FishAgeComps[y,1,f] * Wt_FishAgeComps[1,f] # Calculate effective sample size for fishery age compositions
-        FishAgeComps_nLL[y,1,f] = -1 * ESS_FishAgeComps[y,1,f] * UseFishAgeComps[y,f] * sum(((ObsFishAgeComps[y,,1,f] + 0.001) * log(tmp_Agg_CAA + 0.001))) # Compute ADMB Multinomial Likelihood
+        FishAgeComps_nLL[y,1,f] = -1 * ISS_FishAgeComps[y,1,f]* sum(((ObsFishAgeComps[y,,1,f]  + 0.001)*log(ObsFishAgeComps[y,,1,f]  + 0.001))) # multinomial offset
+        FishAgeComps_nLL[y,1,f] = -1 * ESS_FishAgeComps[y,1,f] * UseFishAgeComps[y,f] * sum(((ObsFishAgeComps[y,,1,f] + 0.001) * log(as.vector(t(tmp_Agg_CAA) %*% AgeingError) + 0.001))) # Compute ADMB Multinomial Likelihood
       } # if no NAs for fishery age comps
 
       ### Fishery Length Compositions ---------------------------------------------
@@ -269,6 +270,7 @@ Get_Selex = function(Selex_Model, ln_Pars, Age) {
         if(!is.na(sum(ObsFishLenComps[y,,s,f]))) {
           tmp_CAL = CAL[y,,s,f] / sum(CAL[y,,s,f]) # temporary variable and normalize
           ESS_FishLenComps[y,s,f] = ISS_FishLenComps[y,s,f] * Wt_FishLenComps[s,f] # Calculate effective sample size for fishery length compositions
+          FishLenComps_nLL[y,s,f] = -1 * ISS_FishLenComps[y,s,f]* sum(((ObsFishLenComps[y,,s,f] + 0.001)*log(ObsFishLenComps[y,,s,f] + 0.001))) # multinomial offset
           FishLenComps_nLL[y,s,f] = -1 * ESS_FishLenComps[y,s,f] * UseFishLenComps[y,f] * sum(((ObsFishLenComps[y,,s,f] + 0.001) * log(tmp_CAL + 0.001))) # Compute ADMB Multinomial Likelihood
         } # if no NAs for fishery length comps
       } # end s loop
@@ -290,16 +292,18 @@ Get_Selex = function(Selex_Model, ln_Pars, Age) {
       ### Survey Age Compositions ------------------------------------------------
       if(!is.na(sum(ObsSrvAgeComps[y,,1,sf]))) {
         tmp_Agg_SrvIAA = SrvIAA[y,,,sf] / matrix(data = colSums(SrvIAA[y,,,sf]), nrow = nrow(SrvIAA[y,,,sf]), ncol = ncol(SrvIAA[y,,,sf]), byrow = TRUE) # normalize
-        tmp_Agg_SrvIAA = as.vector(t((rowSums(tmp_Agg_SrvIAA) / 2)) %*% AgeingError) # apply ageing error and aggregate
+        tmp_Agg_SrvIAA = as.vector(rowSums(tmp_Agg_SrvIAA) / 2) # apply ageing error and aggregate
         ESS_SrvAgeComps[y,1,sf] = ISS_SrvAgeComps[y,1,sf] * Wt_SrvAgeComps[1,sf] # Calculate effective sample size for survey age compositions
-        SrvAgeComps_nLL[y,1,sf] = -1 * ESS_SrvAgeComps[y,1,sf] * UseSrvAgeComps[y,sf] * sum(((ObsSrvAgeComps[y,,1,sf] + 0.001) * log(tmp_Agg_SrvIAA + 0.001))) # Compute ADMB Multinomial Likelihood
+        SrvAgeComps_nLL[y,1,sf] = -1 * ISS_SrvAgeComps[y,1,sf]* sum(((ObsSrvAgeComps[y,,1,sf] + 0.001)*log(ObsSrvAgeComps[y,,1,sf] + 0.001))) # multinomial offset
+        SrvAgeComps_nLL[y,1,sf] = -1 * ESS_SrvAgeComps[y,1,sf] * UseSrvAgeComps[y,sf] * sum(((ObsSrvAgeComps[y,,1,sf] + 0.001) * log(as.vector(t(tmp_Agg_SrvIAA) %*% AgeingError) + 0.001))) # Compute ADMB Multinomial Likelihood
       } # if no NAs for survey age comps
 
-      ### Survey Length Compositions ---------------------------------------------
+      # ### Survey Length Compositions ---------------------------------------------
       for(s in 1:n_sexes) {
         if(!is.na(sum(ObsSrvLenComps[y,,s,sf]))) {
           tmp_SrvIAL = SrvIAL[y,,s,sf] / sum(SrvIAL[y,,s,sf]) # temporary variable and normalize
           ESS_SrvLenComps[y,s,sf] = ISS_SrvLenComps[y,s,sf] * Wt_SrvLenComps[s,sf] # Calculate effective sample size for survey length compositions
+          SrvLenComps_nLL[y,s,sf] = -1 * ISS_SrvLenComps[y,s,sf]* sum(((ObsSrvLenComps[y,,s,sf] + 0.001)*log(ObsSrvLenComps[y,,s,sf] + 0.001))) # multinomial offset
           SrvLenComps_nLL[y,s,sf] = -1 * ESS_SrvLenComps[y,s,sf] * UseSrvLenComps[y,sf] * sum(((ObsSrvLenComps[y,,s,sf] + 0.001) * log(tmp_SrvIAL + 0.001))) # Compute ADMB Multinomial Likelihood
         } # if no NAs for survey length comps
       } # end s loop
@@ -320,7 +324,7 @@ Get_Selex = function(Selex_Model, ln_Pars, Age) {
     if(Use_M_prior == 1) M_Pen = (ln_M - log(M_prior[1]))^2 / (2 * (M_prior[2])^2)
 
     ### Recruitment (Penalty) ----------------------------------------------------
-    for(a in 1:(n_ages - 2)) Init_Rec_nLL[a] = (ln_InitDevs[a] / exp(ln_sigmaR_early))^2 # initial age structure
+    Init_Rec_nLL = (ln_InitDevs / exp(ln_sigmaR_early))^2 # initial age structure penalty
     for(y in 1:(sigmaR_switch-1)) Rec_nLL[y] = (ln_RecDevs[y]/exp(ln_sigmaR_early))^2 + bias_ramp[y]*ln_sigmaR_early # early period
     for(y in (sigmaR_switch:(n_yrs-1))) Rec_nLL[y] = (ln_RecDevs[y]/exp(ln_sigmaR_late))^2 + bias_ramp[y]*ln_sigmaR_late # late period
 
@@ -338,7 +342,7 @@ Get_Selex = function(Selex_Model, ln_Pars, Age) {
         (Wt_Rec * 0.5 * sum(Init_Rec_nLL)); #  Initial Age Penalty
 
 
-# # Report Section ----------------------------------------------------------
+# Report Section ----------------------------------------------------------
   # Biological Processes
   RTMB::REPORT(NAA)
   RTMB::REPORT(ZAA)
