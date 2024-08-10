@@ -445,7 +445,7 @@
   sabie_model$rep <- sabie_model$report(sabie_model$env$last.par.best) # Get report
   sabie_model$sd_rep <- TMB::sdreport(sabie_model) # Get sd report
   
-  # Deterministic Comparisons -----------------------------------------------
+# Deterministic Comparisons -----------------------------------------------
   
   # Get time series
   rec_series <- data.frame(Par = "Recruitment", 

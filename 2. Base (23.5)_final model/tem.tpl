@@ -3326,8 +3326,8 @@ REPORT_SECTION
     write_HQreport();
     }
 // Output file (tem.rep) which is loaded into tem.xls to display output
-  
   report<<"****Executive mary Material*****"<<endl;
+  report<<rec_like<<endl;
   report<<"     Model name"     <<endl;
   report<<model_name<<endl;
   report<<"     .dat file"     <<endl;

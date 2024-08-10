@@ -3329,6 +3329,7 @@ void model_parameters::report(const dvector& gradients)
     write_HQreport();
     }
   report<<"****Executive mary Material*****"<<endl;
+  report<<rec_like<<endl;
   report<<"     Model name"     <<endl;
   report<<model_name<<endl;
   report<<"     .dat file"     <<endl;
