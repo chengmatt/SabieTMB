@@ -12,6 +12,7 @@ francis_rwgt <- function(data, model) {
     # Filter to years and fleets with data
     tmp_obs <- data$ObsFishAgeComps[,,fish_age_indices[i,1],fish_age_indices[i,2]]
     tmp_obs <- na.omit(tmp_obs, drop = FALSE)
+    tmp_obs <- t(apply(X = tmp_obs, MARGIN = 1, FUN = function(x) x / sum(x))) # normalize
     tmp_iss_obs <- data$ISS_FishAgeComps[,fish_age_indices[i,1],fish_age_indices[i,2], drop = FALSE]
     tmp_iss_obs <- tmp_iss_obs[rownames(tmp_iss_obs) %in% rownames(tmp_obs)]
     
@@ -48,6 +49,7 @@ francis_rwgt <- function(data, model) {
     # Filter to years and fleets with data
     tmp_obs <- data$ObsFishLenComps[,,fish_len_indices[i,1],fish_len_indices[i,2]]
     tmp_obs <- na.omit(tmp_obs, drop = FALSE)
+    tmp_obs <- t(apply(X = tmp_obs, MARGIN = 1, FUN = function(x) x / sum(x))) # normalize
     tmp_iss_obs <- data$ISS_FishLenComps[,fish_len_indices[i,1],fish_len_indices[i,2], drop = FALSE]
     tmp_iss_obs <- tmp_iss_obs[rownames(tmp_iss_obs) %in% rownames(tmp_obs)]
     
@@ -84,6 +86,7 @@ francis_rwgt <- function(data, model) {
     # Filter to years and fleets with data
     tmp_obs <- data$ObsSrvAgeComps[,,srv_age_indices[i,1],srv_age_indices[i,2]]
     tmp_obs <- na.omit(tmp_obs, drop = FALSE)
+    tmp_obs <- t(apply(X = tmp_obs, MARGIN = 1, FUN = function(x) x / sum(x))) # normalize
     tmp_iss_obs <- data$ISS_SrvAgeComps[,srv_age_indices[i,1],srv_age_indices[i,2], drop = FALSE]
     tmp_iss_obs <- tmp_iss_obs[rownames(tmp_iss_obs) %in% rownames(tmp_obs)]
     
@@ -120,6 +123,7 @@ francis_rwgt <- function(data, model) {
     # Filter to years and fleets with data
     tmp_obs <- data$ObsSrvLenComps[,,srv_len_indices[i,1],srv_len_indices[i,2]]
     tmp_obs <- na.omit(tmp_obs, drop = FALSE)
+    tmp_obs <- t(apply(X = tmp_obs, MARGIN = 1, FUN = function(x) x / sum(x))) # normalize
     tmp_iss_obs <- data$ISS_SrvLenComps[,srv_len_indices[i,1],srv_len_indices[i,2], drop = FALSE]
     tmp_iss_obs <- tmp_iss_obs[rownames(tmp_iss_obs) %in% rownames(tmp_obs)]
     
