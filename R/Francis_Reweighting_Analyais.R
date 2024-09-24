@@ -1,5 +1,5 @@
-Data weighting ----------------------------------------------------------
-Francis reweighting
+# Data weighting ----------------------------------------------------------
+# Francis reweighting
 for(i in 1:10) {
 
   if(i == 1) { # set weights to 1 at first iteration

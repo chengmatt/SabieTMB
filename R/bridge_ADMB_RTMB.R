@@ -11,6 +11,7 @@
   
   source(here("R", "Francis_Reweight.R"))
   source(here("R", "Sabie_RTMB.R"))
+  source(here("R", "Utility_Functions.R"))
   
   # Read in data
   tem_dat <- dget(here('2. Base (23.5)_final model', 'tem.rdat'))
@@ -747,6 +748,9 @@ sabie_rtmb_model$optim <- sabie_optim # Save optimized model results
 sabie_rtmb_model$rep <- sabie_rtmb_model$report(sabie_rtmb_model$env$last.par.best) # Get report
 sabie_rtmb_model$sd_rep <- RTMB::sdreport(sabie_rtmb_model) # Get sd report
 
+dir.create(here('output', 'Model_23.5'))
+saveRDS(sabie_rtmb_model, here('output', 'Model_23.5', 'Model_23.5.RDS')) # save model
+
 # Check consistency -------------------------------------------------------
 
 # Get parameters
@@ -957,8 +961,7 @@ ggplot(par_df, aes(x = Par, y = (exp(TMB) - exp(ADMB)) / exp(ADMB), group = Par)
   geom_point(size = 5) +
   geom_hline(yintercept = 0, lty = 2, size = 1.3) +
   labs(y = "(TMB - ADMB) / ADMB", x = "Parameter") +
-  theme_sablefish()
+  theme_sablefish() +
+  theme(axis.text.x = element_text(angle = 90))
 
 ggsave(filename = here("figs", "Bridging", "Estimated_Pars_RE.png"), width = 19)
-
-

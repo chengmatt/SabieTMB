@@ -5,7 +5,9 @@ sabie_RTMB <- function(pars) {
 
 # Get_Selex Function ------------------------------------------------------
 Get_Selex = function(Selex_Model, ln_Pars, Age) {
-  selex = rep(0, length(Age))
+  
+  selex = rep(0, length(Age)) # Temporary container vector
+  
   if(Selex_Model == 0) { # logistic selectivity
     # Extract out and exponentiate the parameters here
     a50 = exp(ln_Pars[1]); # a50
@@ -88,7 +90,7 @@ Get_Selex = function(Selex_Model, ln_Pars, Age) {
   # Penalties and Priors
   Fmort_Pen = rep(0, n_fish_fleets) # Fishing Mortality Deviation penalty
   Rec_nLL = rep(0, n_yrs - 1) # Recruitment penalty
-  Init_Rec_nLL = rep(0, n_ages - 1) # Initial Recruitment penalty
+  Init_Rec_nLL = rep(0, n_ages - 2) # Initial Recruitment penalty
   bias_ramp = rep(0, n_yrs) # bias ramp from Methot and Taylor 2011
   M_Pen = 0 # Penalty/Prior for natural mortality
   jnLL = 0 # Joint negative log likelihood
