@@ -65,12 +65,23 @@
   data$sigmaR_switch <- as.integer(length(1960:1975)) - 1 # when to switch sigmaR from 0.4 to a larger value
   data$sexratio <- as.vector(c(0.5, 0.5)) # recruitment sex ratio (assuming 50,50)
   
+  data$likelihoods <- 0
   # Weights for likelihoods
-  data$Wt_Catch <- 50 # Catch weights
-  data$Wt_FishIdx <- 0.448 # fishery index weights
-  data$Wt_SrvIdx <- 0.448 # survey index weights
-  data$Wt_Rec <- 1.5 # recruitment weights
-  data$Wt_F <- 0.1 # fishing mortality penalty weights
+  if(data$likelihoods == 0) {
+    data$Wt_Catch <- 50 # Catch weights
+    data$Wt_FishIdx <- 0.448 # fishery index weights
+    data$Wt_SrvIdx <- 0.448 # survey index weights
+    data$Wt_Rec <- 1.5 # recruitment weights
+    data$Wt_F <- 0.1 # fishing mortality penalty weights
+  }
+  
+  if(data$likelihoods == 1) {
+    data$Wt_Catch <- 1 # Catch weights
+    data$Wt_FishIdx <- 1 # fishery index weights
+    data$Wt_SrvIdx <- 1 # survey index weights
+    data$Wt_Rec <- 1 # recruitment weights
+    data$Wt_F <- 1 # fishing mortality penalty weights
+  }
   
   # Biological Processes
   # Natural Mortality
@@ -319,6 +330,8 @@
   ### Fishery Stuff ---------------------------------------------------------
   
   # Fishing Mortality
+  parameters$ln_obscatch_sigma <- log(c(0.1, 0.1)) # sigma for catch
+  parameters$ln_sigmaF <- log(rep(5, 2)) # Sigma for Fs
   parameters$ln_F_mean <- as.vector(c(mean_ll_fish, mean_ll_trwl)) # mean fishing mortality
   parameters$ln_F_devs <- matrix(0, nrow = length(data$yrs), ncol = data$n_fish_fleets) # fishing mortality deviations from mean
   parameters$ln_F_devs[,1] <- devs_ll_fish # longline fishery Fs
@@ -420,6 +433,9 @@
                                             rep(7,4), rep(8, 4),
                                             rep(c(NA,2), 2), rep(c(NA, 5), 2)))
   
+  mapping$ln_obscatch_sigma <- factor(rep(NA, 2))
+  mapping$ln_sigmaF <- factor(rep(NA, 2))
+  
   # mapping <- list()
   # mapping$ln_fish_fixed_sel_pars <- factor(rep(NA, length(parameters$ln_fish_fixed_sel_pars))) # fix all fishery selectivity parameters for now
   # mapping$ln_srv_fixed_sel_pars <- factor(rep(NA, length(parameters$ln_srv_fixed_sel_pars))) # fix all survey selectivity parameters for now
@@ -459,7 +475,6 @@
   # # Trawl
   # data$fish_sel_dat[,,1,2] = matrix(rep(tem_dat$agesel$fish3sel.f, each=nrow(data$fish_sel_dat)), nrow=nrow(data$fish_sel_dat), byrow=FALSE)
   # data$fish_sel_dat[,,2,2] = matrix(rep(tem_dat$agesel$fish3sel.m, each=nrow(data$fish_sel_dat)), nrow=nrow(data$fish_sel_dat), byrow=FALSE)
-  
   
   # make AD model function
   sabie_rtmb_model <- RTMB::MakeADFun(sabie_RTMB, parameters = parameters, map = mapping)
@@ -681,7 +696,7 @@
   
   # Time Series Deterministic
   ggplot() +
-    geom_line(ts_df, mapping  = aes(x = Year, y = TMB, color = "TMB"), size = 1.3, lty = 1) +
+    geom_line(ts_df, mapping  = aes(x = Year, y = TMB, color = "RTMB"), size = 1.3, lty = 1) +
     geom_line(ts_df, mapping  = aes(x = Year, y = ADMB, color = "ADMB"), size = 1.3, lty = 2) +
     facet_wrap(~Par, scales = "free") +
     labs(x = "Year", color = 'Model', y = "Value") +
@@ -695,6 +710,7 @@
     geom_line(size = 2) +
     geom_hline(yintercept = 0, lty = 1.3, size = 1.3) +
     ggthemes::scale_color_hc() +
+    labs(x = "(RTMB - ADMB)/ ADMB") +
     labs(color = "Time Series") +
     theme_sablefish()
   
@@ -705,14 +721,14 @@
     geom_line(combined_sel, mapping = aes(x = Age , y = (TMB - ADMB)), lwd = 1.3) +
     facet_wrap(~Type, scales = "free") +   
     geom_hline(yintercept = 0, lty = 1.3, size = 1.3) +
-    labs(y = "Selex (TMB - ADMB)") +
+    labs(y = "Selex (RTMB - ADMB)") +
     theme_sablefish()
   
   ggsave(filename = here("figs", "Bridging", "Deterministic_Selex_RelErr.png"), width = 19)
   
   # Selectivity curves
   ggplot() +
-    geom_line(combined_sel, mapping  = aes(x = Age, y = TMB, color = "TMB"), size = 1.3, lty = 1) +
+    geom_line(combined_sel, mapping  = aes(x = Age, y = TMB, color = "RTMB"), size = 1.3, lty = 1) +
     geom_line(combined_sel, mapping  = aes(x = Age, y = ADMB, color = "ADMB"), size = 1.3, lty = 2) +
     ggthemes::scale_color_hc() +
     facet_wrap(~Type) +
@@ -722,12 +738,14 @@
   ggsave(filename = here("figs", "Bridging", "Deterministic_SelexCurves.png"), width = 19)
   
   # Plot jnLL
-  ggplot(unopt_like_df, aes(x = dat_type, y = ADMB - RTMB)) +
+  ggplot(unopt_like_df, aes(x = dat_type, y = RTMB - ADMB)) +
     geom_point(size = 3) +
     theme_bw() +
-    labs(x = "Data Type") +
+    labs(x = "Data Type", y = '(RTMB - ADMB)') +
     theme(axis.text.x = element_text(angle = 90))
 
+ggsave(filename = here("figs", "Bridging", "Deterministic_UnOpt_nLL.png"), width = 10)
+  
 
 # Optimized model ---------------------------------------------------------
 
@@ -749,6 +767,8 @@ sabie_rtmb_model$rep <- sabie_rtmb_model$report(sabie_rtmb_model$env$last.par.be
 sabie_rtmb_model$sd_rep <- RTMB::sdreport(sabie_rtmb_model) # Get sd report
 
 dir.create(here('output', 'Model_23.5'))
+saveRDS(data, here('output', 'Model_23.5', 'Model_23.5_data.RDS')) # save model
+saveRDS(parameters, here('output', 'Model_23.5', 'Model_23.5_pars.RDS')) # save model
 saveRDS(sabie_rtmb_model, here('output', 'Model_23.5', 'Model_23.5.RDS')) # save model
 
 # Check consistency -------------------------------------------------------
@@ -913,17 +933,91 @@ combined_sel <- rbind(
   coop_ll_srv_m2
 )
 
+# Compare likelihoods
+opt_like_df = data.frame(dat_type = c("jnLL", 'Fixed Gear Fishery Age',
+                                        "Fixed Gear Fishery Length (F)",
+                                        "Fixed Gear Fishery Length (M)",
+                                        "Trawl Gear Fishery Length (F)",
+                                        "Trawl Gear Fishery Length (M)",
+                                        "Domestic Survey LL Age",
+                                        "Domestic Survey LL Length (F)",
+                                        "Domestic Survey LL Length (M)",
+                                        "Domestic Trawl Survey Length (F)",
+                                        "Domestic Trawl Survey Length (M)",
+                                        "Japanese LL Survey Length (F)",
+                                        "Japanese LL Survey Length (M)",
+                                        "Catch",
+                                        "Domestic LL Survey Index",
+                                        "Japanese LL Survey Index",
+                                        "Trawl Survey Index",
+                                        "Domestic LL Fishery Index",
+                                        "Japanese LL Fishery Index",
+                                        "FMort Penalty",
+                                        "M Prior",
+                                        "Rec Penalty"
+),
+ADMB = c(
+  tem_dat$likecomp[names(tem_dat$likecomp) == "obj.fun"],
+  tem_dat$likecomp[names(tem_dat$likecomp) == "L.fish1age"],
+  tem_dat$likecomp[names(tem_dat$likecomp) == "L.fish1sizef"],
+  tem_dat$likecomp[names(tem_dat$likecomp) == "L.fish1sizem"],
+  tem_dat$likecomp[names(tem_dat$likecomp) == "L.fish3sizef"],
+  tem_dat$likecomp[names(tem_dat$likecomp) == "L.fish3sizem"],
+  tem_dat$likecomp[names(tem_dat$likecomp) == "L.surv1age"],
+  tem_dat$likecomp[names(tem_dat$likecomp) == "L.surv1sizef"],
+  tem_dat$likecomp[names(tem_dat$likecomp) == "L.surv1sizem"],
+  tem_dat$likecomp[names(tem_dat$likecomp) == "L.surv7sizef"],
+  tem_dat$likecomp[names(tem_dat$likecomp) == "L.surv7sizem"],
+  tem_dat$likecomp[names(tem_dat$likecomp) == "L.surv2sizef"],
+  tem_dat$likecomp[names(tem_dat$likecomp) == "L.surv2sizem"],
+  tem_dat$likecomp[names(tem_dat$likecomp) == "Catch"],
+  tem_dat$likecomp[names(tem_dat$likecomp) == "L.surv3"],
+  tem_dat$likecomp[names(tem_dat$likecomp) == "L.surv4"],
+  tem_dat$likecomp[names(tem_dat$likecomp) == "L.surv7"],
+  tem_dat$likecomp[names(tem_dat$likecomp) == "L.surv5"],
+  tem_dat$likecomp[names(tem_dat$likecomp) == "L.surv6"],
+  tem_dat$likecomp[names(tem_dat$likecomp) == "F.reg"],
+  tem_dat$likecomp[names(tem_dat$likecomp) == "M.prior"],
+  tem_dat$likecomp[names(tem_dat$likecomp) == "Rec.Pen"]
+),
+RTMB = c(
+  sabie_rtmb_model$rep$jnLL,
+  sum(sabie_rtmb_model$rep$FishAgeComps_nLL - sabie_rtmb_model$rep$FishAgeComps_offset_nLL),
+  sum(sabie_rtmb_model$rep$FishLenComps_nLL[,1,1] - sabie_rtmb_model$rep$FishLenComps_offset_nLL[,1,1]),
+  sum(sabie_rtmb_model$rep$FishLenComps_nLL[,2,1] - sabie_rtmb_model$rep$FishLenComps_offset_nLL[,2,1]),
+  sum(sabie_rtmb_model$rep$FishLenComps_nLL[,1,2] - sabie_rtmb_model$rep$FishLenComps_offset_nLL[,1,2]),
+  sum(sabie_rtmb_model$rep$FishLenComps_nLL[,2,2] - sabie_rtmb_model$rep$FishLenComps_offset_nLL[,2,2]),
+  sum(sabie_rtmb_model$rep$SrvAgeComps_nLL[,1,1] - sabie_rtmb_model$rep$SrvAgeComps_offset_nLL[,1,1]),
+  sum(sabie_rtmb_model$rep$SrvLenComps_nLL[,1,1] - sabie_rtmb_model$rep$SrvLenComps_offset_nLL[,1,1]),
+  sum(sabie_rtmb_model$rep$SrvLenComps_nLL[,2,1] - sabie_rtmb_model$rep$SrvLenComps_offset_nLL[,2,1]),
+  sum(sabie_rtmb_model$rep$SrvLenComps_nLL[,1,2] - sabie_rtmb_model$rep$SrvLenComps_offset_nLL[,1,2]),
+  sum(sabie_rtmb_model$rep$SrvLenComps_nLL[,2,2] - sabie_rtmb_model$rep$SrvLenComps_offset_nLL[,2,2]),
+  sum(sabie_rtmb_model$rep$SrvLenComps_nLL[,1,3] - sabie_rtmb_model$rep$SrvLenComps_offset_nLL[,1,3]),
+  sum(sabie_rtmb_model$rep$SrvLenComps_nLL[,2,3] - sabie_rtmb_model$rep$SrvLenComps_offset_nLL[,2,3]),
+  sum(sabie_rtmb_model$rep$Catch_nLL) * data$Wt_Catch,
+  sum(sabie_rtmb_model$rep$SrvIdx_nLL[,1]) * data$Wt_SrvIdx,
+  sum(sabie_rtmb_model$rep$SrvIdx_nLL[,3]) * data$Wt_SrvIdx,
+  sum(sabie_rtmb_model$rep$SrvIdx_nLL[,2]) * data$Wt_SrvIdx,
+  sum(sabie_rtmb_model$rep$FishIdx_nLL[36:63,1]) * data$Wt_FishIdx,
+  sum(sabie_rtmb_model$rep$FishIdx_nLL[-c(36:63),1]) * data$Wt_FishIdx,
+  sum(sabie_rtmb_model$rep$Fmort_Pen) * data$Wt_F,
+  sabie_rtmb_model$rep$M_Pen,
+  sum(sabie_rtmb_model$rep$Init_Rec_nLL) * 0.5 * data$Wt_Rec +
+    sum(sabie_rtmb_model$rep$Rec_nLL) * 0.5 * data$Wt_Rec
+)) %>% 
+  mutate(ADMB = round(ADMB, 4), RTMB = round(RTMB, 4), diff = ADMB - RTMB)
+
 # Plots -------------------------------------------------------------------
 
 # Time Series Estimated
 ggplot() +
-  geom_line(ts_df, mapping  = aes(x = Year, y = TMB, color = "TMB"), size = 1.3, lty = 1) +
+  geom_line(ts_df, mapping  = aes(x = Year, y = TMB, color = "RTMB"), size = 1.3, lty = 1) +
   geom_line(ts_df, mapping  = aes(x = Year, y = ADMB, color = "ADMB"), size = 1.3, lty = 2) +
   facet_wrap(~Par, scales = "free") +
   labs(x = "Year", color = 'Model', y = "Value") +
   ggthemes::scale_color_hc() +
   theme_sablefish()
-
+  
 ggsave(filename = here("figs", "Bridging", "Estimated_TS.png"))
 
 # Relative Error Time Series
@@ -931,6 +1025,7 @@ ggplot(ts_df, aes(x = Year, y = (TMB - ADMB) / ADMB, color = Par)) +
   geom_line(size = 2) +
   geom_hline(yintercept = 0, lty = 1.3, size = 1.3) +
   ggthemes::scale_color_hc() +
+  labs(x = "(RTMB - ADMB) / ADMB") +
   labs(color = "Time Series") +
   theme_sablefish()
 
@@ -941,14 +1036,14 @@ ggplot() +
   geom_line(combined_sel, mapping = aes(x = Age , y = (TMB - ADMB)), lwd = 1.3) +
   facet_wrap(~Type) +
   geom_hline(yintercept = 0, lty = 1.3, size = 1.3) +
-  labs(y = "Selex (TMB - ADMB)") +
+  labs(y = "Selex (RTMB - ADMB)") +
   theme_sablefish()
 
 ggsave(filename = here("figs", "Bridging", "Estimated_Selex_RelErr.png"), width = 19)
 
 # Selectivity curves
 ggplot() +
-  geom_line(combined_sel, mapping  = aes(x = Age, y = TMB, color = "TMB"), size = 1.3, lty = 1) +
+  geom_line(combined_sel, mapping  = aes(x = Age, y = TMB, color = "RTMB"), size = 1.3, lty = 1) +
   geom_line(combined_sel, mapping  = aes(x = Age, y = ADMB, color = "ADMB"), size = 1.3, lty = 2) +
   ggthemes::scale_color_hc() +
   facet_wrap(~Type) +
@@ -960,8 +1055,17 @@ ggsave(filename = here("figs", "Bridging", "Estimated_SelexCurves.png"), width =
 ggplot(par_df, aes(x = Par, y = (exp(TMB) - exp(ADMB)) / exp(ADMB), group = Par)) +
   geom_point(size = 5) +
   geom_hline(yintercept = 0, lty = 2, size = 1.3) +
-  labs(y = "(TMB - ADMB) / ADMB", x = "Parameter") +
+  labs(y = "(RTMB - ADMB) / ADMB", x = "Parameter") +
   theme_sablefish() +
   theme(axis.text.x = element_text(angle = 90))
 
 ggsave(filename = here("figs", "Bridging", "Estimated_Pars_RE.png"), width = 19)
+
+# Plot jnLL
+ggplot(opt_like_df, aes(x = dat_type, y = RTMB - ADMB)) +
+  geom_point(size = 3) +
+  theme_bw() +
+  labs(x = "Data Type", y = '(RTMB - ADMB)') +
+  theme(axis.text.x = element_text(angle = 90))
+
+ggsave(filename = here("figs", "Bridging", "Estimated_Opt_nLL.png"), width = 10)

@@ -1,13 +1,11 @@
-sabie_RTMB <- function(pars) {
+sabie_RTMB = function(pars) {
   
   require(RTMB)
   RTMB::getAll(pars, data) # load in starting values and data
 
 # Get_Selex Function ------------------------------------------------------
 Get_Selex = function(Selex_Model, ln_Pars, Age) {
-  
   selex = rep(0, length(Age)) # Temporary container vector
-  
   if(Selex_Model == 0) { # logistic selectivity
     # Extract out and exponentiate the parameters here
     a50 = exp(ln_Pars[1]); # a50
@@ -32,8 +30,33 @@ Get_Selex = function(Selex_Model, ln_Pars, Age) {
   
   return(selex)
 } # end function
-
   
+
+# Dirichlet-Multinomial Likelihood ----------------------------------------
+# From https://github.com/James-Thorson/CCSRA/blob/main/inst/executables/CCSRA_v9.cpp
+ddirmult <- function(obs, pred, Ntotal, ln_theta, give_log = TRUE) {
+  # Set up function variables
+  n_c = length(obs) # number of categories
+  p_exp = pred # expected values container
+  p_obs = obs # observed values container
+  dirichlet_Parm = exp(ln_theta) * Ntotal # Dirichlet alpha parameters
+  
+  # set up pdf
+  logres = lgamma(Ntotal + 1)
+  for(c in 1:n_c) logres = logres - lgamma(Ntotal*p_obs[c]+1) # integration constant
+  logres = logres + lgamma(dirichlet_Parm) - lgamma(Ntotal+dirichlet_Parm) # 2nd term in formula
+  
+  # Summation in 3rd term in formula
+  for(c in 1:n_c) {
+    logres = logres + lgamma(Ntotal*p_obs[c] + dirichlet_Parm*p_exp[c])
+    logres = logres - lgamma(dirichlet_Parm * p_exp[c])
+  } # end c
+  
+  if(give_log == TRUE) return(logres)
+  else return(exp(logres))
+} # end function
+
+
 # Model Set Up (Containers) -----------------------------------------------
   n_ages = length(ages) # number of ages
   n_yrs = length(years) # number of years
@@ -255,13 +278,27 @@ Get_Selex = function(Selex_Model, ln_Pars, Age) {
 
       ### Fishery Catches ---------------------------------------------------------
       if(!is.na(ObsCatch[y,f])) {
-        Catch_nLL[y,f] = Catch_nLL[y,f] + UseCatch[y,f] * (log(ObsCatch[y,f] + Catch_Constant[f]) - log(PredCatch[y,f] + Catch_Constant[f]))^2 # SSQ Catch
+        # ADMB likelihoods
+        if(likelihoods == 0) {
+          Catch_nLL[y,f] = UseCatch[y,f] * (log(ObsCatch[y,f] + Catch_Constant[f]) - 
+                           log(PredCatch[y,f] + Catch_Constant[f]))^2 # SSQ Catch
+        } # ADMB likelihoods
+        if(likelihoods == 1) {
+          Catch_nLL[y,f] = UseCatch[y,f] -1 * dnorm(log(ObsCatch[y,f] + Catch_Constant[f]), 
+                           log(PredCatch[y,f] + Catch_Constant[f]), exp(ln_obscatch_sigma[f]), TRUE)
+        } # TMB likelihoods
       } # if no NAs for fishery catches
 
       ### Fishery Indices ---------------------------------------------------------
       if(!is.na(ObsFishIdx[y,f])) {
-        FishIdx_nLL[y,f] = FishIdx_nLL[y,f] + UseFishIdx[y,f] * (log(ObsFishIdx[y,f] + 1e-4) - log(PredFishIdx[y,f] + 1e-4))^2 /
-                           (2 * (ObsFishIdx_SE[y,f] / ObsFishIdx[y,f])^2) # lognormal fishery index
+        if(likelihoods == 0)  {
+          FishIdx_nLL[y,f] = UseFishIdx[y,f] * (log(ObsFishIdx[y,f] + 1e-4) - log(PredFishIdx[y,f] + 1e-4))^2 /
+                             (2 * (ObsFishIdx_SE[y,f] / ObsFishIdx[y,f])^2) # lognormal fishery index
+        } # ADMB likelihoods
+        if(likelihoods == 1) {
+          FishIdx_nLL[y,f] = UseFishIdx[y,f] -1 * dnorm(log(ObsFishIdx[y,f] + 1e-4), 
+                             log(PredFishIdx[y,f] + 1e-4), 0.3, TRUE)
+        } # TMB likelihoods
       } # if no NAs for fishery index
 
       ### Fishery Age Compositions ------------------------------------------------
@@ -296,8 +333,14 @@ Get_Selex = function(Selex_Model, ln_Pars, Age) {
 
       ### Survey Indices ---------------------------------------------------------
       if(!is.na(ObsSrvIdx[y,sf])) {
-        SrvIdx_nLL[y,sf] = SrvIdx_nLL[y,sf] + UseSrvIdx[y,sf] * (log(ObsSrvIdx[y,sf] + 1e-4) - log(PredSrvIdx[y,sf] + 1e-4))^2 /
-                           (2 * (ObsSrvIdx_SE[y,sf] / ObsSrvIdx[y,sf])^2) # lognormal survey index
+        if(likelihoods == 0) {
+          SrvIdx_nLL[y,sf] = UseSrvIdx[y,sf] * (log(ObsSrvIdx[y,sf] + 1e-4) - log(PredSrvIdx[y,sf] + 1e-4))^2 /
+                            (2 * (ObsSrvIdx_SE[y,sf] / ObsSrvIdx[y,sf])^2) # lognormal survey index
+        } # ADMB likelihoods
+        if(likelihoods == 1) {
+          SrvIdx_nLL[y,sf] = UseSrvIdx[y,sf] -1 * dnorm(log(ObsSrvIdx[y,sf] + 1e-4), 
+                             log(PredSrvIdx[y,sf] + 1e-4), ObsSrvIdx_SE[y,sf] / ObsSrvIdx[y,sf], TRUE)
+        } # TMB likelihoods
       } # if no NAs for survey index
 
       ### Survey Age Compositions ------------------------------------------------
@@ -321,7 +364,6 @@ Get_Selex = function(Selex_Model, ln_Pars, Age) {
           SrvLenComps_nLL[y,s,sf] = -1 * UseSrvLenComps[y,sf] * ESS_SrvLenComps[y,s,sf] * sum(((tmp_ObsSrvLenComps + 0.001) * log(tmp_SrvIAL + 0.001))) # Compute ADMB Multinomial Likelihood
         } # if no NAs for survey length comps
       } # end s loop
-
     } # end sf loop
   } # end y loop
 
@@ -330,30 +372,36 @@ Get_Selex = function(Selex_Model, ln_Pars, Age) {
     ### Fishing Mortality (Penalty) ---------------------------------------------
     for(f in 1:n_fish_fleets) {
       for(y in 1:n_yrs) {
-        if(!is.na(ObsCatch[y,f])) Fmort_Pen[f] = Fmort_Pen[f] + ln_F_devs[y, f]^2 # SSQ penalize
+        if(!is.na(ObsCatch[y,f])) {
+          if(likelihoods == 0) Fmort_Pen[f] = Fmort_Pen[f] + ln_F_devs[y, f]^2 # SSQ ADMB
+          if(likelihoods == 1) Fmort_Pen[f] = Fmort_Pen[f] -1 * dnorm(ln_F_devs[y, f], 0, exp(ln_sigmaF[f]), TRUE) # TMB likelihoods
+        } # end if
       } # y loop
     } # f loop
-
+  
     ### Natural Mortality (Prior) -----------------------------------------------
-    if(Use_M_prior == 1) M_Pen = (ln_M - log(M_prior[1]))^2 / (2 * (M_prior[2])^2)
+    if(Use_M_prior == 1) {
+      if(likelihoods == 0) M_Pen = (ln_M - log(M_prior[1]))^2 / (2 * (M_prior[2])^2) # ADMB likelihood
+      if(likelihoods == 1) M_Pen = -1 * dnorm(ln_M, log(M_prior[1]), M_prior[2], TRUE) # TMB likelihood
+    } # end if
   
     ### Recruitment (Penalty) ----------------------------------------------------
     Init_Rec_nLL = (ln_InitDevs / exp(ln_sigmaR_early))^2 # initial age structure penalty
     for(y in 1:(sigmaR_switch-1)) Rec_nLL[y] = (ln_RecDevs[y]/exp(ln_sigmaR_early))^2 + bias_ramp[y]*ln_sigmaR_early # early period
     for(y in (sigmaR_switch:(n_yrs-1))) Rec_nLL[y] = (ln_RecDevs[y]/exp(ln_sigmaR_late))^2 + bias_ramp[y]*ln_sigmaR_late # late period
 
-  # Apply likelihood weights here and compute joint negative log likelihood
-  jnLL = (Wt_Catch * sum(Catch_nLL)) + # Catch likelihoods
-         (Wt_FishIdx * sum(FishIdx_nLL)) + # Fishery Index likelihood
-         sum(FishAgeComps_nLL - FishAgeComps_offset_nLL)  + # Fishery Age likelihood
-         sum(FishLenComps_nLL - FishLenComps_offset_nLL)+ # Fishery Length likelihood
-        (Wt_SrvIdx * sum(SrvIdx_nLL)) + # Survey Index likelihood
-         sum(SrvAgeComps_nLL - SrvAgeComps_offset_nLL)+ # Survey Age likelihood
-         sum(SrvLenComps_nLL - SrvLenComps_offset_nLL)+ # Survey Length likelihood
-        (Wt_F * sum(Fmort_Pen)) + # Fishery Mortality Penalty
-         M_Pen + # Natural Mortality Prior (Penalty)
-        (Wt_Rec * 0.5 * sum(Rec_nLL)) + # Recruitment Penalty
-        (Wt_Rec * 0.5 * sum(Init_Rec_nLL)); #  Initial Age Penalty
+    # Apply likelihood weights here and compute joint negative log likelihood
+    jnLL = (Wt_Catch * sum(Catch_nLL)) + # Catch likelihoods
+           (Wt_FishIdx * sum(FishIdx_nLL)) + # Fishery Index likelihood
+           sum(FishAgeComps_nLL - FishAgeComps_offset_nLL)  + # Fishery Age likelihood
+           sum(FishLenComps_nLL - FishLenComps_offset_nLL)+ # Fishery Length likelihood
+          (Wt_SrvIdx * sum(SrvIdx_nLL)) + # Survey Index likelihood
+           sum(SrvAgeComps_nLL - SrvAgeComps_offset_nLL)+ # Survey Age likelihood
+           sum(SrvLenComps_nLL - SrvLenComps_offset_nLL)+ # Survey Length likelihood
+          (Wt_F * sum(Fmort_Pen)) + # Fishery Mortality Penalty
+           M_Pen + # Natural Mortality Prior (Penalty)
+          (Wt_Rec * 0.5 * sum(Rec_nLL)) + # Recruitment Penalty
+          (Wt_Rec * 0.5 * sum(Init_Rec_nLL)); #  Initial Age Penalty
 
 
 # Report Section ----------------------------------------------------------

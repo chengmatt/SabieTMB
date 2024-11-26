@@ -15,11 +15,11 @@ compile("SabieTMB.cpp")
 dyn.load(dynlib('SabieTMB'))
 
 # Load in model
-sabie_model <- readRDS(here('output', 'Model_23.5', 'Model_23.5.rds')) 
+sabie_model <- readRDS(here('output', 'Model_23.5', 'Model_23.5.RDS')) 
 
-sd <- 0.25 # Specify CV/sd value from an rnorm
+sd <- 0.4 # Specify CV/sd value from an rnorm
 n_jitter <- 100 # number of jitter runsa
-n_newton <- 2 # number of newton steps to take (extr)
+n_newton <- 4 # number of newton steps to take (extr)
 
 # progress bar for parraellelization
 pb <- txtProgressBar(max = n_jitter, style = 3)
@@ -29,15 +29,12 @@ opts <- list(progress = progress)
 # set up cores
 ncores <- detectCores() 
 # Register cluster here
-cl <- makeCluster(ncores - 2)
+cl <- makeCluster(ncores - 4)
 registerDoSNOW(cl)
 
 # Jitter Model ------------------------------------------------------------
-
-jitter_all <- foreach(jit = 1:n_jitter, .packages = c("TMB", "here", "tidyverse"), .options.snow = opts) %dopar% {
-  
-  # Load in DLL
-  dyn.load(dynlib('SabieTMB'))
+jitter_all <- data.frame()
+for(jit in 1:n_jitter) {
   
   # Jitter parameters
   jittered_pars <- sabie_model$par * exp(rnorm(length(sabie_model$par), 0, sd))
@@ -68,23 +65,15 @@ jitter_all <- foreach(jit = 1:n_jitter, .packages = c("TMB", "here", "tidyverse"
                           Max_Gradient = max(abs(sabie_model$sd_rep$gradient.fixed)))
   
   # # Jitter parameters
-  # jitter_par_df <- data.frame(Par_Vals = sabie_model$par, Par_Names = names(sabie_model$par),
-  #                            Max_Gradient = max(abs(sabie_model$sd_rep$gradient.fixed)),
-  #                            jitter = jit, Hessian = sabie_model$sd_rep$pdHess, 
-  #                            jnLL = sabie_model$rep$jnLL)
-  # 
-  # # Output as list
-  # jitter_list <- list(TimeSeries = jitter_par_df, Parameters = jitter_par_df)
+  jitter_all <- rbind(jitter_ts_df, jitter_all)
 }
 
 
 # Diagnostic Plots -------------------------------------------------------------------
 
-# Unbind list from parallelization
-jitter_all_df <- data.table::rbindlist(jitter_all)
 
 # SSB Trends
-ggplot(jitter_all_df, aes(x = Year + 1960, y = SSB, group = jitter)) +
+ggplot(jitter_all, aes(x = Year + 1960, y = SSB, group = jitter)) +
   geom_line(size = 1.3, color = "grey21") +
   geom_line() +
   labs(x = "Year", y = "SSB (kt)", title = "Jitter Analysis SSB Trends") +
@@ -93,7 +82,7 @@ ggplot(jitter_all_df, aes(x = Year + 1960, y = SSB, group = jitter)) +
 ggsave(filename = here("figs", "Diagnostics", "Jitter_SSB.png"))
 
 # Recruitment
-ggplot(jitter_all_df, aes(x = Year + 1960, y = Rec, group = jitter)) +
+ggplot(jitter_all, aes(x = Year + 1960, y = Rec, group = jitter)) +
   geom_line(size = 1.3, color = "grey21") +
   geom_line() +
   labs(x = "Year", y = "Age 2 Recruitment (millions)", title = "Jitter Analysis SSB Trends") +
@@ -102,9 +91,10 @@ ggplot(jitter_all_df, aes(x = Year + 1960, y = Rec, group = jitter)) +
 ggsave(filename = here("figs", "Diagnostics", "Jitter_Rec.png"))
 
 # jnLL Plot
-ggplot(jitter_all_df, aes(x = jitter, y = jnLL, color = Max_Gradient, shape = Hessian)) +
+ggplot(jitter_all, aes(x = jitter, y = jnLL, color = Max_Gradient, shape = Hessian)) +
   geom_point(size = 5, alpha = 0.3) +
-  geom_hline(yintercept = min(jitter_all_df$jnLL), lty = 2, size = 2, color = "blue") +
+  geom_hline(yintercept = min(jitter_all$jnLL), lty = 2, size = 2, color = "blue") +
+  facet_wrap(~Hessian, scales = 'free') +
   scale_color_viridis_c() +
   theme_sablefish() +
   theme(legend.position = "bottom") +
