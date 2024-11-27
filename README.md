@@ -10,6 +10,7 @@
     1.4) MCMC
     1.5) Residual Plots
     1.6) Jackknife sensitivity
+    1.7 ) Runs test
     
 3) Francis Reweighting
 4) Projection Models
@@ -18,3 +19,6 @@
 7) Functions for figures and tables
 8) Functions for model comparisons
 9)  Selectivity Options (More parametric forms + deviations)
+10)  Disaggregate comps w/ implicit sex ratio
+11)  Add options for estimating sex specific M and sex ratios
+12)  Dirichlet Multinomial Data Weighting
