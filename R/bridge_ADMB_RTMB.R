@@ -287,6 +287,7 @@
   
   ### Fishery Stuff -----------------------------------------------------
   # Selectivity
+  data$cont_tv_fish_sel <- c(0, 0) # no timevarying selex continously
   # Time Block Specification
   data$fish_sel_blocks <- matrix(NA, nrow = length(1:64), ncol = data$n_fish_fleets)
   data$fish_sel_blocks[1:35,1] <- 0 # block one fishery ll selex
@@ -336,6 +337,12 @@
   parameters$ln_F_devs <- matrix(0, nrow = length(data$yrs), ncol = data$n_fish_fleets) # fishing mortality deviations from mean
   parameters$ln_F_devs[,1] <- devs_ll_fish # longline fishery Fs
   parameters$ln_F_devs[,2] <- c(rep(0, 3), devs_ll_trwl ) # trwl fishery Fs
+  
+  # Set up continuous fishery selectivity stuff
+  parameters$ln_fishsel_dev1 <- array(0, dim = c(length(data$yrs), data$n_sexes, data$n_fish_fleets))
+  parameters$ln_fishsel_dev2 <- array(0, dim = c(length(data$yrs), data$n_sexes, data$n_fish_fleets))
+  parameters$ln_fishsel_dev1_sd <- matrix(0.1, nrow = data$n_sexes, ncol = data$n_fish_fleets)
+  parameters$ln_fishsel_dev2_sd <- matrix(0.1, nrow = data$n_sexes, ncol = data$n_fish_fleets)
   
   # Fixed Gear Fishery three time blocks
   max_fish_blks <- 3 # maximum number of fishery blocks for any fleet
@@ -433,9 +440,16 @@
                                             rep(7,4), rep(8, 4),
                                             rep(c(NA,2), 2), rep(c(NA, 5), 2)))
   
+  # Fixing sigmas for fishery catch and Fdevs here
   mapping$ln_obscatch_sigma <- factor(rep(NA, 2))
   mapping$ln_sigmaF <- factor(rep(NA, 2))
   
+  # Fixing continuous time-varying selecitvity stuff
+  mapping$ln_fishsel_dev1 <- factor(rep(NA, length(parameters$ln_fishsel_dev1)))
+  mapping$ln_fishsel_dev2 <- factor(rep(NA, length(parameters$ln_fishsel_dev2)))
+  mapping$ln_fishsel_dev1_sd <- factor(rep(NA, length(parameters$ln_fishsel_dev1_sd)))
+  mapping$ln_fishsel_dev2_sd <- factor(rep(NA, length(parameters$ln_fishsel_dev2_sd)))
+
   # mapping <- list()
   # mapping$ln_fish_fixed_sel_pars <- factor(rep(NA, length(parameters$ln_fish_fixed_sel_pars))) # fix all fishery selectivity parameters for now
   # mapping$ln_srv_fixed_sel_pars <- factor(rep(NA, length(parameters$ln_srv_fixed_sel_pars))) # fix all survey selectivity parameters for now

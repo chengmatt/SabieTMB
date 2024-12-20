@@ -116,15 +116,24 @@ ddirmult <- function(obs, pred, Ntotal, ln_theta, give_log = TRUE) {
   Init_Rec_nLL = rep(0, n_ages - 2) # Initial Recruitment penalty
   bias_ramp = rep(0, n_yrs) # bias ramp from Methot and Taylor 2011
   M_Pen = 0 # Penalty/Prior for natural mortality
+  sel_Pen = 0 # Penalty for selectivity deviations
   jnLL = 0 # Joint negative log likelihood
-
+  
 # Model Process Equations -------------------------------------------------
   ## Fishery Selectivity -----------------------------------------------------
   for(y in 1:n_yrs) {
     for(f in 1:n_fish_fleets) {
       fish_sel_blk_idx = fish_sel_blocks[y,f] # Get fishery selectivity block index
       for(s in 1:n_sexes) {
-        tmp_fish_sel_vec = ln_fish_fixed_sel_pars[,fish_sel_blk_idx,s,f] # extract temporary selectivity parameters
+        
+        # if selectivity is either a time block or constant
+        if(cont_tv_fish_sel[f] == 0) tmp_fish_sel_vec = ln_fish_fixed_sel_pars[,fish_sel_blk_idx,s,f] # extract temporary selectivity parameters
+        # if selectivity is iid or random walk time varying
+        if(cont_tv_fish_sel[f] %in% c(1,2)) {
+          tmp_fish_sel_vec = c(ln_fish_fixed_sel_pars[1,fish_sel_blk_idx,s,f] + ln_fishsel_dev1[y,s,f],
+                               ln_fish_fixed_sel_pars[2,fish_sel_blk_idx,s,f] + ln_fishsel_dev2[y,s,f])
+        } # end iid or random walk selectivity
+
         fish_sel[y,,s,f] = Get_Selex(Selex_Model = fish_sel_model[y,f],
                                        ln_Pars = tmp_fish_sel_vec,
                                        Age = ages) # Calculate selectivity
@@ -132,7 +141,7 @@ ddirmult <- function(obs, pred, Ntotal, ln_theta, give_log = TRUE) {
     } # end f loop
   } # end y loop
   
-  # TESTING: Fixing selectivity at true selectivity (has a max call)
+  # TESTING: Fixing selectivity at ADMBs selectivity (has a max call)
   # fish_sel[] = fish_sel_dat[]
   
   ## Survey Selectivity ------------------------------------------------------
@@ -259,13 +268,13 @@ ddirmult <- function(obs, pred, Ntotal, ln_theta, give_log = TRUE) {
       srv_q[y,sf] = exp(ln_srv_q[srv_q_blk_idx,sf]) # Input into survey catchability container
 
       for(s in 1:n_sexes) {
-        SrvIAA[y,,s,sf] = NAA[y,,s] * srv_sel[y,,s,sf] # Survey index at age
+        SrvIAA[y,,s,sf] = NAA[y,,s] * SAA_mid[y,,s] * srv_sel[y,,s,sf] # Survey index at age
         SrvIAL[y,,s,sf] = SizeAgeTrans[y,,,s] %*% SrvIAA[y,,s,sf] # Survey index at length
       } # end s loop
 
       # Get predicted survey index
-      if(srv_idx_type[sf] == 0) PredSrvIdx[y,sf] = srv_q[y,sf] * sum(SrvIAA[y,,,sf] * SAA_mid[y,,]) # abundance
-      if(srv_idx_type[sf] == 1) PredSrvIdx[y,sf] = srv_q[y,sf] * sum(SrvIAA[y,,,sf] * SAA_mid[y,,] * WAA[y,,]); # biomass
+      if(srv_idx_type[sf] == 0) PredSrvIdx[y,sf] = srv_q[y,sf] * sum(SrvIAA[y,,,sf]) # abundance
+      if(srv_idx_type[sf] == 1) PredSrvIdx[y,sf] = srv_q[y,sf] * sum(SrvIAA[y,,,sf] * WAA[y,,]); # biomass
 
     } # end sf loop
   } # end y loop
@@ -297,7 +306,7 @@ ddirmult <- function(obs, pred, Ntotal, ln_theta, give_log = TRUE) {
         } # ADMB likelihoods
         if(likelihoods == 1) {
           FishIdx_nLL[y,f] = UseFishIdx[y,f] -1 * dnorm(log(ObsFishIdx[y,f] + 1e-4), 
-                             log(PredFishIdx[y,f] + 1e-4), 0.3, TRUE)
+                             log(PredFishIdx[y,f] + 1e-4), 0.35, TRUE)
         } # TMB likelihoods
       } # if no NAs for fishery index
 
@@ -339,7 +348,7 @@ ddirmult <- function(obs, pred, Ntotal, ln_theta, give_log = TRUE) {
         } # ADMB likelihoods
         if(likelihoods == 1) {
           SrvIdx_nLL[y,sf] = UseSrvIdx[y,sf] -1 * dnorm(log(ObsSrvIdx[y,sf] + 1e-4), 
-                             log(PredSrvIdx[y,sf] + 1e-4), ObsSrvIdx_SE[y,sf] / ObsSrvIdx[y,sf], TRUE)
+                             log(PredSrvIdx[y,sf] + 1e-4), (ObsSrvIdx_SE[y,sf] / ObsSrvIdx[y,sf]) , TRUE)
         } # TMB likelihoods
       } # if no NAs for survey index
 
@@ -374,7 +383,7 @@ ddirmult <- function(obs, pred, Ntotal, ln_theta, give_log = TRUE) {
       for(y in 1:n_yrs) {
         if(!is.na(ObsCatch[y,f])) {
           if(likelihoods == 0) Fmort_Pen[f] = Fmort_Pen[f] + ln_F_devs[y, f]^2 # SSQ ADMB
-          if(likelihoods == 1) Fmort_Pen[f] = Fmort_Pen[f] -1 * dnorm(ln_F_devs[y, f], 0, exp(ln_sigmaF[f]), TRUE) # TMB likelihoods
+          if(likelihoods == 1) Fmort_Pen[f] = Fmort_Pen[f] -1 * dnorm(ln_F_devs[y, f], exp(ln_F_mean[f]), exp(ln_sigmaF[f]), TRUE) # TMB likelihoods
         } # end if
       } # y loop
     } # f loop
@@ -385,6 +394,30 @@ ddirmult <- function(obs, pred, Ntotal, ln_theta, give_log = TRUE) {
       if(likelihoods == 1) M_Pen = -1 * dnorm(ln_M, log(M_prior[1]), M_prior[2], TRUE) # TMB likelihood
     } # end if
   
+
+    ### Selectivity (Penalty) ---------------------------------------------------
+    for(f in 1:n_fish_fleets) {
+      # iid selectivity
+      if(cont_tv_fish_sel[f] == 1) {
+        for(s in 1:n_sexes) {
+          for(y in 1:n_yrs) {
+            sel_Pen = sel_Pen + -dnorm(ln_fishsel_dev1[y,s,f], 0, exp(ln_fishsel_dev1_sd[s,f]), TRUE)
+            sel_Pen = sel_Pen + -dnorm(ln_fishsel_dev2[y,s,f], 0, exp(ln_fishsel_dev2_sd[s,f]), TRUE)
+          } # end y loop
+        } # end s loop
+      } # end if for iid selectivity
+      if(cont_tv_fish_sel[f] == 2) {
+        for(s in 1:n_sexes) {
+          sel_Pen = sel_Pen + -dnorm(ln_fishsel_dev1[1,s,f], 0, 50, TRUE) # initialize first value w/ large prior
+          sel_Pen = sel_Pen + -dnorm(ln_fishsel_dev2[1,s,f], 0, 50, TRUE) # initialize first value w/ large prior
+          for(y in 2:n_yrs) {
+            sel_Pen = sel_Pen + -dnorm(ln_fishsel_dev1[y,s,f], ln_fishsel_dev1[y-1,s,f], exp(ln_fishsel_dev1_sd[s,f]), TRUE)
+            sel_Pen = sel_Pen + -dnorm(ln_fishsel_dev2[y,s,f], ln_fishsel_dev2[y-1,s,f], exp(ln_fishsel_dev2_sd[s,f]), TRUE)          
+          } # end y loop
+        } # end s loop
+      } # end if for random walk selectivity
+    } # end f loop
+
     ### Recruitment (Penalty) ----------------------------------------------------
     Init_Rec_nLL = (ln_InitDevs / exp(ln_sigmaR_early))^2 # initial age structure penalty
     for(y in 1:(sigmaR_switch-1)) Rec_nLL[y] = (ln_RecDevs[y]/exp(ln_sigmaR_early))^2 + bias_ramp[y]*ln_sigmaR_early # early period
@@ -401,9 +434,9 @@ ddirmult <- function(obs, pred, Ntotal, ln_theta, give_log = TRUE) {
           (Wt_F * sum(Fmort_Pen)) + # Fishery Mortality Penalty
            M_Pen + # Natural Mortality Prior (Penalty)
           (Wt_Rec * 0.5 * sum(Rec_nLL)) + # Recruitment Penalty
-          (Wt_Rec * 0.5 * sum(Init_Rec_nLL)); #  Initial Age Penalty
-
-
+          (Wt_Rec * 0.5 * sum(Init_Rec_nLL)) + #  Initial Age Penalty
+           sel_Pen; #  selectivity penalty
+    
 # Report Section ----------------------------------------------------------
   # Biological Processes
   RTMB::REPORT(NAA)
@@ -427,7 +460,7 @@ ddirmult <- function(obs, pred, Ntotal, ln_theta, give_log = TRUE) {
   RTMB::REPORT(srv_q)
   RTMB::REPORT(SrvIAA)
   RTMB::REPORT(SrvIAL)
-
+  
   # Likelihoods
   RTMB::REPORT(Catch_nLL)
   RTMB::REPORT(FishIdx_nLL)
@@ -458,8 +491,6 @@ ddirmult <- function(obs, pred, Ntotal, ln_theta, give_log = TRUE) {
   RTMB::REPORT(Rec)
   RTMB::ADREPORT(SSB)
   RTMB::ADREPORT(Rec)
-  # can take a while if reported (since its doing delta method on an array of n_yrs, n_ages, n_sexes, n_fish_fleets)
-  # RTMB::ADREPORT(fish_sel) 
 
   return(jnLL)
 } # end function
