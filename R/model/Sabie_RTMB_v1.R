@@ -1,61 +1,18 @@
+# version 1 - 12/22/24 (M.LH Cheng)
+# Bridge model 23.5 from ADMB to RTMB
+# Changed code to be more modular, accommodating any number of fishery and survey fleets
+# Rectified errors in fitting to length composition data (normalize proportions at length after conversion from age-length matrix)
+# Changed survey composition data to be calculated using survival midyear
+# Added options for continuous time-varying selectivity
+# Added options for TMB / R-like likelihoods (e.g., dnorm) instead of bespoke likelihoods 
+# Added options for dirichlet multinomial likelihood
+
 sabie_RTMB = function(pars) {
   
-  require(RTMB)
+  require(RTMB); require(here)
+  source(here("R", "model", "Get_Selex.R")) # selectivity options
+  source(here("R", "model", "ddirmult.R")) # dirichlet multinomial
   RTMB::getAll(pars, data) # load in starting values and data
-
-# Get_Selex Function ------------------------------------------------------
-Get_Selex = function(Selex_Model, ln_Pars, Age) {
-  selex = rep(0, length(Age)) # Temporary container vector
-  if(Selex_Model == 0) { # logistic selectivity
-    # Extract out and exponentiate the parameters here
-    a50 = exp(ln_Pars[1]); # a50
-    k = exp(ln_Pars[2]); # slope
-    selex = 1 / (1 + exp(-k * (Age - a50))) 
-  }
-  
-  if(Selex_Model == 1) { # gamma dome-shaped selectivity 
-    # Extract out and exponentiate the parameters here
-    amax = exp(ln_Pars[1]) # age at max selex
-    delta = exp(ln_Pars[2]) # slope parameter
-    # Now, calculate/derive power parameter + selex values
-    p = 0.5 * (sqrt( amax^2 + (4 * delta^2)) - amax)
-    selex = (Age / amax)^(amax/p) * exp( (amax - Age) / p ) 
-  }
-  
-  if(Selex_Model == 2) { # power function selectivity
-    # Extract out and exponentiate the parameters here
-    power = exp(ln_Pars[1]); # power parameter
-    selex = 1 / Age^power
-  }
-  
-  return(selex)
-} # end function
-  
-
-# Dirichlet-Multinomial Likelihood ----------------------------------------
-# From https://github.com/James-Thorson/CCSRA/blob/main/inst/executables/CCSRA_v9.cpp
-ddirmult <- function(obs, pred, Ntotal, ln_theta, give_log = TRUE) {
-  # Set up function variables
-  n_c = length(obs) # number of categories
-  p_exp = pred # expected values container
-  p_obs = obs # observed values container
-  dirichlet_Parm = exp(ln_theta) * Ntotal # Dirichlet alpha parameters
-  
-  # set up pdf
-  logres = lgamma(Ntotal + 1)
-  for(c in 1:n_c) logres = logres - lgamma(Ntotal*p_obs[c]+1) # integration constant
-  logres = logres + lgamma(dirichlet_Parm) - lgamma(Ntotal+dirichlet_Parm) # 2nd term in formula
-  
-  # Summation in 3rd term in formula
-  for(c in 1:n_c) {
-    logres = logres + lgamma(Ntotal*p_obs[c] + dirichlet_Parm*p_exp[c])
-    logres = logres - lgamma(dirichlet_Parm * p_exp[c])
-  } # end c
-  
-  if(give_log == TRUE) return(logres)
-  else return(exp(logres))
-} # end function
-
 
 # Model Set Up (Containers) -----------------------------------------------
   n_ages = length(ages) # number of ages
