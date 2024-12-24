@@ -1,6 +1,6 @@
-# Purpose: To bridge conduct testing in developing Sablefish RTMB model 
+# Purpose: To bridge conduct testing in developing Sablefish RTMB model (v2)
 # Creator: Matthew LH. Cheng
-# Date Created: 8/18/24
+# Date Created: 12/23/24
 
 # Set up ------------------------------------------------------------------
 
@@ -10,7 +10,7 @@ library(tidyverse)
 library(RTMB)
 
 source(here("R", "functions", "Francis_Reweight.R"))
-source(here("R", "model", "Sabie_RTMB_v2.R"))
+source(here("R", "model", "v1_v2", "Sabie_RTMB_v2.R"))
 source(here("R", "functions", "Utility_Functions.R"))
 
 # Read in data
@@ -169,7 +169,7 @@ data$UseFishAgeComps[which(rowSums(compdata_2021$FishAge) != 0),1] <- 1 # only f
 # Data weighting for fishery age compositions
 data$ISS_FishAgeComps <- array(0, dim = c(length(data$yrs), data$n_sexes, data$n_fish_fleets))
 rownames(data$ISS_FishAgeComps) <- data$yrs # define row years
-data$ISS_FishAgeComps[which(rowSums(compdata_2021$FishAge) != 0),1,1] <- 50 # Assuming constant ISS of 20 for fixed gear fishery ages (sex-specific - still indexing 1 because fitting single vector right now)
+data$ISS_FishAgeComps[which(rowSums(compdata_2021$FishAge) != 0),1,1] <- 20 # Assuming constant ISS of 20 for fixed gear fishery ages (sex-specific - still indexing 1 because fitting single vector right now)
 # data$ISS_FishAgeComps[rownames(data$ISS_FishAgeComps) %in% rownames(tem_dat$oac.fish1),1,1] <- 20 # Assuming constant ISS of 20 for fixed gear fishery ages (aggregated)
 data$Wt_FishAgeComps <- array(NA, dim = c(data$n_sexes, data$n_fish_fleets)) # weights for fishery age comps
 data$Wt_FishAgeComps[1,1] <- 1.195228 # Weight for fixed gear age comps
@@ -402,7 +402,7 @@ max_fish_pars <- 2 # maximum number of fishery fixed parameters for any fleet
 parameters$ln_fish_fixed_sel_pars <- array(0, dim = c(max_fish_pars, max_fish_blks, data$n_sexes, data$n_fish_fleets))
 parameters$ln_fish_fixed_sel_pars[,1,1,1] <- c(1.4226e+00, -6.8808e-01) # Female longline fishery first time block parameters (a50 and then delta)
 parameters$ln_fish_fixed_sel_pars[,2,1,1] <- c(1.2219e+00, 5.3916e-01) # Female longline fishery second time block parameters (a50 and then delta)
-parameters$ln_fish_fixed_sel_pars[,3,1,1] <- c(0, -5) # Female longline fishery third time block parameters (a50 and then delta)
+parameters$ln_fish_fixed_sel_pars[,3,1,1] <- c(1.2219e+00, 5.3916e-01) # Female longline fishery third time block parameters (a50 and then delta)
 
 parameters$ln_fish_fixed_sel_pars[,1,2,1] <- c(1.9339e+00, -6.8808e-01) # Male longline fishery first time block parameters (a50 and then delta)
 parameters$ln_fish_fixed_sel_pars[,2,2,1] <- c(1.4907e+00, -9.5989e-02) # Male longline fishery second time block parameters (a50 and then delta)
@@ -489,8 +489,8 @@ mapping$ln_F_devs <- factor(c(1:length(data$yrs), rep(NA, 3), 65:(126-3))) # fix
 mapping$ln_fish_q <- factor(c(1,2,3,rep(NA,3))) # estimate catchabilities only for first fishery with index
 # sharing delta across sexes from early domestic fishery (first time block)
 # also fixing parameters so that no time block for trawl fishery
-# mapping$ln_fish_fixed_sel_pars <- factor(c(1:7, 2, 8:10, 6, rep(12:13,3), rep(c(14,13),3)))
-mapping$ln_fish_fixed_sel_pars <- factor(c(1:12, rep(13:14,3), rep(c(15,16),3)))
+mapping$ln_fish_fixed_sel_pars <- factor(c(1:7, 2, 8:10, 6, rep(12:13,3), rep(c(14,13),3)))
+# mapping$ln_fish_fixed_sel_pars <- factor(c(1:12, rep(13:14,3), rep(c(15,16),3)))
 
 # ll survey, share delta female (index 2) across time blocks and to the coop jp ll survey delta
 # ll survey, share delta male (index 5) across time blocks and to the coop jp ll survey delta

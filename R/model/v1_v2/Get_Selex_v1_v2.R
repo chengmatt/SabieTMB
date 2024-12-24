@@ -1,3 +1,13 @@
+#' Title Get Selectivity
+#'
+#' @param Selex_Model integer for selectivity model
+#' @param ln_Pars log selectivity parameters
+#' @param Age vector of Ages
+#'
+#' @return
+#' @export
+#'
+#' @examples
 Get_Selex = function(Selex_Model, ln_Pars, Age) {
   selex = rep(0, length(Age)) # Temporary container vector
   

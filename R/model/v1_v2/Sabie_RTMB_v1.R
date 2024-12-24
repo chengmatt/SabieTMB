@@ -7,16 +7,10 @@
 # Added options for TMB / R-like likelihoods (e.g., dnorm) instead of bespoke likelihoods 
 # Added options for dirichlet multinomial likelihood
 
-# version 2 - 12/23/24 (M.LH Cheng)
-# Incorporated options to fit age and length composition data as sex-aggregated, split by sex (no sex ratio 
-# information), and jointly by sex (implicit sex ratio information)
-# Added in option for Dirichlet Multinomial likelihood
-
 sabie_RTMB = function(pars) {
   
   require(RTMB); require(here)
-  source(here("R", "model", "Get_Selex.R")) # selectivity options
-  source(here("R", "model", "Get_Comp_Likelihoods.R")) # selectivity options
+  source(here("R", "model", "v1_v2", "Get_Selex_v1_v2.R")) # selectivity options
   source(here("R", "model", "ddirmult.R")) # dirichlet multinomial
   RTMB::getAll(pars, data) # load in starting values and data
 
@@ -65,9 +59,12 @@ sabie_RTMB = function(pars) {
   FishIdx_nLL = matrix(data = 0, nrow = n_yrs, ncol = n_fish_fleets) # Fishery Index Likelihoods
   FishAgeComps_nLL = array(data = 0, dim = c(n_yrs, n_sexes, n_fish_fleets)) # Fishery Age Comps Likelihoods
   FishLenComps_nLL = array(data = 0, dim = c(n_yrs, n_sexes, n_fish_fleets)) # Fishery Length Comps Likelihoods
+  FishAgeComps_offset_nLL = array(data = 0, dim = c(n_yrs, n_sexes, n_fish_fleets)) # Fishery Age Comps Likelihoods multinomial offset
+  FishLenComps_offset_nLL = array(data = 0, dim = c(n_yrs, n_sexes, n_fish_fleets)) # Fishery Length Comps Likelihoods multinomial offset
   SrvIdx_nLL = matrix(data = 0, nrow = n_yrs, ncol = n_srv_fleets) # Survey Index Likelihoods
   SrvAgeComps_nLL = array(data = 0, dim = c(n_yrs, n_sexes, n_srv_fleets)) # Survey Age Comps Likelihoods
   SrvLenComps_nLL = array(data = 0, dim = c(n_yrs, n_sexes, n_srv_fleets)) # Survey Length Comps Likelihoods
+  SrvAgeComps_offset_nLL = array(data = 0, dim = c(n_yrs, n_sexes, n_srv_fleets)) # Survey Age Comps Likelihoods multinomial offset
   SrvLenComps_offset_nLL = array(data = 0, dim = c(n_yrs, n_sexes, n_srv_fleets)) # Survey Length Comps Likelihoods multinomial offset
   
   # Penalties and Priors
@@ -100,7 +97,10 @@ sabie_RTMB = function(pars) {
       } # end s loop
     } # end f loop
   } # end y loop
-
+  
+  # TESTING: Fixing selectivity at ADMBs selectivity (has a max call)
+  # fish_sel[] = fish_sel_dat[]
+  
   ## Survey Selectivity ------------------------------------------------------
   for(y in 1:n_yrs) {
     for(sf in 1:n_srv_fleets) {
@@ -268,24 +268,27 @@ sabie_RTMB = function(pars) {
       } # if no NAs for fishery index
 
       ### Fishery Age Compositions ------------------------------------------------
-      if(UseFishAgeComps[y,f] == 1) {
-        FishAgeComps_nLL[y,,f] = Get_Comp_Likelihoods(
-          Exp = CAA[y,,,f], Obs = ObsFishAgeComps[y,,,f], # Expected and Observed values
-          ISS = ISS_FishAgeComps[y,,f], Wt_Mltnml = Wt_FishAgeComps[,f], # Input sample size and multinomial weight
-          Comp_Type = FishAgeComps_Type[f], Likelihood_Type = FishAgeComps_LikeType[f], # Composition and Likelihood Type
-          ln_theta = ln_FishAge_DM_theta[f], n_sexes = n_sexes, age_or_len = 0, AgeingError = AgeingError # overdispersion par, Number of sexes, age or length comps, and ageing error
-          ) 
-      } # if we have fishery age comps
+      if(!is.na(sum(ObsFishAgeComps[y,,1,f]))) {
+        tmp_Agg_CAA = CAA[y,,,f] / matrix(data = colSums(CAA[y,,,f]), nrow = nrow(CAA[y,,,f]), ncol = ncol(CAA[y,,,f]), byrow = TRUE) # normalize
+        tmp_Agg_CAA = t(as.vector(rowSums(tmp_Agg_CAA) / n_sexes)) %*% AgeingError # aggregate and apply ageing error
+        tmp_Agg_CAA = tmp_Agg_CAA / sum(tmp_Agg_CAA) # normalize
+        tmp_ObsFishAgeComps = ObsFishAgeComps[y,,1,f] / sum(ObsFishAgeComps[y,,1,f]) # normalize
+        ESS_FishAgeComps[y,1,f] = ISS_FishAgeComps[y,1,f] * Wt_FishAgeComps[1,f] # Calculate effective sample size for fishery age compositions
+        FishAgeComps_offset_nLL[y,1,f] = -1 * ESS_FishAgeComps[y,1,f] * sum(((ObsFishAgeComps[y,,1,f]  + 0.001)*log(ObsFishAgeComps[y,,1,f]  + 0.001))) # multinomial offset
+        FishAgeComps_nLL[y,1,f] = -1 * UseFishAgeComps[y,f] * ESS_FishAgeComps[y,1,f] * sum(((tmp_ObsFishAgeComps + 0.001) * log(tmp_Agg_CAA + 0.001))) # Compute ADMB Multinomial Likelihood
+      } # if no NAs for fishery age comps
 
       ### Fishery Length Compositions ---------------------------------------------
-      if(UseFishLenComps[y,f] == 1) {
-        FishLenComps_nLL[y,,f] = Get_Comp_Likelihoods(
-          Exp = CAL[y,,,f], Obs = ObsFishLenComps[y,,,f], # Expected and Observed values
-          ISS = ISS_FishLenComps[y,,f], Wt_Mltnml = Wt_FishLenComps[,f], # Input sample size and multinomial weight
-          Comp_Type = FishLenComps_Type[f], Likelihood_Type = FishLenComps_LikeType[f], # Composition and Likelihood Type
-          ln_theta = ln_FishLen_DM_theta[f], n_sexes = n_sexes, age_or_len = 1, AgeingError = NA # overdispersion, Number of sexes, age or length comps, and ageing error
-        ) 
-      } # if we have fishery age comps
+      for(s in 1:n_sexes) {
+        if(!is.na(sum(ObsFishLenComps[y,,s,f]))) {
+          tmp_CAL = CAL[y,,s,f] / sum(CAL[y,,s,f]) # temporary variable and normalize
+          tmp_ObsFishLenComps = ObsFishLenComps[y,,s,f] / sum(ObsFishLenComps[y,,s,f]) # normalize
+          ESS_FishLenComps[y,s,f] = ISS_FishLenComps[y,s,f] * Wt_FishLenComps[s,f] # Calculate effective sample size for fishery length compositions
+          FishLenComps_offset_nLL[y,s,f] = -1 * ESS_FishLenComps[y,s,f] * sum(((ObsFishLenComps[y,,s,f] + 0.001)*log(ObsFishLenComps[y,,s,f] + 0.001))) # multinomial offset
+          FishLenComps_nLL[y,s,f] = -1 * UseFishLenComps[y,f] * ESS_FishLenComps[y,s,f] * sum(((tmp_ObsFishLenComps + 0.001) * log(tmp_CAL + 0.001))) # Compute ADMB Multinomial Likelihood
+        } # if no NAs for fishery length comps
+      } # end s loop
+
     } # end f loop
   } # end y loop
 
@@ -307,24 +310,26 @@ sabie_RTMB = function(pars) {
       } # if no NAs for survey index
 
       ### Survey Age Compositions ------------------------------------------------
-      if(UseSrvAgeComps[y,sf] == 1) {
-        SrvAgeComps_nLL[y,,sf] = Get_Comp_Likelihoods(
-          Exp = SrvIAA[y,,,sf], Obs = ObsSrvAgeComps[y,,,sf], # Expected and Observed values
-          ISS = ISS_SrvAgeComps[y,,sf], Wt_Mltnml = Wt_SrvAgeComps[,sf], # Input sample size and multinomial weight
-          Comp_Type = SrvAgeComps_Type[sf], Likelihood_Type = SrvAgeComps_LikeType[sf], # Composition and Likelihood Type
-          ln_theta = ln_SrvAge_DM_theta[sf], n_sexes = n_sexes, age_or_len = 0, AgeingError = AgeingError # overdispersion, Number of sexes, age or length comps, and ageing error
-        ) 
-      } # if we have survey age comps
+      if(!is.na(sum(ObsSrvAgeComps[y,,1,sf]))) {
+        tmp_Agg_SrvIAA = SrvIAA[y,,,sf] / matrix(data = colSums(SrvIAA[y,,,sf]), nrow = nrow(SrvIAA[y,,,sf]), ncol = ncol(SrvIAA[y,,,sf]), byrow = TRUE) # normalize
+        tmp_Agg_SrvIAA = t(as.vector(rowSums(tmp_Agg_SrvIAA) / n_sexes)) %*% AgeingError # aggregate and apply ageing error
+        tmp_Agg_SrvIAA = tmp_Agg_SrvIAA / sum(tmp_Agg_SrvIAA) # normalize
+        tmp_ObsSrvAgeComps = ObsSrvAgeComps[y,,1,sf] / sum(ObsSrvAgeComps[y,,1,sf]) # normalize
+        ESS_SrvAgeComps[y,1,sf] = ISS_SrvAgeComps[y,1,sf] * Wt_SrvAgeComps[1,sf] # Calculate effective sample size for survey age compositions
+        SrvAgeComps_offset_nLL[y,1,sf] = -1 * ESS_SrvAgeComps[y,1,sf] * sum(((ObsSrvAgeComps[y,,1,sf] + 0.001)*log(ObsSrvAgeComps[y,,1,sf] + 0.001))) # multinomial offset
+        SrvAgeComps_nLL[y,1,sf] = -1 * UseSrvAgeComps[y,sf] * ESS_SrvAgeComps[y,1,sf] * sum(((tmp_ObsSrvAgeComps + 0.001) * log(tmp_Agg_SrvIAA + 0.001))) # Compute ADMB Multinomial Likelihood
+      } # if no NAs for survey age comps
 
       # ### Survey Length Compositions ---------------------------------------------
-      if(UseSrvLenComps[y,sf] == 1) {
-        SrvLenComps_nLL[y,,sf] = Get_Comp_Likelihoods(
-          Exp = SrvIAL[y,,,sf], Obs = ObsSrvLenComps[y,,,sf], # Expected and Observed values
-          ISS = ISS_SrvLenComps[y,,sf], Wt_Mltnml = Wt_SrvLenComps[,sf], # Input sample size and multinomial weight
-          Comp_Type = SrvLenComps_Type[sf], Likelihood_Type = SrvLenComps_LikeType[sf], # Composition and Likelihood Type
-          ln_theta = ln_SrvLen_DM_theta[sf], n_sexes = n_sexes, age_or_len = 1, AgeingError = NA # overdispersion, Number of sexes, age or length comps, and ageing error
-        ) 
-      } # if we have survey length comps
+      for(s in 1:n_sexes) {
+        if(!is.na(sum(ObsSrvLenComps[y,,s,sf]))) {
+          tmp_SrvIAL = SrvIAL[y,,s,sf] / sum(SrvIAL[y,,s,sf]) # temporary variable and normalize
+          tmp_ObsSrvLenComps = ObsSrvLenComps[y,,s,sf] / sum(ObsSrvLenComps[y,,s,sf]) # normalize
+          ESS_SrvLenComps[y,s,sf] = ISS_SrvLenComps[y,s,sf] * Wt_SrvLenComps[s,sf] # Calculate effective sample size for survey length compositions
+          SrvLenComps_offset_nLL[y,s,sf] = -1 * ESS_SrvLenComps[y,s,sf] * sum(((ObsSrvLenComps[y,,s,sf] + 0.001)*log(ObsSrvLenComps[y,,s,sf] + 0.001))) # multinomial offset
+          SrvLenComps_nLL[y,s,sf] = -1 * UseSrvLenComps[y,sf] * ESS_SrvLenComps[y,s,sf] * sum(((tmp_ObsSrvLenComps + 0.001) * log(tmp_SrvIAL + 0.001))) # Compute ADMB Multinomial Likelihood
+        } # if no NAs for survey length comps
+      } # end s loop
     } # end sf loop
   } # end y loop
 
@@ -358,13 +363,11 @@ sabie_RTMB = function(pars) {
           } # end y loop
         } # end s loop
       } # end if for iid selectivity
-      
-      # random walk selectivity
       if(cont_tv_fish_sel[f] == 2) {
         for(s in 1:n_sexes) {
-          sel_Pen = sel_Pen + -dnorm(ln_fishsel_dev1[1,s,f], 0, 50, TRUE) # initialize first value w/ large prior (prior sd is just arbitrarily large)
-          sel_Pen = sel_Pen + -dnorm(ln_fishsel_dev2[1,s,f], 0, 50, TRUE) # initialize first value w/ large prior (prior sd is just arbitrarily large)
-          for(y in 2:n_yrs) {sd 
+          sel_Pen = sel_Pen + -dnorm(ln_fishsel_dev1[1,s,f], 0, 50, TRUE) # initialize first value w/ large prior
+          sel_Pen = sel_Pen + -dnorm(ln_fishsel_dev2[1,s,f], 0, 50, TRUE) # initialize first value w/ large prior
+          for(y in 2:n_yrs) {
             sel_Pen = sel_Pen + -dnorm(ln_fishsel_dev1[y,s,f], ln_fishsel_dev1[y-1,s,f], exp(ln_fishsel_dev1_sd[s,f]), TRUE)
             sel_Pen = sel_Pen + -dnorm(ln_fishsel_dev2[y,s,f], ln_fishsel_dev2[y-1,s,f], exp(ln_fishsel_dev2_sd[s,f]), TRUE)          
           } # end y loop
@@ -380,11 +383,11 @@ sabie_RTMB = function(pars) {
     # Apply likelihood weights here and compute joint negative log likelihood
     jnLL = (Wt_Catch * sum(Catch_nLL)) + # Catch likelihoods
            (Wt_FishIdx * sum(FishIdx_nLL)) + # Fishery Index likelihood
-           (Wt_SrvIdx * sum(SrvIdx_nLL)) + # Survey Index likelihood
-           sum(FishAgeComps_nLL) + # Fishery Age likelihood
-           sum(FishLenComps_nLL) + # Fishery Length likelihood
-           sum(SrvAgeComps_nLL) + # Survey Age likelihood
-           sum(SrvLenComps_nLL) + # Survey Length likelihood
+           sum(FishAgeComps_nLL - FishAgeComps_offset_nLL)  + # Fishery Age likelihood
+           sum(FishLenComps_nLL - FishLenComps_offset_nLL)+ # Fishery Length likelihood
+          (Wt_SrvIdx * sum(SrvIdx_nLL)) + # Survey Index likelihood
+           sum(SrvAgeComps_nLL - SrvAgeComps_offset_nLL)+ # Survey Age likelihood
+           sum(SrvLenComps_nLL - SrvLenComps_offset_nLL)+ # Survey Length likelihood
           (Wt_F * sum(Fmort_Pen)) + # Fishery Mortality Penalty
            M_Pen + # Natural Mortality Prior (Penalty)
           (Wt_Rec * 0.5 * sum(Rec_nLL)) + # Recruitment Penalty
@@ -420,8 +423,11 @@ sabie_RTMB = function(pars) {
   RTMB::REPORT(FishIdx_nLL)
   RTMB::REPORT(SrvIdx_nLL)
   RTMB::REPORT(FishAgeComps_nLL)
+  RTMB::REPORT(FishAgeComps_offset_nLL)
   RTMB::REPORT(SrvAgeComps_nLL)
+  RTMB::REPORT(SrvAgeComps_offset_nLL)
   RTMB::REPORT(FishLenComps_nLL)
+  RTMB::REPORT(FishLenComps_offset_nLL)
   RTMB::REPORT(SrvLenComps_nLL)
   RTMB::REPORT(SrvLenComps_offset_nLL)
   RTMB::REPORT(M_Pen)

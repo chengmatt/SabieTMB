@@ -10,7 +10,7 @@ library(tidyverse)
 library(RTMB)
 
 source(here("R", "Francis_Reweight.R"))
-source(here("R", "model", "Sabie_RTMB_v1.R"))
+source(here("R", "model", "v1_v2", "Sabie_RTMB_v1.R"))
 source(here("R", "Utility_Functions.R"))
 
 # Read in data
