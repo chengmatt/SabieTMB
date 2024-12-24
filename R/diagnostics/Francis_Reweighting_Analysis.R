@@ -1,5 +1,4 @@
 # Data weighting ----------------------------------------------------------
-fishage_wts = vector()
 # Francis reweighting
 for(i in 1:5) {
 
@@ -31,7 +30,6 @@ for(i in 1:5) {
 
   # Get new francis weights
   new_weights <- francis_rwgt(data = data, model = sabie_rtmb_model)
-
   data$Wt_FishAgeComps <- new_weights$new_fish_age_wts
   data$Wt_FishLenComps <- new_weights$new_fish_len_wts
   data$Wt_SrvAgeComps <- new_weights$new_srv_age_wts

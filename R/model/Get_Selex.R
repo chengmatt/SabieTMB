@@ -1,6 +1,7 @@
 Get_Selex = function(Selex_Model, ln_Pars, Age) {
   selex = rep(0, length(Age)) # Temporary container vector
-  if(Selex_Model == 0) { # logistic selectivity
+  
+  if(Selex_Model == 0) { # logistic selectivity (a50 and slope)
     # Extract out and exponentiate the parameters here
     a50 = exp(ln_Pars[1]); # a50
     k = exp(ln_Pars[2]); # slope
@@ -20,6 +21,14 @@ Get_Selex = function(Selex_Model, ln_Pars, Age) {
     # Extract out and exponentiate the parameters here
     power = exp(ln_Pars[1]); # power parameter
     selex = 1 / Age^power
+  }
+  
+  
+  if(Selex_Model == 3) { # logistic selectivity (a50 and a95)
+    # Extract out and exponentiate the parameters here
+    a50 = exp(ln_Pars[1]); # a50
+    a95 = exp(ln_Pars[2]); # slope
+    selex = 1 / (1+19^((a50-Age)/a95))
   }
   
   return(selex)
