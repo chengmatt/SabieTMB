@@ -35,7 +35,7 @@ sabie_RTMB = function(pars) {
   n_lens = length(lens) # number of lengths
   
   # Recruitment stuff
-  Rec = array(0, dim = c(n_regions, n_yrs)) # Recruitment
+  Rec = array(0, dim = c(n_regions, n_yrs, n_sexes)) # Recruitment
   sigmaR2_early = exp(ln_sigmaR_early)^2 # recruitment variability for early period
   sigmaR2_late = exp(ln_sigmaR_late)^2 # recruitment variability for late period
   
@@ -101,7 +101,8 @@ sabie_RTMB = function(pars) {
           move_tmp = rep(0, n_regions) # temporary movement vector to store values (from - to)
           move_tmp[r] = 0 # Input zero for residency
           move_tmp[-r] = move_pars[r,,y,a,s] # Input parameter values for emigration rates (only if there more than 1 region)
-          Movement[r,,y,a,s] = exp(move_tmp) / sum(exp(move_tmp)) # multinomial logit transform (basically a softmax)
+          if(use_fixed_movement == 0) Movement[r,,y,a,s] = exp(move_tmp) / sum(exp(move_tmp)) # multinomial logit transform (basically a softmax) - estimated movement
+          if(use_fixed_movement == 1) Movement[r,,y,a,s] = Fixed_Movement[r,,y,a,s] # fixed movement matrix
         } # end s loop
       } # end a loop
     } # end y loop
@@ -166,7 +167,7 @@ sabie_RTMB = function(pars) {
           if(s == 1) natmort[r,y,a,s] = exp(ln_M) # get natural mortality (females or single-sex)
           if(s == 2) natmort[r,y,a,s] = exp(ln_M) + M_offset # natural mortality with offset (males)
           ZAA[r,y,a,s] = sum(FAA[r,y,a,s,]) + natmort[r,y,a,s] # Total Mortality at age
-          SAA[r,y,a,s] = exp(-1 * ZAA[r,y,a,s]) # Survival at age
+          SAA[r,y,a,s] = exp(-ZAA[r,y,a,s]) # Survival at age
           SAA_mid[r,y,a,s] = exp(-0.5 * ZAA[r,y,a,s]) # Survival at age at midpoint of year
           
         } # s loop
@@ -232,42 +233,43 @@ sabie_RTMB = function(pars) {
         if(y < sigmaR_switch) NAA[r,y,1,s] = exp(ln_R0[r] + ln_RecDevs[r,y] - (bias_ramp[y] * sigmaR2_early/2)) * sexratio[s] # early period recruitment
         if(y >= sigmaR_switch && y < n_yrs) NAA[r,y,1,s] = exp(ln_R0[r] + ln_RecDevs[r,y] - (bias_ramp[y] * sigmaR2_late/2)) * sexratio[s] # late period recruitment
         if(y == n_yrs) NAA[r,y,1,s] = exp(ln_R0[r]) * sexratio[s] # mean recruitment in terminal year
+        Rec[r,y,s] = NAA[r,y,1,s] # get annual recruitment container here
       } # end s loop
-      Rec[r,y] = sum(NAA[r,y,1,]) # get annual recruitment here
     } # end y loop
   } # end r loop
 
 
   ## Population Projection ---------------------------------------------------
-  for(r in 1:n_regions) {
-    for(y in 1:n_yrs) {
-      for(a in 1:n_ages) {
-        for(s in 1:n_sexes) {
-          # Project ages and years forward
-          if(a < n_ages) NAA[r,y+1,a+1,s] = NAA[r,y,a,s] * SAA[r,y,a,s] # not plus group
-          if(a == n_ages) NAA[r,y+1,n_ages,s] = sum(NAA[r,y,n_ages,s] * SAA[r,y,n_ages,s], NAA[r,y+1,n_ages,s]) # plus group (decrement previous year and add sum projected year)
-        } # end s loop
-      } # end a loop
-    } # end y loop
-  } # end r loop
-  
-  # Apply Movement after mortality and ageing
   for(y in 1:n_yrs) {
     for(s in 1:n_sexes) {
       for(a in 1:n_ages) {
-        NAA[,y+1,a,s] = t(NAA[,y+1,a,s]) %*% Movement[,,y,a,s] # all ages and sexes move
-      } # end a loop 
-      if(do_recruits_move == 0) NAA[,y,1,s] = Rec[,y] * sexratio[s] # if recruit's don't move, then reapply recruitment
+        
+        # Project ages and years forward and then apply movement
+        if(a < n_ages) { 
+          # Exponential mortality for individuals not in plus group (recruits experience mortality)
+          NAA[,y+1,a+1,s] = t(NAA[,y,a,s] * SAA[,y,a,s]) %*% Movement[,,y,a,s]
+        } else {
+          # Accumulate individuals recently "recruited" into plus group and individuals from previous year
+          NAA[,y+1,n_ages,s] = t(NAA[,y+1,n_ages,s] + NAA[,y,n_ages,s] * SAA[,y,n_ages,s]) %*% Movement[,,y,a,s]
+        } # end else (calculations for plus group)
+        
+      } # end a loop
     } # end s loop
   } # end y loop
+  
+  # Recruits don't move
+  if(do_recruits_move == 0) for(r in 1:n_regions) for(y in 1:n_yrs) for(s in 1:n_sexes)  NAA[r,y,1,s] = Rec[r,y,s]
 
-  # Calculate SSB
+  # Get SSB here
   for(r in 1:n_regions) {
     for(y in 1:n_yrs) {
-      if(n_sexes == 1) SSB[r,y] = sum(NAA[r,y,,1] * WAA[r,y,,1] * MatAA[r,y,,1]) * 0.5 # Spawning stock biomass calculation (single sex)
-      if(n_sexes > 1) SSB[r,y] = sum(NAA[r,y,,1] * WAA[r,y,,1] * MatAA[r,y,,1]) # Spawning stock biomass calculation (multi-sex model)
+      # Get SSB here again 
+      SSB[r,y] = sum(as.vector(NAA[r,y,,1]) * as.vector(WAA[r,y,,1]) * MatAA[r,y,,1]) # Spawning Stock Biomass 
+      if(n_sexes == 1) SSB[r,y] = SSB[r,y] * 0.5 # If single sex model, multiply SSB calculations by 0.5 
     } # end y loop
   } # end r loop
+  
+
 
 # Fishery Observation Model -----------------------------------------------
   for(r in 1:n_regions) {
@@ -451,8 +453,7 @@ sabie_RTMB = function(pars) {
       for(y in 1:n_yrs) {
         for(r in 1:n_regions) {
           if(!is.na(ObsCatch[r,y,f])) {
-            if(likelihoods == 0) Fmort_Pen[r,f] = Fmort_Pen[r,f] + ln_F_devs[r,y, f]^2 # SSQ ADMB
-            if(likelihoods == 1) Fmort_Pen[r,f] = Fmort_Pen[r,f] -1 * dnorm(ln_F_devs[r,y, f], exp(ln_F_mean[r,f]), exp(ln_sigmaF[f]), TRUE) # TMB likelihoods
+            Fmort_Pen[r,f] = Fmort_Pen[r,f] + ln_F_devs[r,y, f]^2 # SSQ ADMB
           } # end if
         } # end r loop
       } # y loop
