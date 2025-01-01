@@ -7,6 +7,6 @@
 
 library(here)
 library(tidyverse)
-library(TMB)
+library(RTMB)
 library(doSNOW)
 library(parallel)

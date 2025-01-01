@@ -27,6 +27,7 @@ sabie_RTMB = function(pars) {
   source(here("R", "model", "v3", "Get_Selex_v3.R")) # selectivity options
   source(here("R", "model", "v3", "Get_Comp_Likelihoods_v3.R")) # selectivity options
   source(here("R", "model", "ddirmult.R")) # dirichlet multinomial
+
   RTMB::getAll(pars, data) # load in starting values and data
 
 # Model Set Up (Containers) -----------------------------------------------
@@ -87,7 +88,7 @@ sabie_RTMB = function(pars) {
 
   # Penalties and Priors
   Fmort_Pen = array(0, dim = c(n_regions, n_fish_fleets)) # Fishing Mortality Deviation penalty
-  Rec_nLL = array(0, dim = c(n_regions, n_yrs-1)) # Recruitment penalty
+  Rec_nLL = array(0, dim = c(n_regions, n_yrs)) # Recruitment penalty
   Init_Rec_nLL = array(0, dim = c(n_regions, n_ages - 2)) # Initial Recruitment penalty
   bias_ramp = rep(0, n_yrs) # bias ramp from Methot and Taylor 2011
   M_Pen = 0 # Penalty/Prior for natural mortality
@@ -181,7 +182,7 @@ sabie_RTMB = function(pars) {
   ## Recruitment Stuff: R0 and Bias Ramp (Methot and Taylor) -------------------------------
   # Set up global virgin recruitment (or mean recruitment)
   if(n_regions == 1) R0 = exp(ln_global_R0) # R0 = global R0 if only 1 region
-  if(n_regions > 1) R0 = exp(ln_global_R0) * c(1 - R0_prop, R0_prop) # Multiply a global scaling parameter by estimated proportions if more than 1 region
+  if(n_regions > 1) R0 = exp(ln_global_R0) * c(1 - sum(R0_prop), R0_prop) # Multiply a global scaling parameter by estimated proportions if more than 1 region
   
   for(y in 1:n_yrs) {
     if(do_rec_bias_ramp == 0) bias_ramp[y] = 1 # don't do bias ramp correction
@@ -226,8 +227,8 @@ sabie_RTMB = function(pars) {
   # Apply initial age deviations
   for(r in 1:n_regions) {
     for(s in 1:n_sexes) {
-      NAA[r,1,2:(n_ages-1),s] = Init_NAA[init_iter,r,2:(n_ages-1),s] * exp(ln_InitDevs[r,]) # add in non-equilibrium age structure
-      NAA[r,1,n_ages,s] = Init_NAA[init_iter,r,n_ages,s] # add in plus group
+      Init_NAA[init_iter,r,2:(n_ages-1),s] = Init_NAA[init_iter,r,2:(n_ages-1),s] * exp(ln_InitDevs[r,] - sigmaR2_early/2 * bias_ramp[1]) # add in non-equilibrium age structure
+      NAA[r,1,2:n_ages,s] = Init_NAA[init_iter,r,2:n_ages,s] # add in plus group
     } # end s loop
   } # end r loop
   
@@ -236,9 +237,8 @@ sabie_RTMB = function(pars) {
   for(r in 1:n_regions) {
     for(y in 1:n_yrs) {
       for(s in 1:n_sexes) {
-        if(y < sigmaR_switch) NAA[r,y,1,s] = R0[r] * exp(ln_RecDevs[r,y] - (bias_ramp[y] * sigmaR2_early/2)) * sexratio[s] # early period recruitment
-        if(y >= sigmaR_switch && y < n_yrs) NAA[r,y,1,s] = R0[r] * exp(ln_RecDevs[r,y] - (bias_ramp[y] * sigmaR2_late/2)) * sexratio[s] # late period recruitment
-        if(y == n_yrs) NAA[r,y,1,s] = R0[r] * sexratio[s] # mean recruitment in terminal year
+        if(y < sigmaR_switch) NAA[r,y,1,s] = R0[r] * exp(ln_RecDevs[r,y] - sigmaR2_early/2 * bias_ramp[y]) * sexratio[s] # early period recruitment
+        if(y >= sigmaR_switch) NAA[r,y,1,s] = R0[r] * exp(ln_RecDevs[r,y] - sigmaR2_late/2 * bias_ramp[y]) * sexratio[s] # late period recruitment
         Rec[r,y] = sum(NAA[r,y,1,]) # get annual recruitment container here
       } # end s loop
     } # end y loop
@@ -352,6 +352,7 @@ sabie_RTMB = function(pars) {
       } # end f loop
     } # end y loop
 
+  
   ### Fishery Indices ---------------------------------------------------------
   for(y in 1:n_yrs) {
     for(f in 1:n_fish_fleets) {
@@ -363,8 +364,8 @@ sabie_RTMB = function(pars) {
                                  (2 * (ObsFishIdx_SE[r,y,f] / ObsFishIdx[r,y,f])^2) # lognormal fishery index
           } # ADMB likelihoods
           if(likelihoods == 1) {
-            FishIdx_nLL[r,y,f] = UseFishIdx[r,y,f] -1 * dnorm(log(ObsFishIdx[r,y,f] + 1e-4),
-                                                              log(PredFishIdx[r,y,f] + 1e-4),
+            FishIdx_nLL[r,y,f] = UseFishIdx[r,y,f] -1 * dnorm(log(ObsFishIdx[r,y,f] + 1e-10),
+                                                              log(PredFishIdx[r,y,f] + 1e-10),
                                                               0.35, TRUE)
           } # TMB likelihoods
         } # if no NAs for fishery index
@@ -373,6 +374,7 @@ sabie_RTMB = function(pars) {
     } # end f loop
   } # end y loop
 
+  
   ### Fishery Compositions ------------------------------------------------
   for(y in 1:n_yrs) {
     for(f in 1:n_fish_fleets) {
@@ -384,7 +386,7 @@ sabie_RTMB = function(pars) {
           ISS = ISS_FishAgeComps[,y,,f], Wt_Mltnml = Wt_FishAgeComps[,,f], # Input sample size and multinomial weight
           Comp_Type = FishAgeComps_Type[f], Likelihood_Type = FishAgeComps_LikeType[f], # Composition and Likelihood Type
           ln_theta = ln_FishAge_DM_theta[,f], n_regions =  n_regions, n_sexes = n_sexes, age_or_len = 0, AgeingError = AgeingError, # overdispersion par, Number of sexes, regions, age or length comps, and ageing error
-          use = UseFishAgeComps[,y,f], n_bins = n_ages) 
+          use = UseFishAgeComps[,y,f], n_bins = n_ages)
       } # if we have fishery age comps
 
       # Fishery Length Compositions
@@ -400,6 +402,7 @@ sabie_RTMB = function(pars) {
     } # end f loop
   } # end y loop
 
+  
   ## Survey Likelihoods ------------------------------------------------------
     ### Survey Indices ---------------------------------------------------------
     for(y in 1:n_yrs) {
@@ -412,8 +415,8 @@ sabie_RTMB = function(pars) {
                                   (2 * (ObsSrvIdx_SE[r,y,sf] / ObsSrvIdx[r,y,sf])^2) # lognormal survey index
             } # ADMB likelihoods
             if(likelihoods == 1) {
-              SrvIdx_nLL[r,y,sf] = UseSrvIdx[r,y,sf] -1 * dnorm(log(ObsSrvIdx[r,y,sf] + 1e-4),
-                                                                log(PredSrvIdx[r,y,sf] + 1e-4),
+              SrvIdx_nLL[r,y,sf] = UseSrvIdx[r,y,sf] -1 * dnorm(log(ObsSrvIdx[r,y,sf] + 1e-10),
+                                                                log(PredSrvIdx[r,y,sf] + 1e-10),
                                                                 (ObsSrvIdx_SE[r,y,sf] / ObsSrvIdx[r,y,sf]) , TRUE)
             } # TMB likelihoods
           } # if no NAs for survey index
@@ -422,6 +425,7 @@ sabie_RTMB = function(pars) {
       } # end sf loop
     } # end y loop
 
+  
     ### Survey Compositions ---------------------------------------------------------
     for(y in 1:n_yrs) {
       for(sf in 1:n_srv_fleets) {
@@ -449,6 +453,7 @@ sabie_RTMB = function(pars) {
       } # end sf loop
     } # end y loop
 
+  
   ## Priors and Penalties ----------------------------------------------------
     ### Fishing Mortality (Penalty) ---------------------------------------------
     for(f in 1:n_fish_fleets) {
@@ -461,6 +466,7 @@ sabie_RTMB = function(pars) {
       } # y loop
     } # f loop
 
+  
     ### Natural Mortality (Prior) -----------------------------------------------
     if(Use_M_prior == 1) {
       if(likelihoods == 0) M_Pen = (ln_M - log(M_prior[1]))^2 / (2 * (M_prior[2])^2) # ADMB likelihood
@@ -497,10 +503,22 @@ sabie_RTMB = function(pars) {
       } # end if for random walk selectivity
     } # end f loop
 
+  
     ### Recruitment (Penalty) ----------------------------------------------------
-    for(r in 1:n_regions) Init_Rec_nLL[r,] = (ln_InitDevs[r,] / exp(ln_sigmaR_early))^2 # initial age structure penalty
-    if(sigmaR_switch > 1) for(r in 1:n_regions) for(y in 1:(sigmaR_switch-1)) Rec_nLL[r,y] = (ln_RecDevs[r,y]/exp(ln_sigmaR_early))^2 + bias_ramp[y]*ln_sigmaR_early # early period
-    for(r in 1:n_regions) for(y in (sigmaR_switch:(n_yrs-1))) Rec_nLL[r,y] = (ln_RecDevs[r,y]/exp(ln_sigmaR_late))^2 + bias_ramp[y]*ln_sigmaR_late # late period
+    if(est_rec_devs == 1) {
+      if(likelihoods == 0) {
+      for(r in 1:n_regions) Init_Rec_nLL[r,] = (ln_InitDevs[r,] / exp(ln_sigmaR_early))^2 # initial age structure penalty
+      if(sigmaR_switch > 1) for(r in 1:n_regions) for(y in 1:(sigmaR_switch-1)) Rec_nLL[r,y] = (ln_RecDevs[r,y]/exp(ln_sigmaR_early))^2 + bias_ramp[y]*ln_sigmaR_early # early period
+      for(r in 1:n_regions) for(y in (sigmaR_switch:(n_yrs-1))) Rec_nLL[r,y] = (ln_RecDevs[r,y]/exp(ln_sigmaR_late))^2 + bias_ramp[y]*ln_sigmaR_late # late period
+      Rec_nLL = 0.5 * sum(Rec_nLL); Init_Rec_nLL = 0.5 * sum(Init_Rec_nLL) # multiply by 0.5 and sum
+    }
+
+    if(likelihoods == 1) {
+      for(r in 1:n_regions) Init_Rec_nLL[r,] = -dnorm(ln_InitDevs[r,], 0, exp(ln_sigmaR_early), TRUE)
+      if(sigmaR_switch > 1) for(r in 1:n_regions) for(y in 1:(sigmaR_switch-1)) Rec_nLL[r,y] = -dnorm(ln_RecDevs[r,y], 0, exp(ln_sigmaR_early), TRUE)
+      for(r in 1:n_regions) for(y in (sigmaR_switch:(n_yrs))) Rec_nLL[r,y] = -dnorm(ln_RecDevs[r,y], 0, exp(ln_sigmaR_late), TRUE)
+    } # Note that this penalizes the terminal year rec devs, which is estiamted in this case
+    } # if estiamte recruiment and iniital age deviates
 
     # Apply likelihood weights here and compute joint negative log likelihood
     jnLL = (Wt_Catch * sum(Catch_nLL)) + # Catch likelihoods
@@ -512,8 +530,8 @@ sabie_RTMB = function(pars) {
            sum(SrvLenComps_nLL) + # Survey Length likelihood
           (Wt_F * sum(Fmort_Pen)) + # Fishery Mortality Penalty
            M_Pen + # Natural Mortality Prior (Penalty)
-          (Wt_Rec * 0.5 * sum(Rec_nLL)) + # Recruitment Penalty
-          (Wt_Rec * 0.5 * sum(Init_Rec_nLL)) + #  Initial Age Penalty
+          (Wt_Rec * sum(Rec_nLL)) + # Recruitment Penalty
+          (Wt_Rec * sum(Init_Rec_nLL)) + #  Initial Age Penalty
            sel_Pen; #  selectivity penalty
     
 # Report Section ----------------------------------------------------------
