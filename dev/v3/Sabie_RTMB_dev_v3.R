@@ -23,10 +23,11 @@
   tem_par <- read_pars(here('2. Base (23.5)_final model', 'tem'))
   # Read in disaggregated sex composition data which goes until 2021
   compdata_2021 <- readRDS(here('2. Base (23.5)_final model', "SabieRTMB_2021compdata.RDS"))
-  n_sims <- 150
+  n_sims <- 1e3
   ssb_mat <- matrix(NA, nrow = length(as.numeric(1:20)), ncol = n_sims)
-  r0_mat <- matrix(NA, nrow = n_sims, ncol = 1)
+  r0_mat <- matrix(NA, nrow = n_sims, ncol = 2)
   status <- vector()
+  catch_type <- 0 # aggregated in early period
   
   # Testing with simulated data ---------------------------------------------
   for(sim in 1:n_sims) {
@@ -34,7 +35,7 @@
     data <- list() # make data list
     
     # Set up dimensions
-    data$n_regions <- 1 # number of regions
+    data$n_regions <- 2 # number of regions
     data$ages <- 1:5 # ages
     data$lens <- 1 # lengths
     data$years <- as.numeric(1:20) # years
@@ -47,11 +48,10 @@
     data$do_rec_bias_ramp <- 0 # do bias ramp (slot 0 == don't do bias ramp, 1 == do bias ramp)
     data$bias_year <- NA
     data$sigmaR_switch <- 0
-    data$sexratio <- as.vector(1) # recruitment sex ratio (assuming 50,50)
+    data$sexratio <- as.vector(1) # recruitment sex ratio (assuming 1, since single sex)
     
     # Movement stuff
     data$do_recruits_move = 0 # recruits dont move
-    data$est_rec_devs = 1 # dont estimate rec devs
     data$use_fixed_movement = 1 # use fixed movement
     data$Fixed_Movement = array(sim_out$movement_matrix[,,,,,sim,drop=FALSE], dim = c(data$n_regions,
                                                                                       data$n_regions,
@@ -94,9 +94,23 @@
     ### Fishery Observations ----------------------------------------------------
     
     # Catches
-    data$ObsCatch <- array(aperm(sim_out$Obs_Catch[,,,sim, drop = FALSE], perm = c(2,1,3,4)), dim = c(data$n_regions, length(data$years), data$n_fish_fleets))
-    data$ObsCatch[data$ObsCatch == 0] <- NA # set 0 catches to NA so we aren't fitting
-    data$UseCatch <- array(1, c(data$n_regions, length(data$years), data$n_fish_fleets))
+    if(catch_type == 0) {
+      data$ObsCatch <- array(0, dim = c(data$n_regions, length(data$years), data$n_fish_fleets))
+      data$ObsCatch[1,1:5,1] <- apply(aperm(sim_out$Obs_Catch[1:5,,,sim, drop = FALSE], perm = c(2,1,3,4)), 2:4, sum)
+      data$ObsCatch[,-c(1:5),1] <- aperm(sim_out$Obs_Catch[-c(1:5),,,sim, drop = FALSE], perm = c(2,1,3,4))  
+      data$Catch_Type <- array(c(rep(0, 5), rep(1, 15)), dim = c(length(data$years), data$n_fish_fleets))
+      data$UseCatch <- array(0, c(data$n_regions, length(data$years), data$n_fish_fleets))
+      data$UseCatch[1,1:5,1] <- 1
+      data$UseCatch[,-c(1:5),1] <- 1
+    } # aggregated in early period
+    
+    if(catch_type == 1) {
+      data$ObsCatch <- array(aperm(sim_out$Obs_Catch[,,,sim, drop = FALSE], perm = c(2,1,3,4)), dim = c(data$n_regions, length(data$years), data$n_fish_fleets))
+      data$ObsCatch[data$ObsCatch == 0] <- NA # set 0 catches to NA so we aren't fitting
+      data$UseCatch <- array(1, c(data$n_regions, length(data$years), data$n_fish_fleets))
+      data$Catch_Type <- array(rep(1,20), dim = c(length(data$years), data$n_fish_fleets))
+    }
+    
     data$Catch_Constant <- c(0, 0)
     
     # Fishery Indices
@@ -119,7 +133,7 @@
     # Data weighting for fishery age compositions
     data$ISS_FishAgeComps <- array(0, dim = c(data$n_regions, length(data$years), data$n_sexes, data$n_fish_fleets))
     colnames(data$ISS_FishAgeComps) <- data$years # define row years
-    data$ISS_FishAgeComps[,,1,1] <- 3e4
+    data$ISS_FishAgeComps[,,1,1] <- 5e2
     # data$ISS_FishAgeComps[1,,,1] <- rowSums(apply(data$ObsFishAgeComps, c(2:4),sum)[,,1])
     # data$ISS_FishAgeComps[2,,,1] <- rowSums(apply(data$ObsFishAgeComps, c(2:4),sum)[,,2])
     data$Wt_FishAgeComps <- array(NA, dim = c(data$n_regions, data$n_sexes, data$n_fish_fleets)) # weights for fishery age comps
@@ -136,8 +150,8 @@
     # Composition munging stuff
     data$FishAgeComps_LikeType <- array(0, dim = c(data$n_fish_fleets)) # multinomial for both fleets
     data$FishLenComps_LikeType <- array(0, dim = c(data$n_fish_fleets)) # multinomial for both fleets
-    data$FishAgeComps_Type <- array(2, dim = c(data$n_fish_fleets)) # Joint age comps
-    data$FishLenComps_Type <- array(2, dim = c(data$n_fish_fleets)) # Joint length comps
+    data$FishAgeComps_Type <- array(3, dim = c(length(data$years), data$n_fish_fleets)) # Joint age comps
+    data$FishLenComps_Type <- array(3, dim = c(length(data$years), data$n_fish_fleets)) # Joint length comps
     
     ### Survey Observations -----------------------------------------------------
     # Survey Indices
@@ -155,7 +169,7 @@
     # Data weighting for survey age compositions
     data$ISS_SrvAgeComps <- array(0, dim = c(data$n_regions, length(data$years), data$n_sexes, data$n_srv_fleets))
     colnames(data$ISS_SrvAgeComps) <- data$years # define row years
-    data$ISS_SrvAgeComps[,,1,1] <- 3e4
+    data$ISS_SrvAgeComps[,,1,1] <- 5e2
     # data$ISS_SrvAgeComps[1,,,1] <- rowSums(apply(data$ObsSrvAgeComps, c(2:4),sum)[,,1])
     # data$ISS_SrvAgeComps[2,,,1] <- rowSums(apply(data$ObsSrvAgeComps, c(2:4),sum)[,,2])
     data$Wt_SrvAgeComps <- array(NA, dim = c(data$n_regions, data$n_sexes, data$n_srv_fleets)) # weights for survey age comps
@@ -174,8 +188,8 @@
     # Composition munging stuff
     data$SrvAgeComps_LikeType <- array(0, dim = c(data$n_srv_fleets)) # multinomial for both survey fleet
     data$SrvLenComps_LikeType <- array(0, dim = c(data$n_srv_fleets)) # multinomial for both survey fleet
-    data$SrvLenComps_Type <- array(2, dim = c(data$n_srv_fleets)) # split for both survey fleet length
-    data$SrvAgeComps_Type <- array(2, dim = c(data$n_srv_fleets)) # split for both survey age length
+    data$SrvLenComps_Type <- array(3, dim = c(length(data$years), data$n_srv_fleets)) # split for both survey fleet length
+    data$SrvAgeComps_Type <- array(3, dim = c(length(data$years), data$n_srv_fleets)) # split for both survey age length
     
     ### Fishery Stuff -----------------------------------------------------
     # Selectivity
@@ -249,12 +263,12 @@
     parameters$M_offset <- 0 # Male M offset (accidently jittered from OG assessment)
     
     # Recruitment -------------------------------------------------------------
-    parameters$ln_global_R0 <- log(50) # mean recruitment
+    parameters$ln_global_R0 <- log(100) # mean recruitment
     parameters$R0_prop <- array(0.5, dim = c(data$n_regions - 1))
     parameters$ln_InitDevs <- array(0, dim = c(data$n_regions, length(data$ages) - 2))
     parameters$ln_RecDevs <- array(0, dim = c(data$n_regions, length(data$years)))
-    parameters$ln_sigmaR_early <- log(0.85) # early sigma R
-    parameters$ln_sigmaR_late <- log(0.85)  # late sigma R
+    parameters$ln_sigmaR_early <- log(0.5) # early sigma R
+    parameters$ln_sigmaR_late <- log(0.5)  # late sigma R
     
     # Comp Likelihood Stuff ---------------------------------------------------
     parameters$ln_FishAge_DM_theta <- array(0, dim = c(data$n_regions, data$n_fish_fleets))
@@ -264,8 +278,8 @@
     
     # Movement Stuff ---------------------------------------------------
     parameters$move_pars <- array(0, dim = c(data$n_regions, data$n_regions - 1, length(data$years), length(data$ages), data$n_sexes))
-    parameters$move_pars[1,,1,1,1] = 0
-    # parameters$move_pars[2,,1,1,1] = 0
+    parameters$move_pars[1,,1,1,1] = 0.1
+    parameters$move_pars[2,,1,1,1] = 0.1
     
     # Mapping -----------------------------------------------------------------
     mapping <- list()
@@ -294,8 +308,13 @@
     # mapping$move_pars = factor(rep(1:2, length.out = prod(dim(parameters$move_pars))))
     mapping$move_pars = factor(rep(NA, length.out = prod(dim(parameters$move_pars))))
     
+    if(catch_type == 0) {
+      mapping$ln_F_devs = factor(c(c(1,NA,2,NA,3,NA,4,NA,5,NA),
+               6:35))
+    }
+    
     # Fixing survey catchability
-    # mapping$ln_srv_q <- factor(rep(1, length(parameters$ln_srv_q)))
+    mapping$ln_srv_q <- factor(rep(1, length(parameters$ln_srv_q)))
     # mapping$ln_srv_q <- factor(rep(NA, length(parameters$ln_srv_q)))
     
     # mapping$ln_global_R0 <- factor(NA)
@@ -313,15 +332,15 @@
     # mapping$ln_srv_fixed_sel_pars = factor(rep(NA, length(parameters$ln_srv_fixed_sel_pars)))
     
     # global density dependence
-    # map_recdevs = parameters$ln_RecDevs
-    # map_recdevs[1,] = 1:length(map_recdevs[1,])
-    # map_recdevs[2,] = map_recdevs[1,]
-    # mapping$ln_RecDevs = factor(map_recdevs)
-    # map_initdevs = parameters$ln_InitDevs
-    # map_initdevs[1,] = 1:length(map_initdevs[1,])
-    # map_initdevs[2,] = map_initdevs[1,]
-    # mapping$ln_InitDevs = factor(map_initdevs)
-    # 
+    map_recdevs = parameters$ln_RecDevs
+    map_recdevs[1,] = 1:length(map_recdevs[1,])
+    map_recdevs[2,] = map_recdevs[1,]
+    mapping$ln_RecDevs = factor(map_recdevs)
+    map_initdevs = parameters$ln_InitDevs
+    map_initdevs[1,] = 1:length(map_initdevs[1,])
+    map_initdevs[2,] = map_initdevs[1,]
+    mapping$ln_InitDevs = factor(map_initdevs)
+
     # mapping$ln_RecDevs = factor(rep(NA, length(parameters$ln_RecDevs)))
     # mapping$ln_InitDevs = factor(rep(NA, length(parameters$ln_InitDevs)))
     
@@ -357,7 +376,7 @@
     if(PD == TRUE && grad < 0.001) conv = TRUE else conv = FALSE
     status[sim] = conv
     # ssb_mat[,sim] <- (colSums(sabie_rtmb_model$rep$SSB) - rowSums(sim_out$SSB[,,sim])) / rowSums(sim_out$SSB[,,sim])
-    ssb_mat[,sim] <- (t(sabie_rtmb_model$rep$SSB) - sim_out$SSB[,,sim]) / (sim_out$SSB[,,sim])
+    ssb_mat[,sim] <- (colSums(sabie_rtmb_model$rep$SSB) - rowSums(sim_out$SSB[,,sim])) / rowSums(sim_out$SSB[,,sim])
     
     par(mfrow = c(3,3))
     
@@ -396,10 +415,11 @@
     # plot(sabie_rtmb_model$rep$SSB[2,], type = 'l')
     # lines(sim_out$SSB[,2,sim], col = 'red')
     
-    hist((r0_mat[,1] - 50) / 50, main = round(median((r0_mat[,1] - 50) / 50, na.rm = T),2))
+    if(sum(status == TRUE) > 1) hist((r0_mat[which(status == TRUE),1] - 50) / 50, main = round(median((r0_mat[which(status == TRUE),1] - 50) / 50, na.rm = T),2))
     # hist((r0_mat[,2] - 50) / 50, main = round(median((r0_mat[,2] - 50) / 50, na.rm = T),2))
   }
   
+  dev.off()
   plot(apply(ssb_mat, 1, median, na.rm = T), type = 'l')
   
   median((r0_mat[,1] - 50) / 50, na.rm = T)
@@ -487,8 +507,7 @@
 # }
 # 
 # # Biological Processes
-# data$est_rec_devs = 1 # estimate rec devs
-  
+
 # # Natural Mortality
 # data$Use_M_prior <- 1 # use natural mortality prior
 # data$M_prior <- c(0.1, 0.1) # Mean and CV for M prior
@@ -598,8 +617,8 @@
 # # Composition munging stuff
 # data$FishAgeComps_LikeType <- array(0, dim = c(data$n_fish_fleets)) # multinomial for both fleets
 # data$FishLenComps_LikeType <- array(0, dim = c(data$n_fish_fleets)) # multinomial for both fleets
-# data$FishAgeComps_Type <- array(2, dim = c(data$n_fish_fleets)) # Joint age comps
-# data$FishLenComps_Type <- array(2, dim = c(data$n_fish_fleets)) # Joint length comps
+# data$FishAgeComps_Type <- array(2, dim = c(length(data$years), data$n_fish_fleets)) # Joint age comps
+# data$FishLenComps_Type <- array(2, dim = c(length(data$years), data$n_fish_fleets)) # Joint length comps
 # 
 # ### Survey Observations -----------------------------------------------------
 # # Survey Indices
@@ -691,8 +710,8 @@
 # # Composition munging stuff
 # data$SrvAgeComps_LikeType <- array(0, dim = c(data$n_srv_fleets)) # multinomial for both survey fleet
 # data$SrvLenComps_LikeType <- array(0, dim = c(data$n_srv_fleets)) # multinomial for both survey fleet
-# data$SrvLenComps_Type <- array(1, dim = c(data$n_srv_fleets)) # split for both survey fleet length
-# data$SrvAgeComps_Type <- array(2, dim = c(data$n_srv_fleets)) # joint for both survey age by se
+# data$SrvLenComps_Type <- array(1, dim = c(length(data$years),data$n_srv_fleets)) # split for both survey fleet length
+# data$SrvAgeComps_Type <- array(2, dim = c(length(data$years),data$n_srv_fleets)) # joint for both survey age by se
 # 
 # ### Fishery Stuff -----------------------------------------------------
 # # Selectivity

@@ -333,9 +333,25 @@ sabie_RTMB = function(pars) {
     ### Fishery Catches ---------------------------------------------------------
     for(y in 1:n_yrs) {
       for(f in 1:n_fish_fleets) {
+        
+        # If we have catch data but it's not resolved on the region scale
+        if(UseCatch[1,y,f] == 1 && Catch_Type[y,f] == 0) {
+          # ADMB likelihoods
+          if(likelihoods == 0) {
+            Catch_nLL[1,y,f] = UseCatch[1,y,f] * (log(ObsCatch[1,y,f] + Catch_Constant[f]) -
+                                                    log(PredCatch[1,y,f] + Catch_Constant[f]))^2 # SSQ Catch
+          } # ADMB likelihoods
+          if(likelihoods == 1) {
+            Catch_nLL[1,y,f] = UseCatch[1,y,f] -1 * dnorm(log(ObsCatch[1,y,f] + Catch_Constant[f]),
+                                                          log(PredCatch[1,y,f] + Catch_Constant[f]),
+                                                          exp(ln_sigmaC[1,f]), TRUE)
+          } # TMB likelihoods
+        } # if no NAs for fishery catches
+        
         for(r in 1:n_regions) {
 
-          if(UseCatch[r,y,f] == 1) {
+          # If we have catch data and it's resolved on the region scale
+          if(UseCatch[r,y,f] == 1 && Catch_Type[y,f] == 1) {
             # ADMB likelihoods
             if(likelihoods == 0) {
               Catch_nLL[r,y,f] = UseCatch[r,y,f] * (log(ObsCatch[r,y,f] + Catch_Constant[f]) -
@@ -364,8 +380,8 @@ sabie_RTMB = function(pars) {
                                  (2 * (ObsFishIdx_SE[r,y,f] / ObsFishIdx[r,y,f])^2) # lognormal fishery index
           } # ADMB likelihoods
           if(likelihoods == 1) {
-            FishIdx_nLL[r,y,f] = UseFishIdx[r,y,f] -1 * dnorm(log(ObsFishIdx[r,y,f] + 1e-10),
-                                                              log(PredFishIdx[r,y,f] + 1e-10),
+            FishIdx_nLL[r,y,f] = UseFishIdx[r,y,f] -1 * dnorm(log(ObsFishIdx[r,y,f] + 1e-4),
+                                                              log(PredFishIdx[r,y,f] + 1e-4),
                                                               0.35, TRUE)
           } # TMB likelihoods
         } # if no NAs for fishery index
@@ -384,7 +400,7 @@ sabie_RTMB = function(pars) {
         FishAgeComps_nLL[,y,,f] = Get_Comp_Likelihoods(
           Exp = CAA[,y,,,f], Obs = ObsFishAgeComps[,y,,,f], # Expected and Observed values
           ISS = ISS_FishAgeComps[,y,,f], Wt_Mltnml = Wt_FishAgeComps[,,f], # Input sample size and multinomial weight
-          Comp_Type = FishAgeComps_Type[f], Likelihood_Type = FishAgeComps_LikeType[f], # Composition and Likelihood Type
+          Comp_Type = FishAgeComps_Type[y,f], Likelihood_Type = FishAgeComps_LikeType[f], # Composition and Likelihood Type
           ln_theta = ln_FishAge_DM_theta[,f], n_regions =  n_regions, n_sexes = n_sexes, age_or_len = 0, AgeingError = AgeingError, # overdispersion par, Number of sexes, regions, age or length comps, and ageing error
           use = UseFishAgeComps[,y,f], n_bins = n_ages)
       } # if we have fishery age comps
@@ -394,7 +410,7 @@ sabie_RTMB = function(pars) {
         FishLenComps_nLL[,y,,f] = Get_Comp_Likelihoods(
           Exp = CAL[,y,,,f], Obs = ObsFishLenComps[,y,,,f], # Expected and Observed values
           ISS = ISS_FishLenComps[,y,,f], Wt_Mltnml = Wt_FishLenComps[r,,f], # Input sample size and multinomial weight
-          Comp_Type = FishLenComps_Type[f], Likelihood_Type = FishLenComps_LikeType[f], # Composition and Likelihood Type
+          Comp_Type = FishLenComps_Type[y,f], Likelihood_Type = FishLenComps_LikeType[f], # Composition and Likelihood Type
           ln_theta = ln_FishLen_DM_theta[,f], n_regions = n_regions, n_sexes = n_sexes, age_or_len = 1, AgeingError = NA, # overdispersion, Number of sexes, regions age or length comps, and ageing error
           use = UseFishLenComps[,y,f], n_bins = n_lens) 
       } # if we have fishery length comps
@@ -415,8 +431,8 @@ sabie_RTMB = function(pars) {
                                   (2 * (ObsSrvIdx_SE[r,y,sf] / ObsSrvIdx[r,y,sf])^2) # lognormal survey index
             } # ADMB likelihoods
             if(likelihoods == 1) {
-              SrvIdx_nLL[r,y,sf] = UseSrvIdx[r,y,sf] -1 * dnorm(log(ObsSrvIdx[r,y,sf] + 1e-10),
-                                                                log(PredSrvIdx[r,y,sf] + 1e-10),
+              SrvIdx_nLL[r,y,sf] = UseSrvIdx[r,y,sf] -1 * dnorm(log(ObsSrvIdx[r,y,sf] + 1e-4),
+                                                                log(PredSrvIdx[r,y,sf] + 1e-4),
                                                                 (ObsSrvIdx_SE[r,y,sf] / ObsSrvIdx[r,y,sf]) , TRUE)
             } # TMB likelihoods
           } # if no NAs for survey index
@@ -435,7 +451,7 @@ sabie_RTMB = function(pars) {
           SrvAgeComps_nLL[,y,,sf] = Get_Comp_Likelihoods(
             Exp = SrvIAA[,y,,,sf], Obs = ObsSrvAgeComps[,y,,,sf], # Expected and Observed values
             ISS = ISS_SrvAgeComps[,y,,sf], Wt_Mltnml = Wt_SrvAgeComps[,,sf], # Input sample size and multinomial weight
-            Comp_Type = SrvAgeComps_Type[sf], Likelihood_Type = SrvAgeComps_LikeType[sf], # Composition and Likelihood Type
+            Comp_Type = SrvAgeComps_Type[y,sf], Likelihood_Type = SrvAgeComps_LikeType[sf], # Composition and Likelihood Type
             ln_theta = ln_SrvAge_DM_theta[,sf], n_regions = n_regions, n_sexes = n_sexes, age_or_len = 0, AgeingError = AgeingError, # overdispersion, Number of sexes, regions, age or length comps, and ageing error
             use = UseSrvAgeComps[,y,sf], n_bins = n_ages)
         } # if we have survey age comps
@@ -445,7 +461,7 @@ sabie_RTMB = function(pars) {
           SrvLenComps_nLL[,y,,sf] = Get_Comp_Likelihoods(
             Exp = SrvIAL[,y,,,sf], Obs = ObsSrvLenComps[,y,,,sf], # Expected and Observed values
             ISS = ISS_SrvLenComps[,y,,sf], Wt_Mltnml = Wt_SrvLenComps[,,sf], # Input sample size and multinomial weight
-            Comp_Type = SrvLenComps_Type[sf], Likelihood_Type = SrvLenComps_LikeType[sf], # Composition and Likelihood Type
+            Comp_Type = SrvLenComps_Type[y,sf], Likelihood_Type = SrvLenComps_LikeType[sf], # Composition and Likelihood Type
             ln_theta = ln_SrvLen_DM_theta[,sf], n_regions = n_regions, n_sexes = n_sexes, age_or_len = 1, AgeingError = NA, # overdispersion, Number of sexes, regions, age or length comps, and ageing error
             use = UseSrvLenComps[,y,sf], n_bins = n_lens)
         } # if we have survey length comps
@@ -458,8 +474,13 @@ sabie_RTMB = function(pars) {
     ### Fishing Mortality (Penalty) ---------------------------------------------
     for(f in 1:n_fish_fleets) {
       for(y in 1:n_yrs) {
+        # If we have catch and it's on a region specific scale
+        if(UseCatch[1,y,f] == 1 && Catch_Type[y,f] == 0) {
+          Fmort_Pen[1,f] = Fmort_Pen[1,f] + ln_F_devs[1,y,f]^2 # SSQ ADMB
+        } # end if
         for(r in 1:n_regions) {
-          if(UseCatch[r,y,f] == 1) {
+          # If we have catch and it's on a region specific scale
+          if(UseCatch[r,y,f] == 1 && Catch_Type[y,f] == 1) {
             Fmort_Pen[r,f] = Fmort_Pen[r,f] + ln_F_devs[r,y, f]^2 # SSQ ADMB
           } # end if
         } # end r loop
@@ -505,8 +526,7 @@ sabie_RTMB = function(pars) {
 
   
     ### Recruitment (Penalty) ----------------------------------------------------
-    if(est_rec_devs == 1) {
-      if(likelihoods == 0) {
+    if(likelihoods == 0) {
       for(r in 1:n_regions) Init_Rec_nLL[r,] = (ln_InitDevs[r,] / exp(ln_sigmaR_early))^2 # initial age structure penalty
       if(sigmaR_switch > 1) for(r in 1:n_regions) for(y in 1:(sigmaR_switch-1)) Rec_nLL[r,y] = (ln_RecDevs[r,y]/exp(ln_sigmaR_early))^2 + bias_ramp[y]*ln_sigmaR_early # early period
       for(r in 1:n_regions) for(y in (sigmaR_switch:(n_yrs-1))) Rec_nLL[r,y] = (ln_RecDevs[r,y]/exp(ln_sigmaR_late))^2 + bias_ramp[y]*ln_sigmaR_late # late period
@@ -518,7 +538,6 @@ sabie_RTMB = function(pars) {
       if(sigmaR_switch > 1) for(r in 1:n_regions) for(y in 1:(sigmaR_switch-1)) Rec_nLL[r,y] = -dnorm(ln_RecDevs[r,y], 0, exp(ln_sigmaR_early), TRUE)
       for(r in 1:n_regions) for(y in (sigmaR_switch:(n_yrs))) Rec_nLL[r,y] = -dnorm(ln_RecDevs[r,y], 0, exp(ln_sigmaR_late), TRUE)
     } # Note that this penalizes the terminal year rec devs, which is estiamted in this case
-    } # if estiamte recruiment and iniital age deviates
 
     # Apply likelihood weights here and compute joint negative log likelihood
     jnLL = (Wt_Catch * sum(Catch_nLL)) + # Catch likelihoods
