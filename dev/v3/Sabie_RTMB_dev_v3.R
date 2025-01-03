@@ -23,8 +23,8 @@
   tem_par <- read_pars(here('2. Base (23.5)_final model', 'tem'))
   # Read in disaggregated sex composition data which goes until 2021
   compdata_2021 <- readRDS(here('2. Base (23.5)_final model', "SabieRTMB_2021compdata.RDS"))
-  n_sims <- 1e3
-  ssb_mat <- matrix(NA, nrow = length(as.numeric(1:20)), ncol = n_sims)
+  n_sims <- 1e2
+  ssb_mat <- matrix(NA, nrow = length(as.numeric(1:50)), ncol = n_sims)
   r0_mat <- matrix(NA, nrow = n_sims, ncol = 2)
   status <- vector()
   catch_type <- 0 # aggregated in early period
@@ -38,7 +38,7 @@
     data$n_regions <- 2 # number of regions
     data$ages <- 1:5 # ages
     data$lens <- 1 # lengths
-    data$years <- as.numeric(1:20) # years
+    data$years <- as.numeric(1:50) # years
     data$n_sexes <- 1 # number of sexes
     data$n_fish_fleets <- 1 # number of fishery fleets (0 == fixed gear, 1 == trawl gear)
     data$n_srv_fleets <- 1 # number of survey fleets (0 == domestic ll survey, 1 == domestic trawl survey, 2 == coop jp ll survey)
@@ -96,12 +96,10 @@
     # Catches
     if(catch_type == 0) {
       data$ObsCatch <- array(0, dim = c(data$n_regions, length(data$years), data$n_fish_fleets))
-      data$ObsCatch[1,1:5,1] <- apply(aperm(sim_out$Obs_Catch[1:5,,,sim, drop = FALSE], perm = c(2,1,3,4)), 2:4, sum)
-      data$ObsCatch[,-c(1:5),1] <- aperm(sim_out$Obs_Catch[-c(1:5),,,sim, drop = FALSE], perm = c(2,1,3,4))  
-      data$Catch_Type <- array(c(rep(0, 5), rep(1, 15)), dim = c(length(data$years), data$n_fish_fleets))
-      data$UseCatch <- array(0, c(data$n_regions, length(data$years), data$n_fish_fleets))
-      data$UseCatch[1,1:5,1] <- 1
-      data$UseCatch[,-c(1:5),1] <- 1
+      data$ObsCatch[1,1:15,1] <- apply(aperm(sim_out$Obs_Catch[1:15,,,sim, drop = FALSE], perm = c(2,1,3,4)), 2:4, sum)
+      data$ObsCatch[,-c(1:15),1] <- aperm(sim_out$Obs_Catch[-c(1:15),,,sim, drop = FALSE], perm = c(2,1,3,4))  
+      data$Catch_Type <- array(c(rep(0, 15), rep(1, 35)), dim = c(length(data$years), data$n_fish_fleets))
+      data$UseCatch <- array(1, c(data$n_regions, length(data$years), data$n_fish_fleets))
     } # aggregated in early period
     
     if(catch_type == 1) {
@@ -129,11 +127,12 @@
     colnames(data$ObsFishAgeComps) <- data$years # define row years
     data$UseFishAgeComps <- array(1, dim = c(data$n_regions, length(data$years), data$n_fish_fleets))
     colnames(data$UseFishAgeComps) <- data$years # define row years
+    # data$UseFishAgeComps[,1:15,] <- 0
     
     # Data weighting for fishery age compositions
     data$ISS_FishAgeComps <- array(0, dim = c(data$n_regions, length(data$years), data$n_sexes, data$n_fish_fleets))
     colnames(data$ISS_FishAgeComps) <- data$years # define row years
-    data$ISS_FishAgeComps[,,1,1] <- 5e2
+    data$ISS_FishAgeComps[,,1,1] <- 250
     # data$ISS_FishAgeComps[1,,,1] <- rowSums(apply(data$ObsFishAgeComps, c(2:4),sum)[,,1])
     # data$ISS_FishAgeComps[2,,,1] <- rowSums(apply(data$ObsFishAgeComps, c(2:4),sum)[,,2])
     data$Wt_FishAgeComps <- array(NA, dim = c(data$n_regions, data$n_sexes, data$n_fish_fleets)) # weights for fishery age comps
@@ -150,13 +149,14 @@
     # Composition munging stuff
     data$FishAgeComps_LikeType <- array(0, dim = c(data$n_fish_fleets)) # multinomial for both fleets
     data$FishLenComps_LikeType <- array(0, dim = c(data$n_fish_fleets)) # multinomial for both fleets
-    data$FishAgeComps_Type <- array(3, dim = c(length(data$years), data$n_fish_fleets)) # Joint age comps
+    data$FishAgeComps_Type <- array(3, dim = c(length(data$years), data$n_fish_fleets)) # Joint age comps # FLAG need to figure out what to do when comps are aggregated by region and sex
+    data$FishAgeComps_Type[1:15,] <- 0
     data$FishLenComps_Type <- array(3, dim = c(length(data$years), data$n_fish_fleets)) # Joint length comps
     
     ### Survey Observations -----------------------------------------------------
     # Survey Indices
     data$ObsSrvIdx <- array(aperm(sim_out$Obs_SrvIdx[,,,sim,drop = FALSE], perm = c(2,1,3,4)), dim = c(data$n_regions, length(data$years), data$n_srv_fleets))
-    data$ObsSrvIdx_SE <- (data$ObsSrvIdx * 0.05)
+    data$ObsSrvIdx_SE <- (data$ObsSrvIdx * 0.2)
     data$UseSrvIdx <- array(1, dim = c(data$n_regions, length(data$years), data$n_srv_fleets))
     colnames(data$ObsSrvIdx) <- data$years # define row years
     colnames(data$ObsSrvIdx_SE) <- data$years # define row years
@@ -169,7 +169,7 @@
     # Data weighting for survey age compositions
     data$ISS_SrvAgeComps <- array(0, dim = c(data$n_regions, length(data$years), data$n_sexes, data$n_srv_fleets))
     colnames(data$ISS_SrvAgeComps) <- data$years # define row years
-    data$ISS_SrvAgeComps[,,1,1] <- 5e2
+    data$ISS_SrvAgeComps[,,1,1] <- 250
     # data$ISS_SrvAgeComps[1,,,1] <- rowSums(apply(data$ObsSrvAgeComps, c(2:4),sum)[,,1])
     # data$ISS_SrvAgeComps[2,,,1] <- rowSums(apply(data$ObsSrvAgeComps, c(2:4),sum)[,,2])
     data$Wt_SrvAgeComps <- array(NA, dim = c(data$n_regions, data$n_sexes, data$n_srv_fleets)) # weights for survey age comps
@@ -292,6 +292,10 @@
     # Fixing sigmas for fishery catch and Fdevs here
     mapping$ln_sigmaC <- factor(rep(NA, length(parameters$ln_sigmaC)))
     
+    # Fixing sel pars
+    mapping$ln_fish_fixed_sel_pars = factor(c(1,1,2,2))
+    mapping$ln_srv_fixed_sel_pars = factor(c(1,1,2,2))
+    
     # Fixing continuous time-varying selecitvity stuff
     mapping$ln_fishsel_dev1 <- factor(rep(NA, length(parameters$ln_fishsel_dev1)))
     mapping$ln_fishsel_dev2 <- factor(rep(NA, length(parameters$ln_fishsel_dev2)))
@@ -307,11 +311,6 @@
     # Fixing movement stuff
     # mapping$move_pars = factor(rep(1:2, length.out = prod(dim(parameters$move_pars))))
     mapping$move_pars = factor(rep(NA, length.out = prod(dim(parameters$move_pars))))
-    
-    if(catch_type == 0) {
-      mapping$ln_F_devs = factor(c(c(1,NA,2,NA,3,NA,4,NA,5,NA),
-               6:35))
-    }
     
     # Fixing survey catchability
     mapping$ln_srv_q <- factor(rep(1, length(parameters$ln_srv_q)))
@@ -370,6 +369,7 @@
     sabie_rtmb_model$optim <- sabie_optim # Save optimized model results
     sabie_rtmb_model$sd_rep <- RTMB::sdreport(sabie_rtmb_model) # Get sd report
     sabie_rtmb_model$rep <- sabie_rtmb_model$report(sabie_rtmb_model$env$last.par.best) # Get report
+    
     r0_mat[sim,] <- sabie_rtmb_model$rep$R0
     PD = sabie_rtmb_model$sd_rep$pdHess
     grad = max(sabie_rtmb_model$sd_rep$gradient.fixed)
@@ -378,49 +378,35 @@
     # ssb_mat[,sim] <- (colSums(sabie_rtmb_model$rep$SSB) - rowSums(sim_out$SSB[,,sim])) / rowSums(sim_out$SSB[,,sim])
     ssb_mat[,sim] <- (colSums(sabie_rtmb_model$rep$SSB) - rowSums(sim_out$SSB[,,sim])) / rowSums(sim_out$SSB[,,sim])
     
-    par(mfrow = c(3,3))
+    par(mfrow = c(2,4))
+
+    plot(sim_out$Total_Biom[,1,sim], col = 'red', type = 'l', ylab = 'Biomass region 1 (red = simulation, black = est)')
+    lines(sabie_rtmb_model$rep$Total_Biom[1,], type = 'l')
     
-    # plot(sabie_rtmb_model$rep$Init_NAA[init_iter,,,1], type = 'l')
-    # lines(sim_out$Init_NAA[init_iter,,,1,sim], type = 'l', col = 'red')
+    plot(sim_out$Total_Biom[,2,sim], col = 'red', type = 'l', ylab = 'Biomass region 2 (red = simulation, black = est)')
+    lines(sabie_rtmb_model$rep$Total_Biom[2,], type = 'l')
     
-    # sabie_rtmb_model$rep$Init_NAA[init_iter,,,1] - sim_out$Init_NAA[init_iter,,,1,sim]
+    plot(sabie_rtmb_model$rep$PredCatch[1,,1], type = 'l', ylab = 'Catch region 1 (red = simulation, black = est)')
+    lines(sim_out$Obs_Catch[,1,,sim], type = 'l', col = 'red')
     
-    plot(sabie_rtmb_model$rep$Init_NAA[,1,5,1])
-    plot(sim_out$Init_NAA[,1,5,1,sim])
+    plot(sabie_rtmb_model$rep$PredCatch[2,,1], type = 'l', ylab = 'Catch region 2 (red = simulation, black = est)', ylim = c(0, 15))
+    lines(sim_out$Obs_Catch[,2,,sim], type = 'l', col = 'red')
     
-    plot(sim_out$NAA[-21,1,1,,sim], col = 'red')
-    lines(sabie_rtmb_model$rep$Rec[1,], type = 'l')
+    plot(colSums(sabie_rtmb_model$rep$PredCatch[,,1]), type = 'l', ylab = 'Aggregated catch (red = simulation, black = est)')
+    lines(rowSums(sim_out$Obs_Catch[,,,sim]), type = 'l', col = 'red')
     
-    # plot(sabie_rtmb_model$rep$Rec[2,], type = 'l')
-    # lines(rowSums(sim_out$NAA[-21,2,1,,sim]), col = 'red')
+    plot(sabie_rtmb_model$rep$Fmort[1,,1], type = 'l', ylim = c(0,0.4), ylab = 'Fmort Region 1 (red = simulation, black = est)', xlab = 'Year')
+    lines(sim_out$Fmort[,1,1,sim], col = 'red')
     
-    plot(sabie_rtmb_model$rep$Total_Biom[1,], type = 'l')
-    lines(sim_out$Total_Biom[,1,sim], col = 'red')
+    plot(sabie_rtmb_model$rep$Fmort[2,,1], type = 'l', ylim = c(0,0.4), ylab = 'Fmort Region 2 (red = simulation, black = est)', xlab = 'Year')
+    lines(sim_out$Fmort[,2,1,sim], col = 'red')
     
-    # plot(sabie_rtmb_model$rep$Total_Biom[2,], type = 'l')
-    # lines(sim_out$Total_Biom[,2,sim], col = 'red')
-    
-    plot(sabie_rtmb_model$rep$SSB[1,], type = 'l')
-    lines(sim_out$SSB[,1,sim], col = 'red')
-    
-    plot(sabie_rtmb_model$rep$fish_sel[1,5,,1,1])
-    lines(sim_out$fish_sel[5,1,,1,1,sim], type = 'l')
-    
-    plot(sabie_rtmb_model$rep$srv_sel[1,5,,1,1])
-    lines(sim_out$srv_sel[5,1,,1,1,sim], type = 'l')
-    
-    plot(sabie_rtmb_model$rep$CAA[1,5,,1,1]/sum(sabie_rtmb_model$rep$CAA[1,5,,1,1]))
-    lines(data$ObsFishAgeComps[1,5,,1,1]/sum(data$ObsFishAgeComps[1,5,,1,1]), type = 'l')
-    
-    # plot(sabie_rtmb_model$rep$SSB[2,], type = 'l')
-    # lines(sim_out$SSB[,2,sim], col = 'red')
-    
-    if(sum(status == TRUE) > 1) hist((r0_mat[which(status == TRUE),1] - 50) / 50, main = round(median((r0_mat[which(status == TRUE),1] - 50) / 50, na.rm = T),2))
-    # hist((r0_mat[,2] - 50) / 50, main = round(median((r0_mat[,2] - 50) / 50, na.rm = T),2))
+    if(sum(status == TRUE, na.rm = T) > 1) hist((r0_mat[which(status == TRUE),1] - 50) / 50, main = round(median((r0_mat[which(status == TRUE),1] - 50) / 50, na.rm = T),2), xlab = 'R0 bias region 1')
+    if(sum(status == TRUE, na.rm = T) > 1) hist((r0_mat[which(status == TRUE),2] - 80) / 80, main = round(median((r0_mat[which(status == TRUE),2] - 80) / 80, na.rm = T),2), xlab = 'R0 bias region 2')
   }
   
   dev.off()
-  plot(apply(ssb_mat, 1, median, na.rm = T), type = 'l')
+  plot(apply(ssb_mat, 1, median, na.rm = T), type = 'l', ylab = 'Median total SSB bias')
   
   median((r0_mat[,1] - 50) / 50, na.rm = T)
   # median((r0_mat[,2] - 50) / 50, na.rm = T)

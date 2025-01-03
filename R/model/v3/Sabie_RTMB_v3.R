@@ -149,23 +149,22 @@ sabie_RTMB = function(pars) {
 
 
   ## Mortality ---------------------------------------------------------------
-  for(r in 1:n_regions) {
-    for(y in 1:n_yrs) {
-      for(a in 1:n_ages) {
-        for(s in 1:n_sexes) {
+  for(y in 1:n_yrs) {
+    for(a in 1:n_ages) {
+      for(s in 1:n_sexes) {
+        for(r in 1:n_regions) {
           
           # Fishing Mortality at Age calculations
           for(f in 1:n_fish_fleets) {
-            if(is.na(ObsCatch[r,y,f])) {
-              Fmort[r,y,f] = 0 # Set F to zero when no catch data
-              FAA[r,y,a,s,f] = 0
-            } else {
-              Fmort[r,y,f] = exp(ln_F_mean[r,f] + ln_F_devs[r,y,f]) # Fully selected F
-                # Fmort_dat[r,y,f] # TESTING
-              FAA[r,y,a,s,f] = Fmort[r,y,f] * fish_sel[r,y,a,s,f] # Fishing mortality at age
-            }
+              if(UseCatch[r,y,f] == 0) {
+                Fmort[r,y,f] = 0 # Set F to zero when no catch data
+                FAA[r,y,a,s,f] = 0
+              } else {
+                Fmort[r,y,f] = exp(ln_F_mean[r,f] + ln_F_devs[r,y,f]) # Fully selected F
+                FAA[r,y,a,s,f] = Fmort[r,y,f] * fish_sel[r,y,a,s,f] # Fishing mortality at age
+              }
           } # f loop
-          
+
           # Population Mortality and Survival
           if(s == 1) natmort[r,y,a,s] = exp(ln_M) # get natural mortality (females or single-sex)
           if(s == 2) natmort[r,y,a,s] = exp(ln_M) + M_offset # natural mortality with offset (males)
@@ -173,11 +172,11 @@ sabie_RTMB = function(pars) {
           SAA[r,y,a,s] = exp(-ZAA[r,y,a,s]) # Survival at age
           SAA_mid[r,y,a,s] = exp(-0.5 * ZAA[r,y,a,s]) # Survival at age at midpoint of year
           
-        } # s loop
-      } # a loop
-    } # y loop
-  } # end r loop
-  
+        } # r loop
+      } # s loop
+    } # a loop
+  } # y loop
+
 
   ## Recruitment Stuff: R0 and Bias Ramp (Methot and Taylor) -------------------------------
   # Set up global virgin recruitment (or mean recruitment)
@@ -334,16 +333,16 @@ sabie_RTMB = function(pars) {
     for(y in 1:n_yrs) {
       for(f in 1:n_fish_fleets) {
         
-        # If we have catch data but it's not resolved on the region scale
+        # If we have catch data but it's not resolved on the region scale (sum across regions)
         if(UseCatch[1,y,f] == 1 && Catch_Type[y,f] == 0) {
           # ADMB likelihoods
           if(likelihoods == 0) {
             Catch_nLL[1,y,f] = UseCatch[1,y,f] * (log(ObsCatch[1,y,f] + Catch_Constant[f]) -
-                                                    log(PredCatch[1,y,f] + Catch_Constant[f]))^2 # SSQ Catch
+                                                    log(sum(PredCatch[,y,f]) + Catch_Constant[f]))^2 # SSQ Catch
           } # ADMB likelihoods
           if(likelihoods == 1) {
             Catch_nLL[1,y,f] = UseCatch[1,y,f] -1 * dnorm(log(ObsCatch[1,y,f] + Catch_Constant[f]),
-                                                          log(PredCatch[1,y,f] + Catch_Constant[f]),
+                                                          log(sum(PredCatch[,y,f]) + Catch_Constant[f]),
                                                           exp(ln_sigmaC[1,f]), TRUE)
           } # TMB likelihoods
         } # if no NAs for fishery catches
@@ -376,12 +375,12 @@ sabie_RTMB = function(pars) {
 
         if(UseFishIdx[r,y,f] == 1) {
           if(likelihoods == 0)  {
-            FishIdx_nLL[r,y,f] = UseFishIdx[r,y,f] * (log(ObsFishIdx[r,y,f] + 1e-4) - log(PredFishIdx[r,y,f] + 1e-4))^2 /
+            FishIdx_nLL[r,y,f] = UseFishIdx[r,y,f] * (log(ObsFishIdx[r,y,f] + 1e-10) - log(PredFishIdx[r,y,f] + 1e-10))^2 /
                                  (2 * (ObsFishIdx_SE[r,y,f] / ObsFishIdx[r,y,f])^2) # lognormal fishery index
           } # ADMB likelihoods
           if(likelihoods == 1) {
-            FishIdx_nLL[r,y,f] = UseFishIdx[r,y,f] -1 * dnorm(log(ObsFishIdx[r,y,f] + 1e-4),
-                                                              log(PredFishIdx[r,y,f] + 1e-4),
+            FishIdx_nLL[r,y,f] = UseFishIdx[r,y,f] -1 * dnorm(log(ObsFishIdx[r,y,f] + 1e-10),
+                                                              log(PredFishIdx[r,y,f] + 1e-10),
                                                               0.35, TRUE)
           } # TMB likelihoods
         } # if no NAs for fishery index
@@ -427,12 +426,12 @@ sabie_RTMB = function(pars) {
 
           if(UseSrvIdx[r,y,sf] == 1) {
             if(likelihoods == 0) {
-              SrvIdx_nLL[r,y,sf] = UseSrvIdx[r,y,sf] * (log(ObsSrvIdx[r,y,sf] + 1e-4) - log(PredSrvIdx[r,y,sf] + 1e-4))^2 /
+              SrvIdx_nLL[r,y,sf] = UseSrvIdx[r,y,sf] * (log(ObsSrvIdx[r,y,sf] + 1e-10) - log(PredSrvIdx[r,y,sf] + 1e-10))^2 /
                                   (2 * (ObsSrvIdx_SE[r,y,sf] / ObsSrvIdx[r,y,sf])^2) # lognormal survey index
             } # ADMB likelihoods
             if(likelihoods == 1) {
-              SrvIdx_nLL[r,y,sf] = UseSrvIdx[r,y,sf] -1 * dnorm(log(ObsSrvIdx[r,y,sf] + 1e-4),
-                                                                log(PredSrvIdx[r,y,sf] + 1e-4),
+              SrvIdx_nLL[r,y,sf] = UseSrvIdx[r,y,sf] -1 * dnorm(log(ObsSrvIdx[r,y,sf] + 1e-10),
+                                                                log(PredSrvIdx[r,y,sf] + 1e-10),
                                                                 (ObsSrvIdx_SE[r,y,sf] / ObsSrvIdx[r,y,sf]) , TRUE)
             } # TMB likelihoods
           } # if no NAs for survey index
@@ -474,14 +473,10 @@ sabie_RTMB = function(pars) {
     ### Fishing Mortality (Penalty) ---------------------------------------------
     for(f in 1:n_fish_fleets) {
       for(y in 1:n_yrs) {
-        # If we have catch and it's on a region specific scale
-        if(UseCatch[1,y,f] == 1 && Catch_Type[y,f] == 0) {
-          Fmort_Pen[1,f] = Fmort_Pen[1,f] + ln_F_devs[1,y,f]^2 # SSQ ADMB
-        } # end if
         for(r in 1:n_regions) {
           # If we have catch and it's on a region specific scale
-          if(UseCatch[r,y,f] == 1 && Catch_Type[y,f] == 1) {
-            Fmort_Pen[r,f] = Fmort_Pen[r,f] + ln_F_devs[r,y, f]^2 # SSQ ADMB
+          if(UseCatch[r,y,f] == 1) {
+            Fmort_Pen[r,f] = Fmort_Pen[r,f] + ln_F_devs[r,y,f]^2 # SSQ ADMB
           } # end if
         } # end r loop
       } # y loop

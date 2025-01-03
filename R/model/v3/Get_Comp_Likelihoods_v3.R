@@ -42,6 +42,9 @@ Get_Comp_Likelihoods = function(Exp,
   # Filter expectation and observations to regions that have observations
   n_regions_obs_use = sum(use == 1) # get number of regions that have observations
   
+  # Obs = data$ObsFishAgeComps[,1,,,1]
+  # Exp = sabie_rtmb_model$rep$CAA[,1,,,1]
+
   # Making sure things are correctly formatted (and regions are not dropped)
   Obs = array(Obs, dim = c(n_regions, n_bins, n_sexes)) 
   Exp = array(Exp, dim = c(n_regions, n_bins, n_sexes)) 
@@ -52,16 +55,15 @@ Get_Comp_Likelihoods = function(Exp,
   # filter regions that have obs
   Obs = Obs[which(use == 1),,,drop = FALSE] 
   Exp = Exp[which(use == 1),,,drop = FALSE] 
-  
-  # Aggregated comps by sex
+
+  # Aggregated comps by sex and region
   if(Comp_Type == 0) {
     # Expected Values
-    tmp_Exp = Exp / array(data = apply(Exp, c(1,3), sum), dim = dim(Exp)) # normalize within region and sex
-    # normalize again by averaging across regions and sexes and apply ageing error
-    if(age_or_len == 0) tmp_Exp = t(apply(tmp_Exp, 2, function(x) sum(x) / (n_sexes * n_regions))) %*% AgeingError 
-    if(age_or_len == 1) tmp_Exp = t(apply(tmp_Exp, 2, function(x) sum(x) / (n_sexes * n_regions))) # normalize but no ageing error
-    tmp_Exp = (tmp_Exp + 1e-3) / sum(tmp_Exp + 1e-3) # renormalize
-    tmp_Obs = (Obs[,1] + 1e-3) / sum(Obs[,1] + 1e-3) # Normalize observed values (indexing for sex 1 since comps are combined)
+    tmp_Exp = Exp / array(data = rowSums(Exp, dims = 1), dim = dim(Exp)) # normalize by sex and region
+    tmp_Exp = matrix(colSums(tmp_Exp) / (n_sexes * n_regions), nrow = 1) # take average proportions and transpose
+    if(age_or_len == 0) tmp_Exp = tmp_Exp %*% AgeingError # apply ageing error
+    tmp_Exp = as.vector((tmp_Exp + 1e-10) / sum(tmp_Exp + 1e-10)) # renormalize
+    tmp_Obs = apply(Obs + 1e-10, 2:3, sum) / sum(Obs + 1e-10) # Normalize observed values (indexing for sex 1 since comps are combined)
     
     # Multinomial likelihood
     if(Likelihood_Type == 0) { # Note that this indexes 1 because it's only a single sex and single region
@@ -70,17 +72,17 @@ Get_Comp_Likelihoods = function(Exp,
       comp_nLL[1,1] = comp_nLL[1,1] - -1 * ESS * sum(((tmp_Obs) * log(tmp_Obs))) # Multinomial offset (subtract offset from actual likelihood)
     } # end if multinomial likelihood
       if(Likelihood_Type == 1) comp_nLL[1,1] = -1 * ddirmult(tmp_Obs, tmp_Exp, ISS, ln_theta, TRUE) # Dirichlet Multinomial likelihood
-  } # end if aggregated comps across sex
+  } # end if aggregated comps across sexes and regions
   
   # 'Split' comps by sex and region (no implicit sex ratio information)
   if(Comp_Type == 1) {
     for(s in 1:n_sexes) {
       for(r in 1:n_regions_obs_use) {
         # Expected Values
-        if(age_or_len == 0) tmp_Exp = ((Exp[r,,s] + 1e-3) / sum(Exp[r,,s] + 1e-3)) %*% AgeingError # Normalize temporary variable (ages)
-        if(age_or_len == 1) tmp_Exp = (Exp[r,,s] + 1e-3) / sum(Exp[r,,s] + 1e-3) # Normalize temporary variable (lengths)
+        if(age_or_len == 0) tmp_Exp = ((Exp[r,,s] + 1e-10) / sum(Exp[r,,s] + 1e-10)) %*% AgeingError # Normalize temporary variable (ages)
+        if(age_or_len == 1) tmp_Exp = (Exp[r,,s] + 1e-10) / sum(Exp[r,,s] + 1e-10) # Normalize temporary variable (lengths)
         # Observed Values
-        tmp_Obs = (Obs[r,,s] + 1e-3) / sum(Obs[r,,s] + 1e-3) # Normalize temporary variable
+        tmp_Obs = (Obs[r,,s] + 1e-10) / sum(Obs[r,,s] + 1e-10) # Normalize temporary variable
         # Multinomial likelihood
         if(Likelihood_Type == 0) { 
           ESS = ISS[r,s] * Wt_Mltnml[r,s] # Effective sample size
@@ -92,16 +94,17 @@ Get_Comp_Likelihoods = function(Exp,
     } # end s loop
   } # end if 'Split' comps by sex and region
   
+  # Joint by sex, Split by region
   if(Comp_Type == 2) {
     for(r in 1:n_regions_obs_use) {
       # Expected values
       if(age_or_len == 0) { # if ages
-        tmp_Exp = t(as.vector((Exp[r,,] + 1e-3)/ sum(Exp[r,,] + 1e-3))) %*% kronecker(diag(n_sexes), AgeingError) # apply ageing error
-        tmp_Exp = as.vector((tmp_Exp + 1e-3) / sum(tmp_Exp + 1e-3)) # renormalize to make sure sum to 1
+        tmp_Exp = t(as.vector((Exp[r,,] + 1e-10)/ sum(Exp[r,,] + 1e-10))) %*% kronecker(diag(n_sexes), AgeingError) # apply ageing error
+        tmp_Exp = as.vector((tmp_Exp + 1e-10) / sum(tmp_Exp + 1e-10)) # renormalize to make sure sum to 1
       } # if ages
-      if(age_or_len == 1) tmp_Exp = as.vector((Exp[r,,] + 1e-3) / sum((Exp[r,,] + 1e-3))) # Normalize temporary variable (lengths)
+      if(age_or_len == 1) tmp_Exp = as.vector((Exp[r,,] + 1e-10) / sum((Exp[r,,] + 1e-10))) # Normalize temporary variable (lengths)
       # Observed Values
-      tmp_Obs = as.vector((Obs[r,,] + 1e-3) / sum(Obs[r,,] + 1e-3)) # Normalize temporary variable
+      tmp_Obs = as.vector((Obs[r,,] + 1e-10) / sum(Obs[r,,] + 1e-10)) # Normalize temporary variable
       # Multinomial likelihood 
       if(Likelihood_Type == 0) { # Indexing by r for a given region since it's 'Split' by region and 1 for sex since it's 'Joint' for sex
         ESS = ISS[r,1] * Wt_Mltnml[r,1] # Effective sample size
@@ -112,18 +115,19 @@ Get_Comp_Likelihoods = function(Exp,
     } # end r loop
   } # end if 'Joint' comps by sex, but 'Split' by region
   
+  # Joint by sex and region
   if(Comp_Type == 3) {
     tmp_Exp = aperm(Exp, perm = c(2,3,1)) # Reformat expected values so it's ordered by ages, sexes, and then regions
     tmp_Obs = aperm(Obs, perm = c(2,3,1)) # Reformat observed values so it's ordered by ages, sexes, and then regions
     # Expected values
     if(age_or_len == 0) { # if ages
-      tmp_Exp = t(as.vector((tmp_Exp + 1e-3) / sum(tmp_Exp + 1e-3))) %*% kronecker(diag(n_regions_obs_use * n_sexes), AgeingError) # apply ageing error
-      tmp_Exp = as.vector((tmp_Exp + 1e-3)/ sum(tmp_Exp + 1e-3)) # renormalize to make sure sum to 1
-      tmp_Exp = as.vector((tmp_Exp + 1e-3)/ sum(tmp_Exp + 1e-3)) # renormalize to make sure sum to 1
+      tmp_Exp = t(as.vector((tmp_Exp + 1e-10) / sum(tmp_Exp + 1e-10))) %*% kronecker(diag(n_regions_obs_use * n_sexes), AgeingError) # apply ageing error
+      tmp_Exp = as.vector((tmp_Exp + 1e-10)/ sum(tmp_Exp + 1e-10)) # renormalize to make sure sum to 1
+      tmp_Exp = as.vector((tmp_Exp + 1e-10)/ sum(tmp_Exp + 1e-10)) # renormalize to make sure sum to 1
     } # if ages
-    if(age_or_len == 1) tmp_Exp = as.vector((Exp + 1e-3) / sum(Exp + 1e-3)) # Normalize temporary variable (lengths)
+    if(age_or_len == 1) tmp_Exp = as.vector((Exp + 1e-10) / sum(Exp + 1e-10)) # Normalize temporary variable (lengths)
     # Observed Values
-    tmp_Obs = as.vector((tmp_Obs + 1e-3) / sum(tmp_Obs + 1e-3)) # Normalize temporary variable   
+    tmp_Obs = as.vector((tmp_Obs + 1e-10) / sum(tmp_Obs + 1e-10)) # Normalize temporary variable   
     # Multinomial likelihood 
     if(Likelihood_Type == 0) { # Indexing by 1,1 because Joint by sex and regions
       ESS = ISS[1,1] * Wt_Mltnml[1,1] # Effective sample size
