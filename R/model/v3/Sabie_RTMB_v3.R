@@ -160,7 +160,8 @@ sabie_RTMB = function(pars) {
                 Fmort[r,y,f] = 0 # Set F to zero when no catch data
                 FAA[r,y,a,s,f] = 0
               } else {
-                Fmort[r,y,f] = exp(ln_F_mean[r,f] + ln_F_devs[r,y,f]) # Fully selected F
+                if(y <= 7) Fmort[r,y,f] = exp(ln_F_mean1[f] + ln_F_devs1[y,f])
+                else Fmort[r,y,f] = exp(ln_F_mean[r,f] + ln_F_devs[r,y,f]) # Fully selected F
                 FAA[r,y,a,s,f] = Fmort[r,y,f] * fish_sel[r,y,a,s,f] # Fishing mortality at age
               }
           } # f loop
@@ -288,9 +289,9 @@ sabie_RTMB = function(pars) {
           CAA[r,y,,s,f] = FAA[r,y,,s,f] / ZAA[r,y,,s] * NAA[r,y,,s] * (1 - exp(-ZAA[r,y,,s])) # Catch at age (Baranov's)
           if(fit_lengths == 0) CAL[r,y,,s,f] = SizeAgeTrans[r,y,,,s] %*% CAA[r,y,,s,f] # Catch at length
         } # end s loop
-
+        
         PredCatch[r,y,f] = sum(CAA[r,y,,,f] * WAA[r,y,,]) # get total catch
-
+        
         # Get fishery index
         if(fish_idx_type[r,f] == 0) PredFishIdx[r,y,f] = fish_q[r,y,f] * sum(NAA[r,y,,] * SAA_mid[r,y,,] * fish_sel[r,y,,,f]) # abundance
         if(fish_idx_type[r,f] == 1) {
@@ -474,9 +475,10 @@ sabie_RTMB = function(pars) {
     for(f in 1:n_fish_fleets) {
       for(y in 1:n_yrs) {
         for(r in 1:n_regions) {
-          # If we have catch and it's on a region specific scale
           if(UseCatch[r,y,f] == 1) {
-            Fmort_Pen[r,f] = Fmort_Pen[r,f] + ln_F_devs[r,y,f]^2 # SSQ ADMB
+            if(likelihoods == 0) Fmort_Pen[r,f] = Fmort_Pen[r,f] + ln_F_devs[r,y,f]^2 # SSQ ADMB
+            if(likelihoods == 1 && y <= 5 && r == 1) Fmort_Pen[1,f] = Fmort_Pen[1,f] -dnorm(ln_F_devs1[y,f], 0, 5, TRUE) # TMB likelihood
+            if(likelihoods == 1 && y > 7) Fmort_Pen[r,f] = Fmort_Pen[r,f] -dnorm(ln_F_devs[r,y,f], 0, 5, TRUE) # TMB likelihood
           } # end if
         } # end r loop
       } # y loop
@@ -531,7 +533,7 @@ sabie_RTMB = function(pars) {
     if(likelihoods == 1) {
       for(r in 1:n_regions) Init_Rec_nLL[r,] = -dnorm(ln_InitDevs[r,], 0, exp(ln_sigmaR_early), TRUE)
       if(sigmaR_switch > 1) for(r in 1:n_regions) for(y in 1:(sigmaR_switch-1)) Rec_nLL[r,y] = -dnorm(ln_RecDevs[r,y], 0, exp(ln_sigmaR_early), TRUE)
-      for(r in 1:n_regions) for(y in (sigmaR_switch:(n_yrs))) Rec_nLL[r,y] = -dnorm(ln_RecDevs[r,y], 0, exp(ln_sigmaR_late), TRUE)
+      for(r in 1:n_regions) for(y in sigmaR_switch:(n_yrs)) Rec_nLL[r,y] = -dnorm(ln_RecDevs[r,y], 0, exp(ln_sigmaR_late), TRUE)
     } # Note that this penalizes the terminal year rec devs, which is estiamted in this case
 
     # Apply likelihood weights here and compute joint negative log likelihood
