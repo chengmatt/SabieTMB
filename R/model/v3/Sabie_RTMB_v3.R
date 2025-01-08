@@ -160,9 +160,10 @@ sabie_RTMB = function(pars) {
                 Fmort[r,y,f] = 0 # Set F to zero when no catch data
                 FAA[r,y,a,s,f] = 0
               } else {
-                if(y <= 7) Fmort[r,y,f] = exp(ln_F_mean1[f] + ln_F_devs1[y,f])
-                else Fmort[r,y,f] = exp(ln_F_mean[r,f] + ln_F_devs[r,y,f]) # Fully selected F
+                if(Catch_Type[y,f] == 0) Fmort[r,y,f] = exp(ln_F_mean_AggCatch[f] + ln_F_devs_AggCatch[y,f]) # If catch is aggregated across regions
+                if(Catch_Type[y,f] == 1) Fmort[r,y,f] = exp(ln_F_mean[r,f] + ln_F_devs[r,y,f]) # Fully selected F
                 FAA[r,y,a,s,f] = Fmort[r,y,f] * fish_sel[r,y,a,s,f] # Fishing mortality at age
+                # FAA[r,y,a,s,f] = Fmort_dat[r,y,f] * fish_sel[r,y,a,s,f] # Fishing mortality at age
               }
           } # f loop
 
@@ -475,11 +476,19 @@ sabie_RTMB = function(pars) {
     for(f in 1:n_fish_fleets) {
       for(y in 1:n_yrs) {
         for(r in 1:n_regions) {
+          
           if(UseCatch[r,y,f] == 1) {
-            if(likelihoods == 0) Fmort_Pen[r,f] = Fmort_Pen[r,f] + ln_F_devs[r,y,f]^2 # SSQ ADMB
-            if(likelihoods == 1 && y <= 5 && r == 1) Fmort_Pen[1,f] = Fmort_Pen[1,f] -dnorm(ln_F_devs1[y,f], 0, 5, TRUE) # TMB likelihood
-            if(likelihoods == 1 && y > 7) Fmort_Pen[r,f] = Fmort_Pen[r,f] -dnorm(ln_F_devs[r,y,f], 0, 5, TRUE) # TMB likelihood
-          } # end if
+            if(likelihoods == 0) {
+              if(Catch_Type[y,f] == 0 && r == 1) Fmort_Pen[1,f] = Fmort_Pen[1,f] + ln_F_devs_AggCatch[y,f]^2 # Use aggregated catch
+              if(Catch_Type[y,f] == 1) Fmort_Pen[r,f] = Fmort_Pen[r,f] + ln_F_devs[r,y,f]^2 # SSQ ADMB
+            } # ADMB likelihoods
+            
+            if(likelihoods == 1) {
+              if(Catch_Type[y,f] == 0 && r == 1) Fmort_Pen[1,f] = Fmort_Pen[1,f] -dnorm(ln_F_devs_AggCatch[y,f], 0, 5, TRUE) # Use aggregated catch
+              if(Catch_Type[y,f] == 1) Fmort_Pen[r,f] = Fmort_Pen[r,f] -dnorm(ln_F_devs[r,y,f], 0, 5, TRUE) # TMB likelihood
+            } # TMB likelihoods
+            
+          } # end if have catch
         } # end r loop
       } # y loop
     } # f loop

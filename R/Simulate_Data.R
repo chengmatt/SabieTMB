@@ -3,20 +3,20 @@
 library(here)
 # source(here("R", "functions", "Utility_Functions.R"))
 # Set up
-n_sims <- 1e2
+n_sims <- 1e3
 n_yrs <- 20
 n_regions <- 2
 n_ages <- 5
-n_lens <- 50
+n_lens <- 1e3
 n_sexes <- 1
 n_fish_fleets <- 1
 n_srv_fleets <- 1
 init_iter <- n_ages * 10
 
 # Fishery
-sigmaC <- 0.001
+sigmaC <- 1e-3
 Fmort <- array(0, dim = c(n_yrs, n_regions, n_fish_fleets, n_sims))
-F_vec2 <- c(seq(0.5, 0.2, length.out = n_yrs / 2), seq(0.2, 0.1, length.out = (n_yrs / 2))) 
+F_vec2 <- c(seq(0.20, 0.15, length.out = n_yrs / 2), seq(0.15, 0.15, length.out = (n_yrs / 2)))
 F_vec1 <- c(seq(0.20, 0.15, length.out = n_yrs / 2), seq(0.15, 0.15, length.out = (n_yrs / 2)))
 
 fish_sel <- array(0, dim = c(n_yrs, n_regions, n_ages, n_sexes, n_fish_fleets, n_sims))
@@ -44,7 +44,7 @@ M <- array(0.5, dim = c(n_yrs, n_regions, n_ages, n_sexes, n_sims))
 Z <- array(0, dim = c(n_yrs, n_regions, n_ages, n_sexes, n_sims))
 rec_sexratio <- array(1, dim = c(n_yrs, n_regions, n_sexes, n_sims))
 r0 <- array(0, dim = c(n_yrs, n_regions, n_sims))
-r0[,1,] <- 50
+r0[,1,] <- 150
 r0[,2,] <- 150
 
 # loop through to propagate biologicals
@@ -97,7 +97,7 @@ Srv_IAA <- array(0, dim = c(n_yrs, n_regions, n_ages, n_sexes, n_srv_fleets, n_s
 Srv_IAL <- array(0, dim = c(n_yrs, n_regions, n_lens, n_sexes, n_srv_fleets, n_sims))
 srv_sel <- array(0, dim = c(n_yrs, n_regions, n_ages, n_sexes, n_srv_fleets, n_sims))
 srv_q <- array(1, dim = c(n_yrs, n_regions, n_srv_fleets, n_sims))
-sigmaSrvIdx <- array(0.2, dim = c(n_regions, n_srv_fleets))
+sigmaSrvIdx <- array(0.01, dim = c(n_regions, n_srv_fleets))
 
 # loop through to propagate survey selex
 for(y in 1:n_yrs) {
@@ -251,7 +251,7 @@ for(sim in 1:n_sims) {
           # Structuring composition data to be split by region and sex
           if(comp_strc == 0) {
             tmp_FishAgeComps_Prob <- CAA[y,r,,s,f,sim] # Get probabilities for a given region and sex
-            if(comp_like == 0) Obs_FishAgeComps[y,r,,s,f,sim] <- array(rmultinom(1, 50, tmp_FishAgeComps_Prob / sum(tmp_FishAgeComps_Prob)), dim = c(dim(CAA[y,r,,s,f,sim]))) # simulate multinomial probabilities
+            if(comp_like == 0) Obs_FishAgeComps[y,r,,s,f,sim] <- array(rmultinom(1, 1e3, tmp_FishAgeComps_Prob / sum(tmp_FishAgeComps_Prob)), dim = c(dim(CAA[y,r,,s,f,sim]))) # simulate multinomial probabilities
           } # end if for "Split" approach for composition data (split by region and sex
           
         } # end s loop
@@ -262,7 +262,7 @@ for(sim in 1:n_sims) {
         # Structuring composition data to be split by reigon 
         if(comp_strc == 1) {
           tmp_FishAgeComps_Prob <- CAA[y,r,,,f,sim] # Get probabilities for a given region and sex
-          if(comp_like == 0) Obs_FishAgeComps[y,r,,,f,sim] <- array(rmultinom(1, 50, tmp_FishAgeComps_Prob / sum(tmp_FishAgeComps_Prob)), dim = c(dim(CAA[y,r,,,f,sim, drop = FALSE]))) # simulate multinomial probabilities
+          if(comp_like == 0) Obs_FishAgeComps[y,r,,,f,sim] <- array(rmultinom(1, 1e3, tmp_FishAgeComps_Prob / sum(tmp_FishAgeComps_Prob)), dim = c(dim(CAA[y,r,,,f,sim, drop = FALSE]))) # simulate multinomial probabilities
         } # end if for 'Split' approach for composition data split by region by not by sex
         
       } # end r loop
@@ -272,7 +272,7 @@ for(sim in 1:n_sims) {
         # Store temporary probabilities ordered by ages, sexes, regions (i.e., age 1-30, sex 1, region 1, age 1-30, sex 2, region 1, 
         # age 1-30, sex 1, region 2, age 1-30, sex 2, region 2 ... )
         tmp_FishAgeComps_Prob <- aperm(CAA[y, , , , f, sim, drop = FALSE], c(3,4,2,1,5,6)) # ordered by ages, sexes, regions, year = y, fishery fleet = f, and sim = sim
-        if(comp_like == 0) tmp_sim_FishAgeComps <- array(rmultinom(1, 50, tmp_FishAgeComps_Prob / sum(tmp_FishAgeComps_Prob)), dim = dim(tmp_FishAgeComps_Prob)) # Simulate Multinomial samples
+        if(comp_like == 0) tmp_sim_FishAgeComps <- array(rmultinom(1, 1e3, tmp_FishAgeComps_Prob / sum(tmp_FishAgeComps_Prob)), dim = dim(tmp_FishAgeComps_Prob)) # Simulate Multinomial samples
         # Inputing simulated data into dataframe while reshaping to correct dimension (revert to year, region, ages, sexes, fleet, sim)
         Obs_FishAgeComps[y,,,,f,sim] <- aperm(tmp_sim_FishAgeComps, c(4,3,1,2,5,6)) 
       } # end if for "Joint" approach for composition data across regions, ages, and sexes
@@ -291,7 +291,7 @@ for(sim in 1:n_sims) {
           # Structuring composition data to be split by region and sex
           if(comp_strc == 0) {
             tmp_SrvAgeComps_Prob <- Srv_IAA[y,r,,s,sf,sim] # Get probabilities for a given region and sex
-            if(comp_like == 0) Obs_SrvAgeComps[y,r,,s,sf,sim] <- array(rmultinom(1, 50, tmp_SrvAgeComps_Prob / sum(tmp_SrvAgeComps_Prob)), dim = c(dim(Srv_IAA[y,r,,s,sf,sim]))) # simulate multinomial probabilities
+            if(comp_like == 0) Obs_SrvAgeComps[y,r,,s,sf,sim] <- array(rmultinom(1, 1e3, tmp_SrvAgeComps_Prob / sum(tmp_SrvAgeComps_Prob)), dim = c(dim(Srv_IAA[y,r,,s,sf,sim]))) # simulate multinomial probabilities
           } # end if for "Split" approach for composition data (split by region and sex)
           
         } # end s loop
@@ -301,7 +301,7 @@ for(sim in 1:n_sims) {
         # Structuring composition data to be split by reigon 
         if(comp_strc == 1) {
           tmp_SrvAgeComps_Prob <- Srv_IAA[y,r,,,sf,sim] # Get probabilities for a given region and sex
-          if(comp_like == 0) Obs_SrvAgeComps[y,r,,,sf,sim] <- array(rmultinom(1, 50, tmp_SrvAgeComps_Prob / sum(tmp_SrvAgeComps_Prob)), dim = c(dim(Srv_IAA[y,r,,,sf,sim,drop=FALSE]))) # simulate multinomial probabilities
+          if(comp_like == 0) Obs_SrvAgeComps[y,r,,,sf,sim] <- array(rmultinom(1, 1e3, tmp_SrvAgeComps_Prob / sum(tmp_SrvAgeComps_Prob)), dim = c(dim(Srv_IAA[y,r,,,sf,sim,drop=FALSE]))) # simulate multinomial probabilities
         } # end if for 'Split' approach for composition data split by region by not by sex
       } # end r loop
       
@@ -310,7 +310,7 @@ for(sim in 1:n_sims) {
         # Store temporary Probabilities ordered by ages, sexes, regions 
         # (i.e., age 1-30, sex 1, region 1, age 1-30, sex 2, region 1, age 1-30, sex 1, region 2, age 1-30, sex 2, region 2 ... )
         tmp_SrvAgeComps_Prob <- aperm(Srv_IAA[y, , , , sf, sim, drop = FALSE], c(3,4,2,1,5,6)) # ordered by ages, sexes, regions, year = y, survey fleet = sf, and sim = sim
-        if(comp_like == 0) tmp_sim_SrvAgeComps <- array(rmultinom(1, 50, tmp_SrvAgeComps_Prob / sum(tmp_SrvAgeComps_Prob)), dim = dim(tmp_SrvAgeComps_Prob)) # Simulate Multinomial samples
+        if(comp_like == 0) tmp_sim_SrvAgeComps <- array(rmultinom(1, 1e3, tmp_SrvAgeComps_Prob / sum(tmp_SrvAgeComps_Prob)), dim = dim(tmp_SrvAgeComps_Prob)) # Simulate Multinomial samples
         # Inputing simulated data into dataframe while reshaping to correct dimension (revert to year, region, ages, sexes, fleet, sim)
         Obs_SrvAgeComps[y,,,,sf,sim] <- aperm(tmp_sim_SrvAgeComps, c(4,3,1,2,5,6)) 
       } # end if for "Joint" approach for composition data across regions, ages, and sexes
