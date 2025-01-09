@@ -87,7 +87,7 @@ sabie_RTMB = function(pars) {
   SrvLenComps_nLL = array(data = 0, dim = c(n_regions, n_yrs, n_sexes, n_srv_fleets)) # Survey Length Comps Likelihoods
 
   # Penalties and Priors
-  Fmort_Pen = array(0, dim = c(n_regions, n_fish_fleets)) # Fishing Mortality Deviation penalty
+  Fmort_Pen = array(0, dim = c(n_regions, n_yrs, n_fish_fleets)) # Fishing Mortality Deviation penalty
   Rec_nLL = array(0, dim = c(n_regions, n_yrs)) # Recruitment penalty
   Init_Rec_nLL = array(0, dim = c(n_regions, n_ages - 2)) # Initial Recruitment penalty
   bias_ramp = rep(0, n_yrs) # bias ramp from Methot and Taylor 2011
@@ -160,10 +160,10 @@ sabie_RTMB = function(pars) {
                 Fmort[r,y,f] = 0 # Set F to zero when no catch data
                 FAA[r,y,a,s,f] = 0
               } else {
-                if(Catch_Type[y,f] == 0) Fmort[r,y,f] = exp(ln_F_mean_AggCatch[f] + ln_F_devs_AggCatch[y,f]) # If catch is aggregated across regions
-                if(Catch_Type[y,f] == 1) Fmort[r,y,f] = exp(ln_F_mean[r,f] + ln_F_devs[r,y,f]) # Fully selected F
+                if(Catch_Type[y,f] == 0 && est_all_regional_F == 0) Fmort[r,y,f] = exp(ln_F_mean_AggCatch[f] + ln_F_devs_AggCatch[y,f]) # If catch is aggregated across regions
+                else Fmort[r,y,f] = exp(ln_F_mean[r,f] + ln_F_devs[r,y,f]) # Fully selected F
+                # Fmort[r,y,f] = Fmort_dat[r,y,f]
                 FAA[r,y,a,s,f] = Fmort[r,y,f] * fish_sel[r,y,a,s,f] # Fishing mortality at age
-                # FAA[r,y,a,s,f] = Fmort_dat[r,y,f] * fish_sel[r,y,a,s,f] # Fishing mortality at age
               }
           } # f loop
 
@@ -215,6 +215,7 @@ sabie_RTMB = function(pars) {
       } # end r loop
     # Apply movement after iteration
     for(a in 1:n_ages) for(s in 1:n_sexes) Init_NAA[i,,a,s] = t(Init_NAA[i,,a,s]) %*% Movement[,,1,a,s]
+    
     # Recruits don't move
     if(do_recruits_move == 0) {
       for(r in 1:n_regions) {
@@ -248,24 +249,29 @@ sabie_RTMB = function(pars) {
 
   ## Population Projection ---------------------------------------------------
   for(y in 1:n_yrs) {
-    for(s in 1:n_sexes) {
-      for(a in 1:n_ages) {
-        
-        # Project ages and years forward and then apply movement
-        if(a < n_ages) { 
-          # Exponential mortality for individuals not in plus group (recruits experience mortality)
-          NAA[,y+1,a+1,s] = t(NAA[,y,a,s] * SAA[,y,a,s]) %*% Movement[,,y,a,s]
-        } else {
-          # Accumulate individuals recently "recruited" into plus group and individuals from previous year
-          NAA[,y+1,n_ages,s] = t(NAA[,y+1,n_ages,s] + NAA[,y,n_ages,s] * SAA[,y,n_ages,s]) %*% Movement[,,y,a,s]
-        } # end else (calculations for plus group)
-        
-      } # end a loop
-    } # end s loop
+    for(r in 1:n_regions) {
+      for(s in 1:n_sexes) {
+        for(a in 1:n_ages) {
+          # Project ages and years forward and then apply movement
+          if(a < n_ages) { 
+            # Exponential mortality for individuals not in plus group (recruits experience mortality)
+            NAA[r,y+1,a+1,s] = NAA[r,y,a,s] * exp(-ZAA[r,y,a,s])
+          } else {
+            # Accumulate individuals recently "recruited" into plus group and individuals from previous year
+            NAA[r,y+1,n_ages,s] = NAA[r,y+1,n_ages,s] + NAA[r,y,n_ages,s] * exp(-ZAA[r,y,a,s])
+          } # end else (calculations for plus group)
+        } # end a loop
+      } # end s loop
+    } # end r loop
+    # Recruits don't move
+    if(do_recruits_move == 0) {
+      # Apply movement after ageing processes - start movement at age 2
+      for(a in 2:n_ages) for(s in 1:n_sexes) NAA[,y+1,a,s] = t(NAA[,y+1,a,s]) %*% Movement[,,y,a,s]
+      for(r in 1:n_regions) NAA[r,y,1,] = R0[r] * exp(ln_RecDevs[r,y] - sigmaR2_late/2 * bias_ramp[y]) * sexratio
+    } # end if recruits don't move
+    # Recruits move here
+    if(do_recruits_move == 1) for(a in 1:n_ages) for(s in 1:n_sexes) NAA[,y+1,a,s] = t(NAA[,y+1,a,s]) %*% Movement[,,y,a,s]
   } # end y loop
-  
-  # Recruits don't move
-  if(do_recruits_move == 0) for(r in 1:n_regions) for(y in 1:n_yrs) NAA[r,y,1,] = Rec[r,y] * sexratio
 
   # Get total biomass and SSB here
   for(r in 1:n_regions) {
@@ -479,13 +485,13 @@ sabie_RTMB = function(pars) {
           
           if(UseCatch[r,y,f] == 1) {
             if(likelihoods == 0) {
-              if(Catch_Type[y,f] == 0 && r == 1) Fmort_Pen[1,f] = Fmort_Pen[1,f] + ln_F_devs_AggCatch[y,f]^2 # Use aggregated catch
-              if(Catch_Type[y,f] == 1) Fmort_Pen[r,f] = Fmort_Pen[r,f] + ln_F_devs[r,y,f]^2 # SSQ ADMB
+              if(Catch_Type[y,f] == 0 && est_all_regional_F == 0) Fmort_Pen[1,y,f] = ln_F_devs_AggCatch[y,f]^2 # Use aggregated catch
+              else Fmort_Pen[r,y,f] = ln_F_devs[r,y,f]^2 # SSQ ADMB
             } # ADMB likelihoods
             
             if(likelihoods == 1) {
-              if(Catch_Type[y,f] == 0 && r == 1) Fmort_Pen[1,f] = Fmort_Pen[1,f] -dnorm(ln_F_devs_AggCatch[y,f], 0, 5, TRUE) # Use aggregated catch
-              if(Catch_Type[y,f] == 1) Fmort_Pen[r,f] = Fmort_Pen[r,f] -dnorm(ln_F_devs[r,y,f], 0, 5, TRUE) # TMB likelihood
+              if(Catch_Type[y,f] == 0 && est_all_regional_F == 0) Fmort_Pen[1,y,f] = -dnorm(ln_F_devs_AggCatch[y,f], 0, 5, TRUE) # Use aggregated catch
+              else Fmort_Pen[r,y,f] = -dnorm(ln_F_devs[r,y,f], 0, 5, TRUE) # TMB likelihood
             } # TMB likelihoods
             
           } # end if have catch
@@ -493,7 +499,6 @@ sabie_RTMB = function(pars) {
       } # y loop
     } # f loop
 
-  
     ### Natural Mortality (Prior) -----------------------------------------------
     if(Use_M_prior == 1) {
       if(likelihoods == 0) M_Pen = (ln_M - log(M_prior[1]))^2 / (2 * (M_prior[2])^2) # ADMB likelihood
