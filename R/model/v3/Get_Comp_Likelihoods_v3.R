@@ -37,12 +37,16 @@ Get_Comp_Likelihoods = function(Exp,
   # Read in functions
   require(here)
   source(here("R", "model", "ddirmult.R")) # dirichlet multinomial
+  source(here("R", "model", "dlogistnormal.R")) # logistic normal
   
   comp_nLL = array(0, dim = c(n_regions, n_sexes)) # initialize nLL here
   const = 1e-10 # small constant
   # Filter expectation and observations to regions that have observations
   n_regions_obs_use = sum(use == 1) # get number of regions that have observations
 
+  # Obs = data$ObsFishAgeComps[,1,,1,1]
+  # Exp = sabie_rtmb_model$rep$CAA[,1,,1,1]
+  
   # Making sure things are correctly formatted (and regions are not dropped)
   Obs = array(Obs, dim = c(n_regions, n_bins, n_sexes)) 
   Exp = array(Exp, dim = c(n_regions, n_bins, n_sexes)) 
@@ -124,15 +128,22 @@ Get_Comp_Likelihoods = function(Exp,
       tmp_Exp = as.vector((tmp_Exp + const)/ sum(tmp_Exp + const)) # renormalize to make sure sum to 1
     } # if ages
     if(age_or_len == 1) tmp_Exp = as.vector((Exp + const) / sum(Exp + const)) # Normalize temporary variable (lengths)
-    # Observed Values
-    tmp_Obs = as.vector((tmp_Obs + const) / sum(tmp_Obs + const)) # Normalize temporary variable   
     # Multinomial likelihood 
     if(Likelihood_Type == 0) { # Indexing by 1,1 because Joint by sex and regions
+      tmp_Obs = as.vector((tmp_Obs + const) / sum(tmp_Obs + const)) # Normalize temporary variable   
       ESS = ISS[1,1] * Wt_Mltnml[1,1] # Effective sample size
       comp_nLL[1,1] = -1 * ESS * sum(((tmp_Obs) * log(tmp_Exp))) # ADMB multinomial likelihood
       comp_nLL[1,1] = comp_nLL[1,1] - -1 * ESS * sum(((tmp_Obs) * log(tmp_Obs))) # Multinomial offset (subtract offset from actual likelihood)
     } # end if multinomial likelihood
-    if(Likelihood_Type == 1)  comp_nLL[1,1] = -1 * ddirmult(tmp_Obs, tmp_Exp, ISS[1,1], ln_theta[1,1], TRUE) # Dirichlet Multinomial likelihood
+    if(Likelihood_Type == 1)  {
+      tmp_Obs = as.vector((tmp_Obs + const) / sum(tmp_Obs + const)) # Normalize temporary variable   
+      comp_nLL[1,1] = -1 * ddirmult(tmp_Obs, tmp_Exp, ISS[1,1], ln_theta[1,1], TRUE) # Dirichlet Multinomial likelihood
+    } # end if Dirichlet multinomial
+    if(Likelihood_Type == 2) {
+      Sigma <- diag(length(tmp_Obs)-1) * exp(ln_theta[1,1])^2
+      comp_nLL[1,1] = -1 * dlogistnormal(obs = tmp_Obs, pred = tmp_Exp, Sigma = Sigma, TRUE) # Logistic Normal likelihood
+    }
+    
   }
  
   return(comp_nLL) # return negative log likelihood

@@ -1,4 +1,4 @@
- # Purpose: To bridge conduct testing in developing Sablefish RTMB model (v3)
+  # Purpose: To bridge conduct testing in developing Sablefish RTMB model (v3)
   # Creator: Matthew LH. Cheng
   # Date Created: 12/24/24
   
@@ -27,12 +27,14 @@
   ssb_mat <- matrix(NA, nrow = length(as.numeric(1:20)), ncol = n_sims)
   r0_mat <- matrix(NA, nrow = n_sims, ncol = 2)
   status <- vector()
+  dir <- vector()
   catch_type <- 1 # aggregated in early period
   est_all_regional_F <- 1 # don't estimate all reigonal F (0) (i.e., some are aggregated) (1) estimate all 
   comp_joint = 1
   # catch type = 0, est_all_reigonal_F = 0, aggregated likelihood initially, followed by aggregated F mean and F devs, and then regional after aggregated period
   # catch type = 0, estimate_all_regional_F = 1, aggregated likelihood initially followed by estimating regional F mean and F devs in all periods
   # catch type = 1, estimate_all_regional_F = 1, regional likelihoods and regional f mean and devs
+  move_cv_mat = matrix(NA, nrow = 12, ncol = n_sims)
   
   # Testing with simulated data ---------------------------------------------
   for(sim in 1:n_sims) {
@@ -57,13 +59,12 @@
     
     # Movement stuff
     data$do_recruits_move = 0 # recruits dont move
-    data$use_fixed_movement = 1 # use fixed movement
+    data$use_fixed_movement = 0 # use fixed movement
     data$Fixed_Movement = array(sim_out$movement_matrix[,,,,,sim,drop=FALSE], dim = c(data$n_regions,
                                                                                       data$n_regions,
                                                                                       length(data$years),
                                                                                       length(data$ages),
                                                                                       data$n_sexes))
-    
     data$likelihoods <- 1
     data$Wt_Catch <- 1 # Catch weights
     data$Wt_FishIdx <- 1 # fishery index weights
@@ -132,6 +133,21 @@
     
     # Fishery Age Comps
     data$ObsFishAgeComps <- array(aperm(sim_out$Obs_FishAgeComps[,,,,,sim,drop = FALSE], perm = c(2,1,3,4,5,6)), dim = c(data$n_regions, length(data$years), length(data$ages), data$n_sexes, data$n_fish_fleets))
+
+    for(i in 1:20) {
+      tmpy = sim_out$Obs_FishAgeComps[i,,,,,sim,drop = FALSE]
+      # tmpy = (tmpy + 1e-10) / sum(tmpy + 1e-10)
+      # tmpy = (tmpy) / sum(tmpy)
+      
+      # tmpy = exp(tmpy)/(1 + sum(exp(tmpy)))
+      o = log(tmpy[-length(tmpy)])
+      o = o - log(tmpy[length(tmpy)])
+      o = array(c(o,NA), dim = c(data$n_regions,length(data$ages)))
+      data$ObsFishAgeComps[,i,,,] = o
+    }
+    
+    # prepare_wham_input()
+    
     colnames(data$ObsFishAgeComps) <- data$years # define row years
     data$UseFishAgeComps <- array(1, dim = c(data$n_regions, length(data$years), data$n_fish_fleets))
     colnames(data$UseFishAgeComps) <- data$years # define row years
@@ -140,8 +156,7 @@
     # Data weighting for fishery age compositions
     data$ISS_FishAgeComps <- array(0, dim = c(data$n_regions, length(data$years), data$n_sexes, data$n_fish_fleets))
     colnames(data$ISS_FishAgeComps) <- data$years # define row years
-    if(comp_joint == 1) data$ISS_FishAgeComps[,,1,1] <- apply(data$ObsFishAgeComps, c(2),sum)
-    else {
+    if(comp_joint == 1) data$ISS_FishAgeComps[,,1,1] <- apply(data$ObsFishAgeComps, c(2),sum) else {
       data$ISS_FishAgeComps[1,,,1] <- apply(data$ObsFishAgeComps, c(1,2),sum)[1,]
       data$ISS_FishAgeComps[2,,,1] <- apply(data$ObsFishAgeComps, c(1,2),sum)[2,]
     }
@@ -158,10 +173,9 @@
     colnames(data$ISS_FishLenComps) <- data$years # define row years
     
     # Composition munging stuff
-    data$FishAgeComps_LikeType <- array(0, dim = c(data$n_fish_fleets)) # multinomial for both fleets
+    data$FishAgeComps_LikeType <- array(2, dim = c(data$n_fish_fleets)) # multinomial for both fleets
     data$FishLenComps_LikeType <- array(0, dim = c(data$n_fish_fleets)) # multinomial for both fleets
-    if(comp_joint == 1) data$FishAgeComps_Type <- array(3, dim = c(length(data$years), data$n_fish_fleets)) # Joint age comps # FLAG need to figure out what to do when comps are aggregated by region and sex
-    else data$FishAgeComps_Type <- array(2, dim = c(length(data$years), data$n_fish_fleets)) # Joint age comps # FLAG need to figure out what to do when comps are aggregated by region and sex
+    if(comp_joint == 1) data$FishAgeComps_Type <- array(3, dim = c(length(data$years), data$n_fish_fleets)) else data$FishAgeComps_Type <- array(2, dim = c(length(data$years), data$n_fish_fleets)) # Joint age comps # FLAG need to figure out what to do when comps are aggregated by region and sex
 
     if(catch_type == 0) data$FishAgeComps_Type[1:7,] <- 0
     data$FishLenComps_Type <- array(3, dim = c(length(data$years), data$n_fish_fleets)) # Joint length comps
@@ -183,11 +197,11 @@
     data$ISS_SrvAgeComps <- array(0, dim = c(data$n_regions, length(data$years), data$n_sexes, data$n_srv_fleets))
     colnames(data$ISS_SrvAgeComps) <- data$years # define row years
     
-    if(comp_joint == 1) data$ISS_SrvAgeComps[,,1,1] <- apply(data$ObsSrvAgeComps, c(2),sum)
-    else {
+    if(comp_joint == 1) data$ISS_SrvAgeComps[,,1,1] <- apply(data$ObsSrvAgeComps, c(2),sum) else {
       data$ISS_SrvAgeComps[1,,,1] <- apply(data$ObsSrvAgeComps, c(1,2),sum)[1,]
       data$ISS_SrvAgeComps[2,,,1] <- apply(data$ObsSrvAgeComps, c(1,2),sum)[2,]
     }
+    
     data$Wt_SrvAgeComps <- array(NA, dim = c(data$n_regions, data$n_sexes, data$n_srv_fleets)) # weights for survey age comps
     data$Wt_SrvAgeComps[,1,1] <- 1 # Weight for domestic survey ll gear age comps
     
@@ -205,8 +219,7 @@
     data$SrvAgeComps_LikeType <- array(0, dim = c(data$n_srv_fleets)) # multinomial for both survey fleet
     data$SrvLenComps_LikeType <- array(0, dim = c(data$n_srv_fleets)) # multinomial for both survey fleet
     data$SrvLenComps_Type <- array(3, dim = c(length(data$years), data$n_srv_fleets)) # split for both survey fleet length
-    if(comp_joint == 1) data$SrvAgeComps_Type <- array(3, dim = c(length(data$years), data$n_srv_fleets)) # split for both survey age length
-    else data$SrvAgeComps_Type <- array(2, dim = c(length(data$years), data$n_srv_fleets)) # split for both survey age length
+    if(comp_joint == 1) data$SrvAgeComps_Type <- array(3, dim = c(length(data$years), data$n_srv_fleets)) else data$SrvAgeComps_Type <- array(2, dim = c(length(data$years), data$n_srv_fleets)) # split for both survey age length
     
     ### Fishery Stuff -----------------------------------------------------
     # Selectivity
@@ -258,7 +271,7 @@
     max_fish_blks <- 1 # maximum number of fishery blocks for any fleet
     max_fish_pars <- 2 # maximum number of fishery fixed parameters for any fleet
     parameters$ln_fish_fixed_sel_pars <- array(0, dim = c(data$n_regions, max_fish_pars, max_fish_blks, data$n_sexes, data$n_fish_fleets))
-    parameters$ln_fish_fixed_sel_pars[,1,,,] = log(length(data$ages)/7)
+    parameters$ln_fish_fixed_sel_pars[,1,,,] = log(3.333333)
     parameters$ln_fish_fixed_sel_pars[,2,,,] = log(3)
     
     # Fishery Catchability
@@ -283,15 +296,15 @@
     parameters$M_offset <- 0 # Male M offset (accidently jittered from OG assessment)
     
     # Recruitment -------------------------------------------------------------
-    parameters$ln_global_R0 <- log(300) # mean recruitment
+    parameters$ln_global_R0 <- log(2e3) # mean recruitment
     parameters$R0_prop <- array(0.5, dim = c(data$n_regions - 1))
     parameters$ln_InitDevs <- array(0, dim = c(data$n_regions, length(data$ages) - 2))
     parameters$ln_RecDevs <- array(0, dim = c(data$n_regions, length(data$years)))
-    parameters$ln_sigmaR_early <- log(1e-6) # early sigma R
-    parameters$ln_sigmaR_late <- log(1e-6)  # late sigma R
+    parameters$ln_sigmaR_early <- log(0.1) # early sigma R
+    parameters$ln_sigmaR_late <- log(0.1)  # late sigma R
     
     # Comp Likelihood Stuff ---------------------------------------------------
-    parameters$ln_FishAge_DM_theta <- array(0, dim = c(data$n_regions, data$n_fish_fleets))
+    parameters$ln_FishAge_DM_theta <- array(log(0.1), dim = c(data$n_regions, data$n_fish_fleets))
     parameters$ln_FishLen_DM_theta <- array(0, dim = c(data$n_regions, data$n_fish_fleets))
     parameters$ln_SrvAge_DM_theta <- array(0, dim = c(data$n_regions, data$n_srv_fleets))
     parameters$ln_SrvLen_DM_theta <- array(0, dim = c(data$n_regions, data$n_srv_fleets))
@@ -313,8 +326,8 @@
     mapping$ln_sigmaC <- factor(rep(NA, length(parameters$ln_sigmaC)))
     
     # Fixing sel pars
-    # mapping$ln_fish_fixed_sel_pars = factor(c(1,1,2,2))
-    # mapping$ln_srv_fixed_sel_pars = factor(c(1,1,2,2))
+    mapping$ln_fish_fixed_sel_pars = factor(c(1,1,2,2))
+    mapping$ln_srv_fixed_sel_pars = factor(c(1,1,2,2))
     
     # Fixing continuous time-varying selecitvity stuff
     mapping$ln_fishsel_dev1 <- factor(rep(NA, length(parameters$ln_fishsel_dev1)))
@@ -323,10 +336,14 @@
     mapping$ln_fishsel_dev2_sd <- factor(rep(NA, length(parameters$ln_fishsel_dev2_sd)))
     
     # Fixing dirichlet mutlinomial stuff
-    mapping$ln_FishAge_DM_theta <- factor(rep(NA, length(parameters$ln_FishAge_DM_theta)))
+    # mapping$ln_FishAge_DM_theta <- factor(rep(NA, length(parameters$ln_FishAge_DM_theta)))
     mapping$ln_FishLen_DM_theta <- factor(rep(NA, length(parameters$ln_FishLen_DM_theta)))
     mapping$ln_SrvAge_DM_theta <- factor(rep(NA, length(parameters$ln_SrvAge_DM_theta)))
     mapping$ln_SrvLen_DM_theta <- factor(rep(NA, length(parameters$ln_SrvLen_DM_theta)))
+    
+    mapping$ln_FishAge_DM_theta <- factor(c(1,NA))
+    # mapping$ln_SrvAge_DM_theta <- factor(c(1,NA))
+    
     
     # Fixing movement stuff
     # parameters$move_pars[,,1,1,1] <- 0.1
@@ -338,12 +355,12 @@
                                  # rep(5:6, length.out = prod(dim(parameters$move_pars)) - (data$n_regions * length(data$years) * length(1:3) +
                                                                                             # data$n_regions * length(data$years) * length(4:7)))))
 
-    # mapping$move_pars = factor(rep(1:2, length.out = prod(dim(parameters$move_pars))))
-    mapping$move_pars = factor(rep(NA, length.out = prod(dim(parameters$move_pars))))
+    mapping$move_pars = factor(rep(1:2, length.out = prod(dim(parameters$move_pars))))
+    # mapping$move_pars = factor(rep(NA, length.out = prod(dim(parameters$move_pars))))
     
     # Fixing survey catchability
-    # mapping$ln_srv_q <- factor(rep(1, length(parameters$ln_srv_q)))
-    mapping$ln_srv_q <- factor(rep(NA, length(parameters$ln_srv_q)))
+    mapping$ln_srv_q <- factor(rep(1, length(parameters$ln_srv_q)))
+    # mapping$ln_srv_q <- factor(rep(NA, length(parameters$ln_srv_q)))
     
     # mapping$ln_global_R0 <- factor(NA)
     # mapping$R0_prop <- factor(NA)
@@ -355,7 +372,7 @@
     # mapping$ln_F_devs = factor(rep(NA, length(parameters$ln_F_devs)))
     # mapping$ln_F_mean = factor(rep(NA, length(parameters$ln_F_mean)))
     # data$Fmort_dat = array(aperm(sim_out$Fmort[,,,1], perm = c(2,1)), dim = c(data$n_regions, length(data$years), data$n_fish_fleets))
-    mapping$ln_fish_fixed_sel_pars = factor(rep(NA, length(parameters$ln_fish_fixed_sel_pars)))
+    # mapping$ln_fish_fixed_sel_pars = factor(rep(NA, length(parameters$ln_fish_fixed_sel_pars)))
     
     # Fix survey selex
     # mapping$ln_srv_fixed_sel_pars = factor(rep(NA, length(parameters$ln_srv_fixed_sel_pars)))
@@ -370,8 +387,8 @@
     # map_initdevs[2,] = map_initdevs[1,]
     # mapping$ln_InitDevs = factor(map_initdevs)
 
-    mapping$ln_RecDevs = factor(rep(NA, length(parameters$ln_RecDevs)))
-    mapping$ln_InitDevs = factor(rep(NA, length(parameters$ln_InitDevs)))
+    # mapping$ln_RecDevs = factor(rep(NA, length(parameters$ln_RecDevs)))
+    # mapping$ln_InitDevs = factor(rep(NA, length(parameters$ln_InitDevs)))
     
     data$srv_q_blocks = data$srv_q_blocks + 1
     data$fish_q_blocks = data$fish_q_blocks + 1
@@ -414,6 +431,11 @@
     # ssb_mat[,sim] <- (colSums(sabie_rtmb_model$rep$SSB) - rowSums(sim_out$SSB[,,sim])) / rowSums(sim_out$SSB[,,sim])
     ssb_mat[,sim] <- (colSums(sabie_rtmb_model$rep$SSB) - rowSums(sim_out$SSB[,,sim])) / rowSums(sim_out$SSB[,,sim])
     
+    move_cv = unique(sabie_rtmb_model$sd_rep$sd[names(sabie_rtmb_model$sd_rep$value) == "Movement"] / sabie_rtmb_model$sd_rep$value[names(sabie_rtmb_model$sd_rep$value) == "Movement"])
+    move_cv_mat[1:length(move_cv),sim] <- move_cv
+    
+    dir[sim] <- exp(sabie_rtmb_model$sd_rep$par.fixed[names(sabie_rtmb_model$sd_rep$par.fixed) == 'ln_FishAge_DM_theta'])
+    
     par(mfrow = c(2,4))
     
     plot(sim_out$Init_NAA[100,1,,1,sim], type = 'l', col = 'red')
@@ -434,23 +456,29 @@
     plot(colSums(sabie_rtmb_model$rep$PredCatch[,,1]), type = 'l', ylab = 'Aggregated catch (red = simulation, black = est)')
     lines(rowSums(sim_out$Obs_Catch[,,,sim]), type = 'l', col = 'red')
     
-    plot(sabie_rtmb_model$rep$Fmort[1,,1], type = 'l', ylab = 'Fmort Region 1 (red = simulation, black = est)', xlab = 'Year')
-    lines(sim_out$Fmort[,1,1,sim], col = 'red')
+    # plot(sabie_rtmb_model$rep$Fmort[1,,1], type = 'l', ylab = 'Fmort Region 1 (red = simulation, black = est)', xlab = 'Year')
+    # lines(sim_out$Fmort[,1,1,sim], col = 'red')
     
-    plot(sabie_rtmb_model$rep$Fmort[2,,1], type = 'l', ylab = 'Fmort Region 2 (red = simulation, black = est)', xlab = 'Year')
-    lines(sim_out$Fmort[,2,1,sim], col = 'red')
+    # plot(sabie_rtmb_model$rep$Fmort[2,,1], type = 'l', ylab = 'Fmort Region 2 (red = simulation, black = est)', xlab = 'Year')
+    # lines(sim_out$Fmort[,2,1,sim], col = 'red')
     
-     hist((r0_mat[,1] - 150) / 150, main = round(median((r0_mat[,1] - 150) / 150, na.rm = T),2), xlab = 'R0 bias region 1')
-    # if(sum(status == TRUE, na.rm = T) > 1) hist((r0_mat[which(status == TRUE),2] - 80) / 80, main = round(median((r0_mat[which(status == TRUE),2] - 80) / 80, na.rm = T),2), xlab = 'R0 bias region 2')
+    plot(sim_out$fish_sel[1,1,,1,1,sim], col = 'red')
+    lines(sabie_rtmb_model$rep$fish_sel[1,1,,1,1])
+    
+     # hist((r0_mat[,1] - 1e3) / 1e3, main = round(median((r0_mat[,1] - 1e3) / 1e3, na.rm = T),2), xlab = 'R0 bias region 1')
+     hist(dir, main = round(median(dir, na.rm = T),2))
+     
   }
+  
+  median(move_cv_mat, na.rm = TRUE)
   
   dev.off()
   plot(apply(ssb_mat, 1, median, na.rm = T), type = 'l', ylab = 'Median total SSB bias')
   
-  median((r0_mat[,1] - 150) / 150, na.rm = T)
-  median((r0_mat[,2] - 150) / 150, na.rm = T)
+  median((r0_mat[,1] - 1e3) / 1e3, na.rm = T)
+  median((r0_mat[,2] - 1e3) / 1e3, na.rm = T)
   
-  median((rowSums(r0_mat) - 300) / 300, na.rm = T)
+  median((rowSums(r0_mat) - 2e3) / 2e3, na.rm = T)
   
   max(sabie_rtmb_model$sd_rep$gradient.fixed)
   sabie_rtmb_model$sd_rep$par.fixed[which.max(sabie_rtmb_model$sd_rep$gradient.fixed)]
@@ -463,8 +491,7 @@
 
   sabie_rtmb_model$rep$Movement[,,1,8,1]
   movement_matrix[,,1,8,1,1]
-
-
+  
 # # Get population dynamics -------------------------------------------------
 # ages <- 1:30 # ages
 # years <- 1960:2021 # years
@@ -1107,4 +1134,4 @@
 #   theme_sablefish()
 # 
 # 
-``
+````

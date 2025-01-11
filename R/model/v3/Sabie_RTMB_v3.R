@@ -620,6 +620,7 @@ sabie_RTMB = function(pars) {
   RTMB::ADREPORT(log(Total_Biom))
   RTMB::ADREPORT(log(SSB))
   RTMB::ADREPORT(log(Rec))
-
+  RTMB::ADREPORT(Movement)
+  
   return(jnLL)
 } # end function
