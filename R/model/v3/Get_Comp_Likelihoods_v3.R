@@ -65,15 +65,26 @@ Get_Comp_Likelihoods = function(Exp,
     tmp_Exp = matrix(colSums(tmp_Exp) / (n_sexes * n_regions), nrow = 1) # take average proportions and transpose
     if(age_or_len == 0) tmp_Exp = tmp_Exp %*% AgeingError # apply ageing error
     tmp_Exp = as.vector((tmp_Exp + const) / sum(tmp_Exp + const)) # renormalize
-    tmp_Obs = apply(Obs + const, 2:3, sum) / sum(Obs + const) # Normalize observed values (indexing for sex 1 since comps are combined)
     
     # Multinomial likelihood
     if(Likelihood_Type == 0) { # Note that this indexes 1 because it's only a single sex and single region
+      tmp_Obs = apply(Obs + const, 2:3, sum) / sum(Obs + const) # Normalize observed values 
       ESS = ISS[1,1] * Wt_Mltnml[1,1] # Effective sample size
       comp_nLL[1,1] = -1 * ESS * sum(((tmp_Obs) * log(tmp_Exp))) # ADMB multinomial likelihood
       comp_nLL[1,1] = comp_nLL[1,1] - -1 * ESS * sum(((tmp_Obs) * log(tmp_Obs))) # Multinomial offset (subtract offset from actual likelihood)
     } # end if multinomial likelihood
-      if(Likelihood_Type == 1) comp_nLL[1,1] = -1 * ddirmult(tmp_Obs, tmp_Exp, ISS, ln_theta, TRUE) # Dirichlet Multinomial likelihood
+    
+    if(Likelihood_Type == 1) {
+      tmp_Obs = apply(Obs + const, 2:3, sum) / sum(Obs + const) # Normalize observed values 
+      comp_nLL[1,1] = -1 * ddirmult(tmp_Obs, tmp_Exp, ISS, ln_theta[1,1], TRUE) # Dirichlet Multinomial likelihood
+    } # end if dirichlet multinomial 
+    
+    if(Likelihood_Type == 2) {
+      tmp_Obs = apply(Obs, 2:3, sum) / sum(Obs) # Normalize observed values 
+      Sigma = diag(length(tmp_Obs)-1) * (exp(ln_theta[1,1])^2 / ISS[1,1])
+      comp_nLL[1,1] = -1 * dlogistnormal(obs = tmp_Obs, pred = tmp_Exp, Sigma = Sigma, TRUE) # Logistic Normal likelihood
+    } # end if logistic normal
+
   } # end if aggregated comps across sexes and regions
   
   # 'Split' comps by sex and region (no implicit sex ratio information)
@@ -83,15 +94,26 @@ Get_Comp_Likelihoods = function(Exp,
         # Expected Values
         if(age_or_len == 0) tmp_Exp = ((Exp[r,,s] + const) / sum(Exp[r,,s] + const)) %*% AgeingError # Normalize temporary variable (ages)
         if(age_or_len == 1) tmp_Exp = (Exp[r,,s] + const) / sum(Exp[r,,s] + const) # Normalize temporary variable (lengths)
-        # Observed Values
-        tmp_Obs = (Obs[r,,s] + const) / sum(Obs[r,,s] + const) # Normalize temporary variable
+
         # Multinomial likelihood
         if(Likelihood_Type == 0) { 
+          tmp_Obs = (Obs[r,,s] + const) / sum(Obs[r,,s] + const) # Normalize observed temporary variable
           ESS = ISS[r,s] * Wt_Mltnml[r,s] # Effective sample size
           comp_nLL[r,s] = -1 * ESS * sum(((tmp_Obs) * log(tmp_Exp))) # ADMB multinomial likelihood
           comp_nLL[r,s] = comp_nLL[r,s] - -1 * ESS * sum(((tmp_Obs) * log(tmp_Obs))) # Multinomial offset (subtract offset from actual likelihood)
         } # end if multinomial likelihood
-        if(Likelihood_Type == 1)  comp_nLL[r,s] = -1 * ddirmult(tmp_Obs, tmp_Exp, ISS[r,s], ln_theta[r,s], TRUE) # Dirichlet Multinomial likelihood
+        
+        if(Likelihood_Type == 1) {
+          tmp_Obs = (Obs[r,,s] + const) / sum(Obs[r,,s] + const) # Normalize observed temporary variable
+          comp_nLL[r,s] = -1 * ddirmult(tmp_Obs, tmp_Exp, ISS[r,s], ln_theta[r,s], TRUE) # Dirichlet Multinomial likelihood
+        } # end if dirichlet multinomial 
+        
+        if(Likelihood_Type == 2) {
+          tmp_Obs = Obs[r,,s] / sum(Obs[r,,s]) # extract variable and normalize
+          Sigma = diag(length(tmp_Obs)-1) * (exp(ln_theta[r,s])^2 / ISS[r,s]) # construct sigma
+          comp_nLL[r,s] = -1 * dlogistnormal(obs = tmp_Obs, pred = tmp_Exp, Sigma = Sigma, TRUE) # Logistic Normal likelihood 
+        } # end if logistic normal 
+        
       } # end r loop
     } # end s loop
   } # end if 'Split' comps by sex and region
@@ -105,15 +127,26 @@ Get_Comp_Likelihoods = function(Exp,
         tmp_Exp = as.vector((tmp_Exp + const) / sum(tmp_Exp + const)) # renormalize to make sure sum to 1
       } # if ages
       if(age_or_len == 1) tmp_Exp = as.vector((Exp[r,,] + const) / sum((Exp[r,,] + const))) # Normalize temporary variable (lengths)
-      # Observed Values
-      tmp_Obs = as.vector((Obs[r,,] + const) / sum(Obs[r,,] + const)) # Normalize temporary variable
+
       # Multinomial likelihood 
       if(Likelihood_Type == 0) { # Indexing by r for a given region since it's 'Split' by region and 1 for sex since it's 'Joint' for sex
+        tmp_Obs = as.vector((Obs[r,,] + const) / sum(Obs[r,,] + const)) # Normalize observed temporary variable
         ESS = ISS[r,1] * Wt_Mltnml[r,1] # Effective sample size
         comp_nLL[r,1] = -1 * ESS * sum(((tmp_Obs) * log(tmp_Exp))) # ADMB multinomial likelihood
         comp_nLL[r,1] = comp_nLL[r,1] - -1 * ESS * sum(((tmp_Obs) * log(tmp_Obs))) # Multinomial offset (subtract offset from actual likelihood)
       } # end if multinomial likelihood
-      if(Likelihood_Type == 1)  comp_nLL[r,1] = -1 * ddirmult(tmp_Obs, tmp_Exp, ISS[r,1], ln_theta[r,1], TRUE) # Dirichlet Multinomial likelihood
+      
+      if(Likelihood_Type == 1) {
+        tmp_Obs = as.vector((Obs[r,,] + const) / sum(Obs[r,,] + const)) # Normalize observed temporary variable
+        comp_nLL[r,1] = -1 * ddirmult(tmp_Obs, tmp_Exp, ISS[r,1], ln_theta[r,1], TRUE) # Dirichlet Multinomial likelihood
+      } # end if dirichlet multinomial
+      
+      if(Likelihood_Type == 2) {
+        tmp_Obs = Obs[r,,] / sum(Obs[r,,]) # extract temporary observed variable and normalize
+        Sigma = diag(length(tmp_Obs)-1) * (exp(ln_theta[r,1])^2 / ISS[r,1])
+        comp_nLL[r,1] = -1 * dlogistnormal(obs = tmp_Obs, pred = tmp_Exp, Sigma = Sigma, perc = 0.05, zero_opt = "aitchison", TRUE) # Logistic Normal likelihood
+      } # end if dirichlet multinomial
+      
     } # end r loop
   } # end if 'Joint' comps by sex, but 'Split' by region
   
@@ -121,30 +154,36 @@ Get_Comp_Likelihoods = function(Exp,
   if(Comp_Type == 3) {
     tmp_Exp = aperm(Exp, perm = c(2,3,1)) # Reformat expected values so it's ordered by ages, sexes, and then regions
     tmp_Obs = aperm(Obs, perm = c(2,3,1)) # Reformat observed values so it's ordered by ages, sexes, and then regions
+    
     # Expected values
     if(age_or_len == 0) { # if ages
       tmp_Exp = t(as.vector((tmp_Exp + const) / sum(tmp_Exp + const))) %*% kronecker(diag(n_regions_obs_use * n_sexes), AgeingError) # apply ageing error
       tmp_Exp = as.vector((tmp_Exp + const)/ sum(tmp_Exp + const)) # renormalize to make sure sum to 1
       tmp_Exp = as.vector((tmp_Exp + const)/ sum(tmp_Exp + const)) # renormalize to make sure sum to 1
     } # if ages
+    
     if(age_or_len == 1) tmp_Exp = as.vector((Exp + const) / sum(Exp + const)) # Normalize temporary variable (lengths)
+    
     # Multinomial likelihood 
     if(Likelihood_Type == 0) { # Indexing by 1,1 because Joint by sex and regions
-      tmp_Obs = as.vector((tmp_Obs + const) / sum(tmp_Obs + const)) # Normalize temporary variable   
+      tmp_Obs = as.vector((tmp_Obs + const) / sum(tmp_Obs + const)) # Normalize observed temporary variable   
       ESS = ISS[1,1] * Wt_Mltnml[1,1] # Effective sample size
       comp_nLL[1,1] = -1 * ESS * sum(((tmp_Obs) * log(tmp_Exp))) # ADMB multinomial likelihood
       comp_nLL[1,1] = comp_nLL[1,1] - -1 * ESS * sum(((tmp_Obs) * log(tmp_Obs))) # Multinomial offset (subtract offset from actual likelihood)
     } # end if multinomial likelihood
+    
     if(Likelihood_Type == 1)  {
       tmp_Obs = as.vector((tmp_Obs + const) / sum(tmp_Obs + const)) # Normalize temporary variable   
       comp_nLL[1,1] = -1 * ddirmult(tmp_Obs, tmp_Exp, ISS[1,1], ln_theta[1,1], TRUE) # Dirichlet Multinomial likelihood
     } # end if Dirichlet multinomial
-    if(Likelihood_Type == 2) {
-      Sigma <- diag(length(tmp_Obs)-1) * exp(ln_theta[1,1])^2
-      comp_nLL[1,1] = -1 * dlogistnormal(obs = tmp_Obs, pred = tmp_Exp, Sigma = Sigma, TRUE) # Logistic Normal likelihood
-    }
     
-  }
- 
+    if(Likelihood_Type == 2) { 
+      Sigma = diag(length(tmp_Obs)-1) * (exp(ln_theta[1,1])^2 / ISS[1,1])
+      comp_nLL[1,1] = -1 * dlogistnormal(obs = tmp_Obs, pred = tmp_Exp, Sigma = Sigma, perc = 0.05, zero_opt = "aitchison", TRUE) # Logistic Normal likelihood
+    } # Logistic normal likelihood
+    
+  } # end if comps are joint by sex and regions
+  
   return(comp_nLL) # return negative log likelihood
 } # end function
+

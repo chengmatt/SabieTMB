@@ -1,5 +1,16 @@
-# From https://github.com/James-Thorson/CCSRA/blob/main/inst/executables/CCSRA_v9.cpp
-ddirmult <- function(obs, pred, Ntotal, ln_theta, give_log = TRUE) {
+#' Title Dirichlet Mutlinomial Likelihood
+#' From https://github.com/James-Thorson/CCSRA/blob/main/inst/executables/CCSRA_v9.cpp
+#' @param obs Vector of observed values in proportions
+#' @param pred Vector or predicted values in proportions
+#' @param Ntotal Input sample size scalar
+#' @param ln_theta Weighting parameter in log space
+#' @param give_log Whether or not likelihood is in log space
+#'
+#' @returns
+#' @export
+#'
+#' @examples
+ddirmult = function(obs, pred, Ntotal, ln_theta, give_log = TRUE) {
   # Set up function variables
   n_c = length(obs) # number of categories
   p_exp = pred # expected values container
@@ -20,3 +31,4 @@ ddirmult <- function(obs, pred, Ntotal, ln_theta, give_log = TRUE) {
   if(give_log == TRUE) return(logres)
   else return(exp(logres))
 } # end function
+

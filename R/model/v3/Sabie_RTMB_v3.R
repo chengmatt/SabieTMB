@@ -22,7 +22,7 @@
 
 
 sabie_RTMB = function(pars) {
-  
+    
   require(RTMB); require(here)
   source(here("R", "model", "v3", "Get_Selex_v3.R")) # selectivity options
   source(here("R", "model", "v3", "Get_Comp_Likelihoods_v3.R")) # selectivity options
@@ -180,10 +180,10 @@ sabie_RTMB = function(pars) {
   } # y loop
 
 
-  ## Recruitment Stuff: R0 and Bias Ramp (Methot and Taylor) -------------------------------
-  # Set up global virgin recruitment (or mean recruitment)
-  if(n_regions == 1) R0 = exp(ln_global_R0) # R0 = global R0 if only 1 region
-  if(n_regions > 1) R0 = exp(ln_global_R0) * c(1 - sum(R0_prop), R0_prop) # Multiply a global scaling parameter by estimated proportions if more than 1 region
+  ## Recruitment: R0 and Bias Ramp (Methot and Taylor) -------------------------------
+  R0_trans = c(0, R0_prop) # set up vector for transformation
+  R0_trans = exp(R0_trans) / sum(exp(R0_trans)) # do multinomial logit
+  R0 = exp(ln_global_R0) * R0_trans # Multiply a global scaling parameter by estimated proportions (just becoems 1 if single region)
   
   for(y in 1:n_yrs) {
     if(do_rec_bias_ramp == 0) bias_ramp[y] = 1 # don't do bias ramp correction
@@ -213,6 +213,7 @@ sabie_RTMB = function(pars) {
                                   exp(-(natmort[r,1,n_ages,s] + init_F * fish_sel[r,1,n_ages,s,1])) # mortality
         } # end s loop
       } # end r loop
+    
     # Apply movement after iteration
     for(a in 1:n_ages) for(s in 1:n_sexes) Init_NAA[i,,a,s] = t(Init_NAA[i,,a,s]) %*% Movement[,,1,a,s]
     
@@ -263,12 +264,14 @@ sabie_RTMB = function(pars) {
         } # end a loop
       } # end s loop
     } # end r loop
+    
     # Recruits don't move
     if(do_recruits_move == 0) {
       # Apply movement after ageing processes - start movement at age 2
       for(a in 2:n_ages) for(s in 1:n_sexes) NAA[,y+1,a,s] = t(NAA[,y+1,a,s]) %*% Movement[,,y,a,s]
       for(r in 1:n_regions) NAA[r,y,1,] = R0[r] * exp(ln_RecDevs[r,y] - sigmaR2_late/2 * bias_ramp[y]) * sexratio
     } # end if recruits don't move
+    
     # Recruits move here
     if(do_recruits_move == 1) for(a in 1:n_ages) for(s in 1:n_sexes) NAA[,y+1,a,s] = t(NAA[,y+1,a,s]) %*% Movement[,,y,a,s]
   } # end y loop
@@ -283,8 +286,7 @@ sabie_RTMB = function(pars) {
   } # end r loop
   
 
-
-# Fishery Observation Model -----------------------------------------------
+  ## Fishery Observation Model -----------------------------------------------
   for(r in 1:n_regions) {
     for(y in 1:n_yrs) {
       for(f in 1:n_fish_fleets) {
@@ -333,6 +335,11 @@ sabie_RTMB = function(pars) {
       } # end sf loop
     } # end y loop
   } # end r loop
+  
+
+  ## Tagging Observation Model -----------------------------------------------
+
+  
 
 
 # Likelihood Equations -------------------------------------------------------------
@@ -408,7 +415,7 @@ sabie_RTMB = function(pars) {
           Exp = CAA[,y,,,f], Obs = ObsFishAgeComps[,y,,,f], # Expected and Observed values
           ISS = ISS_FishAgeComps[,y,,f], Wt_Mltnml = Wt_FishAgeComps[,,f], # Input sample size and multinomial weight
           Comp_Type = FishAgeComps_Type[y,f], Likelihood_Type = FishAgeComps_LikeType[f], # Composition and Likelihood Type
-          ln_theta = ln_FishAge_DM_theta[,f], n_regions =  n_regions, n_sexes = n_sexes, age_or_len = 0, AgeingError = AgeingError, # overdispersion par, Number of sexes, regions, age or length comps, and ageing error
+          ln_theta = ln_FishAge_theta[,f], n_regions =  n_regions, n_sexes = n_sexes, age_or_len = 0, AgeingError = AgeingError, # overdispersion par, Number of sexes, regions, age or length comps, and ageing error
           use = UseFishAgeComps[,y,f], n_bins = n_ages)
       } # if we have fishery age comps
 
@@ -418,7 +425,7 @@ sabie_RTMB = function(pars) {
           Exp = CAL[,y,,,f], Obs = ObsFishLenComps[,y,,,f], # Expected and Observed values
           ISS = ISS_FishLenComps[,y,,f], Wt_Mltnml = Wt_FishLenComps[r,,f], # Input sample size and multinomial weight
           Comp_Type = FishLenComps_Type[y,f], Likelihood_Type = FishLenComps_LikeType[f], # Composition and Likelihood Type
-          ln_theta = ln_FishLen_DM_theta[,f], n_regions = n_regions, n_sexes = n_sexes, age_or_len = 1, AgeingError = NA, # overdispersion, Number of sexes, regions age or length comps, and ageing error
+          ln_theta = ln_FishLen_theta[,f], n_regions = n_regions, n_sexes = n_sexes, age_or_len = 1, AgeingError = NA, # overdispersion, Number of sexes, regions age or length comps, and ageing error
           use = UseFishLenComps[,y,f], n_bins = n_lens) 
       } # if we have fishery length comps
 
@@ -459,7 +466,7 @@ sabie_RTMB = function(pars) {
             Exp = SrvIAA[,y,,,sf], Obs = ObsSrvAgeComps[,y,,,sf], # Expected and Observed values
             ISS = ISS_SrvAgeComps[,y,,sf], Wt_Mltnml = Wt_SrvAgeComps[,,sf], # Input sample size and multinomial weight
             Comp_Type = SrvAgeComps_Type[y,sf], Likelihood_Type = SrvAgeComps_LikeType[sf], # Composition and Likelihood Type
-            ln_theta = ln_SrvAge_DM_theta[,sf], n_regions = n_regions, n_sexes = n_sexes, age_or_len = 0, AgeingError = AgeingError, # overdispersion, Number of sexes, regions, age or length comps, and ageing error
+            ln_theta = ln_SrvAge_theta[,sf], n_regions = n_regions, n_sexes = n_sexes, age_or_len = 0, AgeingError = AgeingError, # overdispersion, Number of sexes, regions, age or length comps, and ageing error
             use = UseSrvAgeComps[,y,sf], n_bins = n_ages)
         } # if we have survey age comps
 
@@ -469,12 +476,17 @@ sabie_RTMB = function(pars) {
             Exp = SrvIAL[,y,,,sf], Obs = ObsSrvLenComps[,y,,,sf], # Expected and Observed values
             ISS = ISS_SrvLenComps[,y,,sf], Wt_Mltnml = Wt_SrvLenComps[,,sf], # Input sample size and multinomial weight
             Comp_Type = SrvLenComps_Type[y,sf], Likelihood_Type = SrvLenComps_LikeType[sf], # Composition and Likelihood Type
-            ln_theta = ln_SrvLen_DM_theta[,sf], n_regions = n_regions, n_sexes = n_sexes, age_or_len = 1, AgeingError = NA, # overdispersion, Number of sexes, regions, age or length comps, and ageing error
+            ln_theta = ln_SrvLen_theta[,sf], n_regions = n_regions, n_sexes = n_sexes, age_or_len = 1, AgeingError = NA, # overdispersion, Number of sexes, regions, age or length comps, and ageing error
             use = UseSrvLenComps[,y,sf], n_bins = n_lens)
         } # if we have survey length comps
 
       } # end sf loop
     } # end y loop
+  
+
+  ## Tag Likelihoods ---------------------------------------------------------
+
+
 
   
   ## Priors and Penalties ----------------------------------------------------

@@ -6,7 +6,7 @@
   n_sims <- 100
   n_yrs <- 20
   n_regions <- 2
-  n_ages <- 10
+  n_ages <- 15
   n_lens <- 1e3
   n_sexes <- 1
   n_fish_fleets <- 1
@@ -16,8 +16,8 @@
   # Fishery
   sigmaC <- 1e-3
   Fmort <- array(0, dim = c(n_yrs, n_regions, n_fish_fleets, n_sims))
-  F_vec2 <- c(seq(0.15, 0.15, length.out = n_yrs / 2), seq(0.15, 0.15, length.out = (n_yrs / 2)))
-  F_vec1 <- c(seq(0.15, 0.15, length.out = n_yrs / 2), seq(0.15, 0.15, length.out = (n_yrs / 2)))
+  F_vec2 <- c(seq(0.1, 0.15, length.out = n_yrs / 2), seq(0.15, 0.01, length.out = (n_yrs / 2)))
+  F_vec1 <- c(seq(0.01, 0.15, length.out = n_yrs / 2), seq(0.15, 0.05, length.out = (n_yrs / 2)))
   
   fish_sel <- array(0, dim = c(n_yrs, n_regions, n_ages, n_sexes, n_fish_fleets, n_sims))
   
@@ -25,14 +25,18 @@
   for(y in 1:n_yrs) {
     for(r in 1:n_regions) {
       for(sim in 1:n_sims) {
-        Fmort[y,1,1,sim] <- F_vec1[y] * exp(rnorm(1, 0, 0))
-        Fmort[y,2,1,sim] <- F_vec2[y] * exp(rnorm(1, 0, 0))
+        Fmort[y,1,1,sim] <- F_vec1[y] * exp(rnorm(1, 0, 0.05))
+        Fmort[y,2,1,sim] <- F_vec2[y] * exp(rnorm(1, 0, 0.05))
+        # Fmort[y,3,1,sim] <- F_vec1[y] * exp(rnorm(1, 0, 0.05))
+        # Fmort[y,4,1,sim] <- F_vec2[y] * exp(rnorm(1, 0, 0.05))
       }
       for(s in 1:n_sexes) {
         for(f in 1:n_fish_fleets) {
           for(sim in 1:n_sims) {
-            fish_sel[y,1,,s,f,sim] <- 1 / (1 + exp(-3 * ((1:n_ages) - n_ages/3))) 
-            fish_sel[y,2,,s,f,sim] <- 1 / (1 + exp(-3 * ((1:n_ages) - n_ages/3))) 
+            fish_sel[y,1,,s,f,sim] <- 1 / (1 + exp(-1 * ((1:n_ages) - n_ages/5))) 
+            fish_sel[y,2,,s,f,sim] <- 1 / (1 + exp(-1 * ((1:n_ages) - n_ages/5))) 
+            # fish_sel[y,3,,s,f,sim] <- 1 / (1 + exp(-3 * ((1:n_ages) - n_ages/3)))
+            # fish_sel[y,4,,s,f,sim] <- 1 / (1 + exp(-3 * ((1:n_ages) - n_ages/3)))
           }
         }
       }
@@ -42,13 +46,15 @@
   # Biological
   do_recruits_move <- 0 # recruits don't move == 0, move == 1
   ln_rec_devs <- array(0, dim = c(n_yrs, n_regions, n_sims))
-  M <- array(0.5, dim = c(n_yrs, n_regions, n_ages, n_sexes, n_sims))
+  M <- array(0.15, dim = c(n_yrs, n_regions, n_ages, n_sexes, n_sims))
   Z <- array(0, dim = c(n_yrs, n_regions, n_ages, n_sexes, n_sims))
   rec_sexratio <- array(1, dim = c(n_yrs, n_regions, n_sexes, n_sims))
   r0 <- array(0, dim = c(n_yrs, n_regions, n_sims))
-  r0[,1,] <- 1e3
-  r0[,2,] <- 1e3
-  
+  r0[,1,] <- 100
+  r0[,2,] <- 500
+  # r0[,3,] <- 100
+  # r0[,4,] <- 8e2
+
   # loop through to propagate biologicals
   WAA <- array(0, dim = c(n_yrs, n_regions, n_ages, n_sexes, n_sims))
   Maturity_AA <- array(0, dim = c(n_yrs, n_regions, n_ages, n_sexes, n_sims))
@@ -62,10 +68,10 @@
     }
   }
   
-  init_sigmaR <- array(0.1, dim = c(1, n_regions))
-  sigmaR <- array(0.1, dim = c(n_yrs, n_regions))
+  init_sigmaR <- array(0.5, dim = c(1, n_regions))
+  sigmaR <- array(0.5, dim = c(n_yrs, n_regions))
   recruitment_opt <- 0 # == 0 mean recruitment
-  recdev_opt <- 1 # == 0 global density dependence, == 1 local density dependence
+  recdev_opt <- 0 # == 0 global density dependence, == 1 local density dependence
   
   # Set up movement matrix
   movement_matrix <- array(0, dim = c(n_regions, n_regions, n_yrs, n_ages, n_sexes, n_sims)) # From, To 
@@ -74,13 +80,50 @@
       for(s in 1:n_sexes) {
         for(sim in 1:n_sims) {
           # diag(movement_matrix[,,y,a,s,sim]) <- 1
-          movement_matrix[,,y,a,s,sim] <- c(0.8,0.7,0.2,0.3)
-          # movement_matrix[,,y,4:7,s,sim] <- c(0.5,0.5,0.5,0.5)
-          # movement_matrix[,,y,8:10:n_ages,s,sim] <- c(0.85,0.2,0.15,0.8)
+          
+          # 4 areas
+          # movement_matrix[,,y,a,s,sim] <- c(0.1,0.7,0.2,0.3,
+          #                                   0.1,0.05, 0.5, 0.5,
+          #                                   0.5,0.1,0.1,0.1,
+          #                                   0.3,0.15,0.2,0.1)
+          
+          # movement_matrix[,,y,a,s,sim] <- c(0.8,0.7,0.2,0.3,
+          #                                   0.1,0.05, 0.5, 0.5,
+          #                                   0.05,0.1,0.1,0.1,
+          #                                   0.05,0.15,0.2,0.1)
+          
+          # 3 areas
+          # movement_matrix[,,y,a,s,sim] <- c(0.8,0.7,0.2,
+          #                                   0.1,0.15, 0.5,
+          #                                   0.1,0.15,0.3)
+          # 
+          # movement_matrix[,,y,a,s,sim] <- rep(1/3, 9)
+          
+          # movement_matrix[,,y,a,s,sim] <- rep(0.25, 16)
+          
+          movement_matrix[,,y,a,s,sim] <- c(0.5,0.5,0.5,0.5)
+          # movement_matrix[,,y,13:15,s,sim] <- c(0.2,0.8,0.8,0.2)
+          # movement_matrix[,,y,11:12,s,sim] <- c(0.2,0.8,0.8,0.2)
+          # movement_matrix[,,y,10:11,s,sim] <- c(0.2,0.8,0.8,0.2)
+          # movement_matrix[,,y,9:10,s,sim] <- c(0.2,0.8,0.8,0.2)
+          # movement_matrix[,,y,7:8,s,sim] <- c(0.5,0.2,0.5,0.8)
+          # movement_matrix[,,y,5:6,s,sim] <- c(0.7,0.25,0.3,0.75)
+          # movement_matrix[,,y,3:4,s,sim] <- c(0.85,0.15,0.15,0.85)
+          # movement_matrix[,,y,1:2,s,sim] <- c(0.9,0.2,0.1,0.8)
+
+          # movement_matrix[,,y,3:4,s,sim] <- c(0.3,0.4,0.7,0.6)
+          # movement_matrix[,,y,5:6,s,sim] <- c(0.8,0.2,0.2,0.8)
+          # movement_matrix[,,y,7:8,s,sim] <- c(0.5,0.65,0.5,0.35)
+          # movement_matrix[,,y,9:10,s,sim] <- c(0.75,0.7,0.25,0.3)
+
+          
         } 
       } # end s loop
     } # end a loop
   } # end y loop
+  
+  # movement_matrix[,,13:20,,s,sim] <- rep(0.5, 4)
+  
   
   # movement_matrix[] <- 1
   
@@ -101,7 +144,7 @@
   Srv_IAL <- array(0, dim = c(n_yrs, n_regions, n_lens, n_sexes, n_srv_fleets, n_sims))
   srv_sel <- array(0, dim = c(n_yrs, n_regions, n_ages, n_sexes, n_srv_fleets, n_sims))
   srv_q <- array(1, dim = c(n_yrs, n_regions, n_srv_fleets, n_sims))
-  sigmaSrvIdx <- array(0.01, dim = c(n_regions, n_srv_fleets))
+  sigmaSrvIdx <- array(0.3, dim = c(n_regions, n_srv_fleets))
   
   # loop through to propagate survey selex
   for(y in 1:n_yrs) {
@@ -111,6 +154,8 @@
           for(sim in 1:n_sims) {
             srv_sel[y,1,,s,sf,sim] <- 1 / (1 + exp(-1 * ((1:n_ages) - n_ages/5)))
             srv_sel[y,2,,s,sf,sim] <- 1 / (1 + exp(-1 * ((1:n_ages) - n_ages/5)))
+            # srv_sel[y,3,,s,sf,sim] <- 1 / (1 + exp(-1 * ((1:n_ages) - n_ages/5)))
+            # srv_sel[y,4,,s,sf,sim] <- 1 / (1 + exp(-1 * ((1:n_ages) - n_ages/5)))
           }
           
         }
@@ -130,8 +175,8 @@
   n_tag_rel_events <- n_tag_yrs * n_regions
   tag_rel_indicator <- expand.grid(regions = 1:n_regions, tag_yrs = tag_years) # get tag release indicator (by tag years and regions = a tag cohort)
   Tag_Reporting <- array(0, dim = c(n_yrs, n_regions, n_sims))
-  Tag_Reporting[,1,] <- 0.2
-  Tag_Reporting[,2,] <- 0.2
+  Tag_Reporting[,,] <- 0.2
+  # Tag_Reporting[,2,] <- 0.2
   Tag_Fish <- array(0, dim = c(n_tag_rel_events, n_ages, n_sexes, n_sims))
   Tag_Ind_Mort <- array(0, dim = c(n_yrs, n_ages, n_sexes, n_sims))
   Tag_Shed <- array(0, dim = c(n_yrs, n_ages, n_sexes, n_sims))
@@ -144,7 +189,7 @@
   # 1 = split by region but not by sex
   # 2 = joint by region sex 
   comp_srv_like <- 0 # mutlinomial
-  comp_fish_like <- 2 # dirmultinomial likelihood
+  comp_fish_like <- 0 # dirmultinomial likelihood
   
   tag_like <- 2
   # 0 = Poisson
@@ -283,27 +328,19 @@
           # Store temporary probabilities ordered by ages, sexes, regions (i.e., age 1-30, sex 1, region 1, age 1-30, sex 2, region 1, 
           # age 1-30, sex 1, region 2, age 1-30, sex 2, region 2 ... )
           tmp_FishAgeComps_Prob <- aperm(CAA[y, , , , f, sim, drop = FALSE], c(3,4,2,1,5,6)) # ordered by ages, sexes, regions, year = y, fishery fleet = f, and sim = sim
-          if(comp_fish_like == 0) tmp_sim_FishAgeComps <- array(rmultinom(1, 1e5, tmp_FishAgeComps_Prob / sum(tmp_FishAgeComps_Prob)), dim = dim(tmp_FishAgeComps_Prob)) # Simulate Multinomial samples
-          if(comp_fish_like == 1) tmp_sim_FishAgeComps <- array(compResidual::rdirM(1, 400, 5 * 400 * tmp_FishAgeComps_Prob / sum(tmp_FishAgeComps_Prob)), dim = dim(tmp_FishAgeComps_Prob)) # Simulate dirichlet multinomial samples
+          if(comp_fish_like == 0) tmp_sim_FishAgeComps <- array(rmultinom(1, 100, tmp_FishAgeComps_Prob / sum(tmp_FishAgeComps_Prob)), dim = dim(tmp_FishAgeComps_Prob)) # Simulate Multinomial samples
+          if(comp_fish_like == 1) tmp_sim_FishAgeComps <- array(compResidual::rdirM(1, 500, 1 * 500 * tmp_FishAgeComps_Prob / sum(tmp_FishAgeComps_Prob)), dim = dim(tmp_FishAgeComps_Prob)) # Simulate dirichlet multinomial samples
           if(comp_fish_like == 2) {
             
             # set up iid
-            Sigma <- diag(length(tmp_FishAgeComps_Prob) - 1)
-            diag(Sigma) = 5^2
+            Sigma <- diag(length(tmp_FishAgeComps_Prob)-1)
+            diag(Sigma) = 3^2
             tmp_pred = as.vector(tmp_FishAgeComps_Prob / sum(tmp_FishAgeComps_Prob))
             mu = log(tmp_pred[-length(tmp_pred)]) # remove last bin since it's known
             mu = mu - log(tmp_pred[length(tmp_pred)]) # calculate log ratio
             x = MASS::mvrnorm(1, mu, Sigma) # simualte from mvnorm (does not sum to 1) and length k
             p = exp(x)/(1 + sum(exp(x))) # do additive transformation length k and does not sum to 1
             p = c(p, 1 - sum(p))
-            
-            plot(p, type = 'l')
-            plot(tmp_pred, type = 'l')
-            
-            # a = compResidual::rlogistN(mu = log(as.vector(tmp_FishAgeComps_Prob / sum(tmp_FishAgeComps_Prob))), Sigma)
-            # plot(a, type = 'l')
-            # lines(p)
-            
             tmp_sim_FishAgeComps <- array(p, dim = dim(tmp_FishAgeComps_Prob)) # missing the completion for c(p, 1-sum(p))
             
           } # logistic normal 
@@ -344,7 +381,7 @@
           # Store temporary Probabilities ordered by ages, sexes, regions 
           # (i.e., age 1-30, sex 1, region 1, age 1-30, sex 2, region 1, age 1-30, sex 1, region 2, age 1-30, sex 2, region 2 ... )
           tmp_SrvAgeComps_Prob <- aperm(Srv_IAA[y, , , , sf, sim, drop = FALSE], c(3,4,2,1,5,6)) # ordered by ages, sexes, regions, year = y, survey fleet = sf, and sim = sim
-          if(comp_srv_like == 0) tmp_sim_SrvAgeComps <- array(rmultinom(1, 400, tmp_SrvAgeComps_Prob / sum(tmp_SrvAgeComps_Prob)), dim = dim(tmp_SrvAgeComps_Prob)) # Simulate Multinomial samples
+          if(comp_srv_like == 0) tmp_sim_SrvAgeComps <- array(rmultinom(1, 100, tmp_SrvAgeComps_Prob / sum(tmp_SrvAgeComps_Prob)), dim = dim(tmp_SrvAgeComps_Prob)) # Simulate Multinomial samples
           # if(comp_srv_like == 1) tmp_sim_SrvAgeComps <- array(compResidual::rdirM(1, 400, 400 * 1 * tmp_SrvAgeComps_Prob / sum(tmp_SrvAgeComps_Prob)), dim = dim(tmp_SrvAgeComps_Prob)) # Simulate Multinomial samples
           # Inputing simulated data into dataframe while reshaping to correct dimension (revert to year, region, ages, sexes, fleet, sim)
           Obs_SrvAgeComps[y,,,,sf,sim] <- aperm(tmp_sim_SrvAgeComps, c(4,3,1,2,5,6)) 
@@ -484,12 +521,20 @@
   
   par(mfrow = c(2,1))
   for(i in 1:n_sims) {
-    if(i == 1) plot(SSB[,1,i], type = 'l') 
-    else lines(SSB[,1,i], type = 'l') 
+    if(i == 1) plot(SSB[,1,i], type = 'l', ylim = c(0, 3000))
+    else lines(SSB[,1,i], type = 'l')
+  }
+  for(i in 1:n_sims) {
+    if(i == 1) plot(SSB[,2,i], type = 'l', ylim = c(0, 3000))
+    else lines(SSB[,2,i], type = 'l')
   }
   # for(i in 1:n_sims) {
-  #   if(i == 1) plot(SSB[,2,i], type = 'l') 
-  #   else lines(SSB[,2,i], type = 'l') 
+  #   if(i == 1) plot(SSB[,3,i], type = 'l')
+  #   else lines(SSB[,3,i], type = 'l')
+  # }
+  # for(i in 1:n_sims) {
+  #   if(i == 1) plot(SSB[,4,i], type = 'l')
+  #   else lines(SSB[,4,i], type = 'l')
   # }
   
   
