@@ -55,6 +55,10 @@ sabie_RTMB = function(pars) {
   Init_NAA = array(data = 0, dim = c(init_iter, n_regions, n_ages, n_sexes)) # Initial numbers at age
   Movement = array(data = 0, dim = c(n_regions, n_regions, n_yrs, n_ages, n_sexes)) # movement "matrix"
   
+  # Tagging Stuff
+  Tags_Avail = array(data = 0, dim = c(max_tag_liberty + 1, n_tag_cohorts, n_regions, n_ages, n_sexes))
+  Pred_Tag_Recap = array(data = 0, dim = c(max_tag_liberty, n_tag_cohorts, n_regions, n_ages, n_sexes))
+
   # Fishery Processes
   init_F = init_F_prop * exp(ln_F_mean[1]) # initial F for age structure
   Fmort = array(0, dim = c(n_regions, n_yrs, n_fish_fleets)) # Fishing mortality scalar
@@ -85,7 +89,8 @@ sabie_RTMB = function(pars) {
   SrvIdx_nLL = array(0, dim = c(n_regions, n_yrs, n_srv_fleets)) # Survey Index Likelihoods
   SrvAgeComps_nLL = array(data = 0, dim = c(n_regions, n_yrs, n_sexes, n_srv_fleets)) # Survey Age Comps Likelihoods
   SrvLenComps_nLL = array(data = 0, dim = c(n_regions, n_yrs, n_sexes, n_srv_fleets)) # Survey Length Comps Likelihoods
-
+  Tag_nLL = array(data = 0, dim = c(max_tag_liberty, n_tag_cohorts, n_regions, n_ages, n_sexes)) # Tagging Likelihoods
+  
   # Penalties and Priors
   Fmort_Pen = array(0, dim = c(n_regions, n_yrs, n_fish_fleets)) # Fishing Mortality Deviation penalty
   Rec_nLL = array(0, dim = c(n_regions, n_yrs)) # Recruitment penalty
@@ -338,10 +343,43 @@ sabie_RTMB = function(pars) {
   
 
   ## Tagging Observation Model -----------------------------------------------
+  for(tc in 1:n_tag_cohorts) {
+    tr = tag_release_indicator[tc,1] # extract tag release region
+    ty = tag_release_indicator[tc,2] # extract tag release year
+    
+    for(ry in 1:min(max_tag_liberty, n_yrs - ty + 1)) {
+      # Set up variables for tagging dynamics
+      y = ty + ry - 1 # Get index for actual year in the model (instead of tag year)
+      # get fishing mortality estimates (assumes uniform selex) 
+      if(n_fish_fleets == 1) tmp_F = Fmort[,y,] # only a single fishing fleet
+      if(n_fish_fleets > 1) tmp_F = rowSums(Fmort[,y,]) # multiple fleets
+      tmp_Z = natmort[,y,,,drop = FALSE] + tmp_F # get total mortality
+      
+      # Run tagging dynamics
+      if(ry == 1) Tags_Avail[1,tc,tr,,] = Tagged_Fish[tc,,,] * exp(-Init_Tag_Mort) # Tag induced mortality in the first recapture year
+      
+      # Mortality and ageing of tagged fish
+      for(a in 1:n_ages) {
+        for(s in 1:n_sexes) {
+          if(a < n_ages) Tags_Avail[ry+1,tc,,a+1,s] = Tags_Avail[ry,tc,,a,s] * exp(-tmp_Z[,1,a,s]) # if not plus group
+          else Tags_Avail[ry+1,tc,,n_ages,s] = Tags_Avail[ry+1,tc,,n_ages,s] + Tags_Avail[ry,tc,,n_ages,s] * exp(-tmp_Z[,1,n_ages,s]) # accumulate plus group
+        } # end s loop
+      } # end a loop
+      
+      # Get predicted recaptures (Baranov's)
+      Pred_Tag_Recap[ry,tc,,,] = Tag_Reporting[,y] * (tmp_F / tmp_Z[,1,,]) * 
+                                 Tags_Avail[ry,tc,,,] * (1 - exp(-tmp_Z[,1,,])) 
+      
+      # Move tagged fish around after mortality and ageing
+      for(a in 1:n_ages) for(s in 1:n_sexes) Tags_Avail[ry+1,tc,,a,s] = t(Tags_Avail[ry+1,tc,,a,s]) %*% Movement[,,y,a,s]
+
+      # Apply tag shedding
+      for(r in 1:n_regions) Tags_Avail[ry+1,tc,r,,] = Tags_Avail[ry+1,tc,r,,] * exp(-Tag_Shed) 
+
+    } # end ry loop
+  } # end tc loop
 
   
-
-
 # Likelihood Equations -------------------------------------------------------------
   ## Fishery Likelihoods -----------------------------------------------------
     ### Fishery Catches ---------------------------------------------------------
@@ -485,10 +523,22 @@ sabie_RTMB = function(pars) {
   
 
   ## Tag Likelihoods ---------------------------------------------------------
+  for(tc in 1:n_tag_cohorts) {
+    tr = tag_release_indicator[tc,1] # extract tag release region
+    ty = tag_release_indicator[tc,2] # extract tag release year
+    for(ry in 1:min(max_tag_liberty, n_yrs - ty + 1)) {
+      
+      for(r in 1:n_regions) {
+        for(a in 1:n_ages) {
+          for(s in 1:n_sexes) {
+            Tag_nLL[ry,tc,r,a,s] = -dpois(Obs_Tag_Recap[ry,tc,r,a,s], Pred_Tag_Recap[ry,tc,r,a,s], log = TRUE) # poisson likelihood
+          } # end s loop
+        } # end a loop
+      } # end r loop
+      
+    } # end ry loop
+  } # end tc loop
 
-
-
-  
   ## Priors and Penalties ----------------------------------------------------
     ### Fishing Mortality (Penalty) ---------------------------------------------
     for(f in 1:n_fish_fleets) {
@@ -570,6 +620,7 @@ sabie_RTMB = function(pars) {
            sum(FishLenComps_nLL) + # Fishery Length likelihood
            sum(SrvAgeComps_nLL) + # Survey Age likelihood
            sum(SrvLenComps_nLL) + # Survey Length likelihood
+           sum(Tag_nLL) + # Tagging likelihood
           (Wt_F * sum(Fmort_Pen)) + # Fishery Mortality Penalty
            M_Pen + # Natural Mortality Prior (Penalty)
           (Wt_Rec * sum(Rec_nLL)) + # Recruitment Penalty
