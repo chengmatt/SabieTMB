@@ -344,41 +344,43 @@ sabie_RTMB = function(pars) {
   
 
   ## Tagging Observation Model -----------------------------------------------
-  for(tc in 1:n_tag_cohorts) {
-    tr = tag_release_indicator[tc,1] # extract tag release region
-    ty = tag_release_indicator[tc,2] # extract tag release year
-    
-    for(ry in 1:min(max_tag_liberty, n_yrs - ty + 1)) {
-      # Set up variables for tagging dynamics
-      y = ty + ry - 1 # Get index for actual year in the model (instead of tag year)
-      # get fishing mortality estimates (assumes uniform selex) 
-      if(n_fish_fleets == 1) tmp_F = Fmort[,y,] # only a single fishing fleet
-      if(n_fish_fleets > 1) tmp_F = rowSums(Fmort[,y,]) # multiple fleets
-      tmp_Z = natmort[,y,,,drop = FALSE] + tmp_F # get total mortality
+  if(UseTagging == 1) {
+    for(tc in 1:n_tag_cohorts) {
+      tr = tag_release_indicator[tc,1] # extract tag release region
+      ty = tag_release_indicator[tc,2] # extract tag release year
       
-      # Run tagging dynamics
-      if(ry == 1) Tags_Avail[1,tc,tr,,] = Tagged_Fish[tc,,] * exp(-exp(ln_Init_Tag_Mort)) # Tag induced mortality in the first recapture year
-      
-      # Mortality and ageing of tagged fish
-      for(a in 1:n_ages) {
-        for(s in 1:n_sexes) {
-          if(a < n_ages) Tags_Avail[ry+1,tc,,a+1,s] = Tags_Avail[ry,tc,,a,s] * exp(-tmp_Z[,1,a,s]) # if not plus group
-          else Tags_Avail[ry+1,tc,,n_ages,s] = Tags_Avail[ry+1,tc,,n_ages,s] + Tags_Avail[ry,tc,,n_ages,s] * exp(-tmp_Z[,1,n_ages,s]) # accumulate plus group
-        } # end s loop
-      } # end a loop
-      
-      # Get predicted recaptures (Baranov's)
-      Tag_Reporting[,y] = exp(Tag_Reporting_Pars[,y]) / (1 + exp(Tag_Reporting_Pars[,y])) # Inverse logit transform tag reporting rate parameters to scale of 0 - 1
-      Pred_Tag_Recap[ry,tc,,,] = Tag_Reporting[,y] * (tmp_F / tmp_Z[,1,,]) * Tags_Avail[ry,tc,,,] * (1 - exp(-tmp_Z[,1,,])) 
-      
-      # Move tagged fish around after mortality and ageing
-      for(a in 1:n_ages) for(s in 1:n_sexes) Tags_Avail[ry+1,tc,,a,s] = t(Tags_Avail[ry+1,tc,,a,s]) %*% Movement[,,y,a,s]
-
-      # Apply tag shedding
-      for(r in 1:n_regions) Tags_Avail[ry+1,tc,r,,] = Tags_Avail[ry+1,tc,r,,] * exp(-exp(ln_Tag_Shed)) 
-
-    } # end ry loop
-  } # end tc loop
+      for(ry in 1:min(max_tag_liberty, n_yrs - ty + 1)) {
+        # Set up variables for tagging dynamics
+        y = ty + ry - 1 # Get index for actual year in the model (instead of tag year)
+        # get fishing mortality estimates (assumes uniform selex) 
+        if(n_fish_fleets == 1) tmp_F = Fmort[,y,] # only a single fishing fleet
+        if(n_fish_fleets > 1) tmp_F = rowSums(Fmort[,y,]) # multiple fleets
+        tmp_Z = natmort[,y,,,drop = FALSE] + tmp_F # get total mortality
+        
+        # Run tagging dynamics
+        if(ry == 1) Tags_Avail[1,tc,tr,,] = Tagged_Fish[tc,,] * exp(-exp(ln_Init_Tag_Mort)) # Tag induced mortality in the first recapture year
+        
+        # Mortality and ageing of tagged fish
+        for(a in 1:n_ages) {
+          for(s in 1:n_sexes) {
+            if(a < n_ages) Tags_Avail[ry+1,tc,,a+1,s] = Tags_Avail[ry,tc,,a,s] * exp(-tmp_Z[,1,a,s]) # if not plus group
+            else Tags_Avail[ry+1,tc,,n_ages,s] = Tags_Avail[ry+1,tc,,n_ages,s] + Tags_Avail[ry,tc,,n_ages,s] * exp(-tmp_Z[,1,n_ages,s]) # accumulate plus group
+          } # end s loop
+        } # end a loop
+        
+        # Get predicted recaptures (Baranov's)
+        Tag_Reporting[,y] = plogis(Tag_Reporting_Pars[,y]) # Inverse logit transform tag reporting rate parameters to scale of 0 - 1
+        Pred_Tag_Recap[ry,tc,,,] = Tag_Reporting[,y] * (tmp_F / tmp_Z[,1,,]) * Tags_Avail[ry,tc,,,] * (1 - exp(-tmp_Z[,1,,])) 
+        
+        # Move tagged fish around after mortality and ageing
+        for(a in 1:n_ages) for(s in 1:n_sexes) Tags_Avail[ry+1,tc,,a,s] = t(Tags_Avail[ry+1,tc,,a,s]) %*% Movement[,,y,a,s]
+        
+        # Apply tag shedding
+        for(r in 1:n_regions) Tags_Avail[ry+1,tc,r,,] = Tags_Avail[ry+1,tc,r,,] * exp(-exp(ln_Tag_Shed)) 
+        
+      } # end ry loop
+    } # end tc loop
+  } # end if for using tagging data 
 
   
 # Likelihood Equations -------------------------------------------------------------
@@ -524,20 +526,59 @@ sabie_RTMB = function(pars) {
   
 
   ## Tag Likelihoods ---------------------------------------------------------
-  for(tc in 1:n_tag_cohorts) {
-    tr = tag_release_indicator[tc,1] # extract tag release region
-    ty = tag_release_indicator[tc,2] # extract tag release year
-    for(ry in 2:min(max_tag_liberty, n_yrs - ty + 1)) {
-      for(r in 1:n_regions) {
-        for(a in 1:n_ages) {
-          for(s in 1:n_sexes) {
-            Tag_nLL[ry,tc,r,a,s] = -dpois(Obs_Tag_Recap[ry,tc,r,a,s] + 1e-10, Pred_Tag_Recap[ry,tc,r,a,s] + 1e-10, log = TRUE) # poisson likelihood
-          } # end s loop
-        } # end a loop
-      } # end r loop
-
-    } # end ry loop
-  } # end tc loop
+  if(UseTagging == 1) {
+    for(tc in 1:n_tag_cohorts) {
+      
+      # set up tagging cohort indexing 
+      tr = tag_release_indicator[tc,1] # extract tag release region
+      ty = tag_release_indicator[tc,2] # extract tag release year
+      
+      for(ry in 1:min(max_tag_liberty, n_yrs - ty + 1)) { # loop through recapture years
+        for(r in 1:n_regions) {
+          for(a in 1:n_ages) {
+            for(s in 1:n_sexes) {
+              
+              # Poisson likelihood
+              if(Tag_LikeType == 0) Tag_nLL[ry,tc,r,a,s] = -dpois(Obs_Tag_Recap[ry,tc,r,a,s] + 1e-10, Pred_Tag_Recap[ry,tc,r,a,s] + 1e-10, log = TRUE) 
+              
+              # Negative binomial likelihood
+              if(Tag_LikeType == 1) {
+                # set up robust negative binomial
+                log_mu = log(Pred_Tag_Recap[ry,tc,r,a,s] + 1e-10) # log mean
+                log_var_minus_mu = 2 * log_mu - ln_tag_theta # log_var_minus_mu
+                Tag_nLL[ry,tc,r,a,s] = -dnbinom_robust(Obs_Tag_Recap[ry,tc,r,a,s] + 1e-10, log_mu = log_mu, 
+                                                       log_var_minus_mu = log_var_minus_mu, log = TRUE) 
+              } # end if for negative binomial likelihood
+              
+            } # end s loop
+          } # end a loop
+        } # end r loop
+        
+        # Multinomial likelihood (release conditioned)
+        if(Tag_LikeType == 2) {
+          # Set up predicted inputs
+          tmp_n_tags_released = sum(Tagged_Fish[tc,,]) # number of tags released for a given tag cohort
+          tmp_pred_c = Pred_Tag_Recap[ry,tc,,,] / tmp_n_tags_released # recaptured
+          tmp_pred = c(tmp_pred_c, 1 - sum(tmp_pred_c)) # combine recaptured and non-recaptured
+          # Set up observed inputs
+          tmp_obs_c = Obs_Tag_Recap[ry,tc,,,] / tmp_n_tags_released # recaptured
+          tmp_obs = c(tmp_obs_c, 1 - sum(tmp_obs_c)) # combine recaptured and non-recaptured
+          Tag_nLL[ry,tc,1,1,1] = -tmp_n_tags_released * sum((tmp_obs + 1e-10) * log(tmp_pred + 1e-10) )
+        } # end if multinomial release conditioned
+        
+        # Multinomial likelihood (recapture conditioned)
+        if(Tag_LikeType == 3) {
+          # set up inputs
+          tmp_n_tags_recap = sum(Obs_Tag_Recap[ry,tc,,,]) # number of recaptures
+          tmp_obs = Obs_Tag_Recap[ry,tc,,,] / tmp_n_tags_recap # get observed probabilities
+          tmp_pred = Pred_Tag_Recap[ry,tc,,,] / sum(Pred_Tag_Recap[ry,tc,,,]) # get predicted recapture probabilities
+          Tag_nLL[ry,tc,1,1,1] = -1 * tmp_n_tags_recap * sum(((tmp_obs + 1e-10) * log(tmp_pred + 1e-10))) # recapture likelihood
+        } # end if multinomial recapture conditioned
+        
+        
+      } # end ry loop
+    } # end tc loop
+  } # if we are using tagging data
 
   ## Priors and Penalties ----------------------------------------------------
     ### Fishing Mortality (Penalty) ---------------------------------------------

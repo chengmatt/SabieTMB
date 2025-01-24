@@ -240,11 +240,14 @@
     
 
     # Tagging Stuff -----------------------------------------------------------
+    data$UseTagging = 1
     data$tag_release_indicator <- sim_out$Tag_Release_Ind # tag release indicator, with rows = cohorts, first col = release regino, second col = release year
     data$n_tag_cohorts <- nrow(data$tag_release_indicator) # number of tag cohorts
     data$max_tag_liberty <- 30 # maximum liberty to track cohorts
     data$Tagged_Fish <- array(sim_out$Tag_Fish[,,,sim], dim = c(data$n_tag_cohorts, length(data$ages), data$n_sexes)) # tagged fish
     data$Obs_Tag_Recap <- array(sim_out$Obs_Tag_Recap[,,,,,sim], dim = c(data$max_tag_liberty, data$n_tag_cohorts, data$n_regions, length(data$ages), data$n_sexes))
+    data$Tag_LikeType <- 2 # poisson likelihood
+    
     # Prepare Parameters ------------------------------------------------------
     parameters <- list()
     parameters$dummy <- 1
@@ -309,14 +312,12 @@
     
     # Movement Stuff ---------------------------------------------------
     parameters$move_pars <- array(0, dim = c(data$n_regions, data$n_regions - 1, length(data$years), length(data$ages), data$n_sexes))
-    # parameters$move_pars[1,,1,1,1] = 0.1
-    # parameters$move_pars[2,,1,1,1] = 0.1
-    
 
     # Tagging Stuff -----------------------------------------------------------
     parameters$ln_Init_Tag_Mort <- log(1e-10) # initial tag induced mortality
     parameters$ln_Tag_Shed <- log(1e-10) # annual tag sheeding
     parameters$Tag_Reporting_Pars <- array(log(0.2 / (1 - 0.2)), dim = c(data$n_regions, length(data$years)))
+    parameters$ln_tag_theta <- log(0.1)
     
     # Mapping -----------------------------------------------------------------
     mapping <- list()
@@ -346,7 +347,7 @@
     mapping$ln_FishLen_theta <- factor(rep(NA, length(parameters$ln_FishLen_theta)))
     mapping$ln_SrvAge_theta <- factor(rep(NA, length(parameters$ln_SrvAge_theta)))
     mapping$ln_SrvLen_theta <- factor(rep(NA, length(parameters$ln_SrvLen_theta)))
-    
+
     # mapping$ln_FishAge_theta <- factor(c(1,NA)) # joint
     # mapping$ln_FishAge_theta <- factor(c(1,1)) # split 
     # mapping$ln_SrvAge_theta <- factor(c(1,2))
@@ -392,8 +393,8 @@
     # fixing tagging stuff
     mapping$ln_Init_Tag_Mort <- factor(NA)
     mapping$ln_Tag_Shed <- factor(NA)
-    mapping$Tag_Reporting_Pars <- factor(rep(1, length(parameters$Tag_Reporting_Pars)))
-    
+    mapping$Tag_Reporting_Pars <- factor(rep(1:2, length.out = length(parameters$Tag_Reporting_Pars)))
+    mapping$ln_tag_theta <- factor(NA)
     
     # global density dependence
     map_recdevs = parameters$ln_RecDevs
@@ -488,8 +489,7 @@
 
     move_cv = unique(sabie_rtmb_model$sd_rep$sd[names(sabie_rtmb_model$sd_rep$value) == "Movement"] / sabie_rtmb_model$sd_rep$value[names(sabie_rtmb_model$sd_rep$value) == "Movement"])
     move_cv_mat[1:length(move_cv),sim] <- move_cv
-    # 
-
+    
     par(mfrow = c(2,4))
     #
     plot(sim_out$CAA[20,2,,1,1,sim], type = 'l', col = 'red')
@@ -529,7 +529,7 @@
     # par(mfrow = c(1,3))
     hist((r0_mat[,1] - 5e6) / 5e6, main = round(median((r0_mat[,1] - 5e6) / 5e6, na.rm = T),2), xlab = 'R0 bias region 1')
     hist((r0_mat[,2] - 1e7) / 1e7, main = round(median((r0_mat[,2] - 1e7) / 1e7, na.rm = T),2), xlab = 'R0 bias region 2')
-    hist((tagrep - 0.2) / 0.2, main = round(median((tagrep - 0.2) / 0.2, na.rm = T),2), xlab = 'R0 bias region 2')
+    hist((tagrep - 0.15) / 0.15, main = round(median((tagrep - 0.15) / 0.15, na.rm = T),2), xlab = 'R0 bias region 2')
     
     # hist((r0_mat[,3] - 100) / 100, main = round(median((r0_mat[,3] - 100) / 100, na.rm = T),2), xlab = 'R0 bias region 3')
     # hist((r0_mat[,4] - 800) / 800, main = round(median((r0_mat[,4] - 800) / 800, na.rm = T),2), xlab = 'R0 bias region 4')

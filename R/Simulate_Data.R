@@ -3,7 +3,7 @@
   library(here)
   # source(here("R", "functions", "Utility_Functions.R"))
   # Set up
-  n_sims <- 100
+  n_sims <- 500
   n_yrs <- 20
   n_regions <- 2
   n_ages <- 15
@@ -175,7 +175,9 @@
   n_tag_rel_events <- n_tag_yrs * n_regions
   tag_rel_indicator <- expand.grid(regions = 1:n_regions, tag_yrs = tag_years) # get tag release indicator (by tag years and regions = a tag cohort)
   Tag_Reporting <- array(0, dim = c(n_yrs, n_regions, n_sims))
-  Tag_Reporting[,,] <- 0.2
+  Tag_Reporting[,1,] <- 0.1
+  Tag_Reporting[,2,] <- 0.2
+  
   # Tag_Reporting[,2,] <- 0.2
   Tag_Fish <- array(0, dim = c(n_tag_rel_events, n_ages, n_sexes, n_sims))
   Tag_Ind_Mort <- array(0, dim = c(n_yrs, n_ages, n_sexes, n_sims))
@@ -191,7 +193,7 @@
   comp_srv_like <- 0 # mutlinomial
   comp_fish_like <- 0 # dirmultinomial likelihood
   
-  tag_like <- 0
+  tag_like <- 2
   # 0 = Poisson
   # 1 = Negative Binomial
   # 2 = Multinomial Release Conditioned
@@ -398,7 +400,7 @@
       tag_rel_region <- tag_rel_indicator$regions[tag_rel] # get tag release region
       n_tags_rel <- round(Obs_SrvIdx[tag_rel_yr,,1,sim] / sum(Obs_SrvIdx[tag_rel_yr,,1,sim]) * n_tags) # distribute tags relative to regional survey abundance
       tmp_SrvAgeComps_Prob <- as.vector(Srv_IAA[tag_rel_yr, tag_rel_region, , , 1, sim]) # Use survey proportions to distribute tags
-      tagged_fish <- (tmp_SrvAgeComps_Prob / sum(tmp_SrvAgeComps_Prob)) * n_tags_rel[tag_rel_region] # Distribute tags across ages, sexes, for a given release event
+      tagged_fish <- round((tmp_SrvAgeComps_Prob / sum(tmp_SrvAgeComps_Prob)) * n_tags_rel[tag_rel_region]) # Distribute tags across ages, sexes, for a given release event
       Tag_Fish[tag_rel,,,sim] <- array(tagged_fish, dim = c(n_ages, n_sexes)) # Reshape format by ages, and sexes and input into other array
       
       # Tag Recaptures (do we need to pool individuals into a plus max liberty group or can we just ignore?)
@@ -455,22 +457,21 @@
         } # end r loop
         
         # Multinomial tag recovery (release conditioned)
-        if(tag_like == 2) { 
-        tmp_n_tags_rel <- sum(Tag_Fish[tag_rel,,,sim]) # Number of initial tags released
-        tmp_recap <- aperm(Pred_Tag_Recap[recap_yr,tag_rel,,,,sim, drop = FALSE] / tmp_n_tags_rel, c(4,5,3,1,2,6)) # get recapture probabilities ordered by ages, sexes, regions (i.e., age 1-30, sex 1, region 1, age 1-30, sex 2, region 1, age 1-30, sex 1, region 2, age 1-30, sex 2, region 2 ... ) recapture, tag release, sim ... 
-        tmp_non_recap <- (tmp_n_tags_rel - sum(Pred_Tag_Recap[1:recap_yr,tag_rel,,,,sim])) / tmp_n_tags_rel # calculate non recapture probabilities (tags releases - sum of all tags recaptured up to a given recapture year)
-        tmp_recap_non_recap_probs <- c(tmp_recap, tmp_non_recap) # concatenate recapture and non recapture probabilities
-        tmp_sim_recap <- rmultinom(1, tmp_n_tags_rel, tmp_recap_non_recap_probs) # simulate multinomial draws here
-        tmp_sim_recap <- aperm(array(tmp_sim_recap[-length(tmp_sim_recap)], dim(tmp_recap)), c(4,5,3,1,2,6)) # remove last group (not recaptured) and then reshape into correct format
-        Obs_Tag_Recap[recap_yr,tag_rel,,,,sim] <- tmp_sim_recap # input recaptures from multinomial into observed array
+        if(tag_like == 2) {
+          tmp_n_tags_rel <- round(sum(Tag_Fish[tag_rel,,,sim])) # Number of initial tags released
+          tmp_recap <- aperm(Pred_Tag_Recap[recap_yr,tag_rel,,,,sim, drop = FALSE] / tmp_n_tags_rel, c(4,5,3,1,2,6)) # get recapture probabilities ordered by ages, sexes, regions (i.e., age 1-30, sex 1, region 1, age 1-30, sex 2, region 1, age 1-30, sex 1, region 2, age 1-30, sex 2, region 2 ... ) recapture, tag release, sim ...
+          tmp_probs <- c(tmp_recap, 1 - sum(tmp_recap)) # concatenate recapture and non recapture probabilities
+          tmp_sim_recap <- rmultinom(1, tmp_n_tags_rel, tmp_probs) # simulate multinomial draws here
+          tmp_sim_recap <- aperm(array(tmp_sim_recap[-length(tmp_sim_recap)], dim(tmp_recap)), c(4,5,3,1,2,6)) # remove last group (not recaptured) and then reshape into correct format
+          Obs_Tag_Recap[recap_yr,tag_rel,,,,sim] <- tmp_sim_recap # input recaptures from multinomial into observed array
         } # end if for multinomial likelihood (release conditioned)
         
         # Multinomial tag recovery (recovery conditioned)
         if(tag_like == 3) { # Tag reporting doesn't matter here (if spatially invariant) since it appears in the denominator so it cancels out (when calculating proportion of recaptures)
-          tmp_n <- sum(Pred_Tag_Recap[recap_yr,tag_rel,,,,sim]) # Get number of tags to simulate
-          tmp_recap_probs <- aperm(Pred_Tag_Recap[recap_yr,tag_rel,,,,sim, drop = FALSE] / sum(Pred_Tag_Recap[recap_yr,tag_rel,,,,sim, drop = FALSE]), c(4,5,3,1,2,6)) # get recapture probabilities ordered by ages, sexes, regions (i.e., age 1-30, sex 1, region 1, age 1-30, sex 2, region 1, age 1-30, sex 1, region 2, age 1-30, sex 2, region 2 ... ) recapture, tag release, sim ... 
-          tmp_sim_recap <- rmultinom(1, tmp_n, tmp_recap_probs) # simulate multinomial draws here
-          tmp_sim_recap <- aperm(array(tmp_sim_recap, dim(tmp_recap_probs)), c(4,5,3,1,2,6)) # reshape into correct format
+          tmp_n_tags_recap <- sum(Pred_Tag_Recap[recap_yr,tag_rel,,,,sim]) # Get number of tags to simulate
+          tmp_probs <- aperm(Pred_Tag_Recap[recap_yr,tag_rel,,,,sim, drop = FALSE] / tmp_n_tags_recap, c(4,5,3,1,2,6)) # get recapture probabilities ordered by ages, sexes, regions (i.e., age 1-30, sex 1, region 1, age 1-30, sex 2, region 1, age 1-30, sex 1, region 2, age 1-30, sex 2, region 2 ... ) recapture, tag release, sim ... 
+          tmp_sim_recap <- rmultinom(1, tmp_n_tags_recap, tmp_probs) # simulate multinomial draws here
+          tmp_sim_recap <- aperm(array(tmp_sim_recap, dim(tmp_probs)), c(4,5,3,1,2,6)) # reshape into correct format
           Obs_Tag_Recap[recap_yr,tag_rel,,,,sim] <- tmp_sim_recap # input recaptures from multinomial into observed array
         } # end if for Multinomial likelihood (recovery conditioned)
         
