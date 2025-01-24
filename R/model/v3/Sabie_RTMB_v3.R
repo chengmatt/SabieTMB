@@ -56,8 +56,9 @@ sabie_RTMB = function(pars) {
   Movement = array(data = 0, dim = c(n_regions, n_regions, n_yrs, n_ages, n_sexes)) # movement "matrix"
   
   # Tagging Stuff
-  Tags_Avail = array(data = 0, dim = c(max_tag_liberty + 1, n_tag_cohorts, n_regions, n_ages, n_sexes))
-  Pred_Tag_Recap = array(data = 0, dim = c(max_tag_liberty, n_tag_cohorts, n_regions, n_ages, n_sexes))
+  Tags_Avail = array(data = 0, dim = c(max_tag_liberty + 1, n_tag_cohorts, n_regions, n_ages, n_sexes)) # Tags availiable for recapture
+  Tag_Reporting = array(data = 0, dim = c(n_regions, n_yrs)) # Tag reporting rate 
+  Pred_Tag_Recap = array(data = 0, dim = c(max_tag_liberty, n_tag_cohorts, n_regions, n_ages, n_sexes)) # predicted recaptures
 
   # Fishery Processes
   init_F = init_F_prop * exp(ln_F_mean[1]) # initial F for age structure
@@ -356,7 +357,7 @@ sabie_RTMB = function(pars) {
       tmp_Z = natmort[,y,,,drop = FALSE] + tmp_F # get total mortality
       
       # Run tagging dynamics
-      if(ry == 1) Tags_Avail[1,tc,tr,,] = Tagged_Fish[tc,,,] * exp(-Init_Tag_Mort) # Tag induced mortality in the first recapture year
+      if(ry == 1) Tags_Avail[1,tc,tr,,] = Tagged_Fish[tc,,] * exp(-exp(ln_Init_Tag_Mort)) # Tag induced mortality in the first recapture year
       
       # Mortality and ageing of tagged fish
       for(a in 1:n_ages) {
@@ -367,14 +368,14 @@ sabie_RTMB = function(pars) {
       } # end a loop
       
       # Get predicted recaptures (Baranov's)
-      Pred_Tag_Recap[ry,tc,,,] = Tag_Reporting[,y] * (tmp_F / tmp_Z[,1,,]) * 
-                                 Tags_Avail[ry,tc,,,] * (1 - exp(-tmp_Z[,1,,])) 
+      Tag_Reporting[,y] = exp(Tag_Reporting_Pars[,y]) / (1 + exp(Tag_Reporting_Pars[,y])) # Inverse logit transform tag reporting rate parameters to scale of 0 - 1
+      Pred_Tag_Recap[ry,tc,,,] = Tag_Reporting[,y] * (tmp_F / tmp_Z[,1,,]) * Tags_Avail[ry,tc,,,] * (1 - exp(-tmp_Z[,1,,])) 
       
       # Move tagged fish around after mortality and ageing
       for(a in 1:n_ages) for(s in 1:n_sexes) Tags_Avail[ry+1,tc,,a,s] = t(Tags_Avail[ry+1,tc,,a,s]) %*% Movement[,,y,a,s]
 
       # Apply tag shedding
-      for(r in 1:n_regions) Tags_Avail[ry+1,tc,r,,] = Tags_Avail[ry+1,tc,r,,] * exp(-Tag_Shed) 
+      for(r in 1:n_regions) Tags_Avail[ry+1,tc,r,,] = Tags_Avail[ry+1,tc,r,,] * exp(-exp(ln_Tag_Shed)) 
 
     } # end ry loop
   } # end tc loop
@@ -526,16 +527,15 @@ sabie_RTMB = function(pars) {
   for(tc in 1:n_tag_cohorts) {
     tr = tag_release_indicator[tc,1] # extract tag release region
     ty = tag_release_indicator[tc,2] # extract tag release year
-    for(ry in 1:min(max_tag_liberty, n_yrs - ty + 1)) {
-      
+    for(ry in 2:min(max_tag_liberty, n_yrs - ty + 1)) {
       for(r in 1:n_regions) {
         for(a in 1:n_ages) {
           for(s in 1:n_sexes) {
-            Tag_nLL[ry,tc,r,a,s] = -dpois(Obs_Tag_Recap[ry,tc,r,a,s], Pred_Tag_Recap[ry,tc,r,a,s], log = TRUE) # poisson likelihood
+            Tag_nLL[ry,tc,r,a,s] = -dpois(Obs_Tag_Recap[ry,tc,r,a,s] + 1e-10, Pred_Tag_Recap[ry,tc,r,a,s] + 1e-10, log = TRUE) # poisson likelihood
           } # end s loop
         } # end a loop
       } # end r loop
-      
+
     } # end ry loop
   } # end tc loop
 
@@ -654,6 +654,11 @@ sabie_RTMB = function(pars) {
   RTMB::REPORT(SrvIAA)
   RTMB::REPORT(SrvIAL)
   
+  # Tagging Processes
+  RTMB::REPORT(Pred_Tag_Recap)
+  RTMB::REPORT(Tags_Avail)
+  RTMB::REPORT(Tag_Reporting)
+  
   # Likelihoods
   RTMB::REPORT(Catch_nLL)
   RTMB::REPORT(FishIdx_nLL)
@@ -667,6 +672,7 @@ sabie_RTMB = function(pars) {
   RTMB::REPORT(Rec_nLL)
   RTMB::REPORT(Init_Rec_nLL)
   RTMB::REPORT(Rec_nLL)
+  RTMB::REPORT(Tag_nLL)
   RTMB::REPORT(jnLL)
 
   # Effective Sample Sizes

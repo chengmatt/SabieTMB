@@ -16,8 +16,8 @@
   # Fishery
   sigmaC <- 1e-3
   Fmort <- array(0, dim = c(n_yrs, n_regions, n_fish_fleets, n_sims))
-  F_vec2 <- c(seq(0.1, 0.15, length.out = n_yrs / 2), seq(0.15, 0.01, length.out = (n_yrs / 2)))
-  F_vec1 <- c(seq(0.01, 0.15, length.out = n_yrs / 2), seq(0.15, 0.05, length.out = (n_yrs / 2)))
+  F_vec2 <- c(seq(0.01, 0.1, length.out = n_yrs / 2), seq(0.1, 0.1, length.out = (n_yrs / 2)))
+  F_vec1 <- c(seq(0.2, 0.1, length.out = n_yrs / 2), seq(0.1, 0.1, length.out = (n_yrs / 2)))
   
   fish_sel <- array(0, dim = c(n_yrs, n_regions, n_ages, n_sexes, n_fish_fleets, n_sims))
   
@@ -25,8 +25,8 @@
   for(y in 1:n_yrs) {
     for(r in 1:n_regions) {
       for(sim in 1:n_sims) {
-        Fmort[y,1,1,sim] <- F_vec1[y] * exp(rnorm(1, 0, 0.05))
-        Fmort[y,2,1,sim] <- F_vec2[y] * exp(rnorm(1, 0, 0.05))
+        Fmort[y,1,1,sim] <- F_vec1[y] 
+        Fmort[y,2,1,sim] <- F_vec2[y] 
         # Fmort[y,3,1,sim] <- F_vec1[y] * exp(rnorm(1, 0, 0.05))
         # Fmort[y,4,1,sim] <- F_vec2[y] * exp(rnorm(1, 0, 0.05))
       }
@@ -50,8 +50,8 @@
   Z <- array(0, dim = c(n_yrs, n_regions, n_ages, n_sexes, n_sims))
   rec_sexratio <- array(1, dim = c(n_yrs, n_regions, n_sexes, n_sims))
   r0 <- array(0, dim = c(n_yrs, n_regions, n_sims))
-  r0[,1,] <- 100
-  r0[,2,] <- 500
+  r0[,1,] <- 5e6
+  r0[,2,] <- 1e7
   # r0[,3,] <- 100
   # r0[,4,] <- 8e2
 
@@ -168,7 +168,7 @@
   Obs_SrvAgeComps <- array(0, dim = c(n_yrs, n_regions, n_ages, n_sexes, n_srv_fleets, n_sims))
   
   # Tagging stuff
-  n_tags <- 400
+  n_tags <- 1e3
   max_liberty <- 30
   tag_years <- seq(1, n_yrs, 5)
   n_tag_yrs <- length(tag_years)
@@ -191,7 +191,7 @@
   comp_srv_like <- 0 # mutlinomial
   comp_fish_like <- 0 # dirmultinomial likelihood
   
-  tag_like <- 2
+  tag_like <- 0
   # 0 = Poisson
   # 1 = Negative Binomial
   # 2 = Multinomial Release Conditioned
@@ -434,8 +434,8 @@
         Pred_Tag_Recap[recap_yr,tag_rel,,,,sim] <- Tag_Reporting[actual_yr,,sim] * (tmp_F / tmp_Z[1,,,,1]) * 
                                                    Tag_Avail[recap_yr,tag_rel,,,,sim] * (1 - exp(-tmp_Z[1,,,,1])) 
         
-        # Move tagged fish around 
-        for(a in 1:n_ages) for(s in 1:n_sexes) Tag_Avail[recap_yr+1,tag_rel,,a,s,sim] <- 
+        # # Move tagged fish around 
+        for(a in 1:n_ages) for(s in 1:n_sexes) Tag_Avail[recap_yr+1,tag_rel,,a,s,sim] <-
                                                Tag_Avail[recap_yr+1,tag_rel,,a,s,sim] %*% movement_matrix[,,actual_yr,a,s,sim]
         
         # Apply tag shedding after movement occurs (just a mortality process)
@@ -508,6 +508,7 @@
        srv_sel = srv_sel,
        srv_q = srv_q,
        Obs_SrvAgeComps = Obs_SrvAgeComps,
+       Tag_Release_Ind = as.matrix(tag_rel_indicator),
        Tag_Reporting = Tag_Reporting,
        Tag_Fish = Tag_Fish,
        Tag_Ind_Mort = Tag_Ind_Mort,
@@ -515,7 +516,7 @@
        Tag_Releases = Tag_Releases,
        Tag_Avail = Tag_Avail,
        Pred_Tag_Recap = Pred_Tag_Recap,
-       Obs_Tag_Reca = Obs_Tag_Recap)
+       Obs_Tag_Recap = Obs_Tag_Recap)
   
   saveRDS(sim_out, file = here("sim_out.RDS"))
   

@@ -26,6 +26,7 @@
   n_sims <- 100
   ssb_mat <- array(NA, dim = c(length(1:20), 2, n_sims))
   r0_mat <- matrix(NA, nrow = n_sims, ncol = 2)
+  tagrep <- vector()
   status <- vector()
   dir <- vector()
   pd = vector()
@@ -164,7 +165,7 @@
     colnames(data$ISS_FishLenComps) <- data$years # define row years
     
     # Composition munging stuff
-    data$FishAgeComps_LikeType <- array(2, dim = c(data$n_fish_fleets)) # multinomial for both fleets
+    data$FishAgeComps_LikeType <- array(0, dim = c(data$n_fish_fleets)) # multinomial for both fleets
     data$FishLenComps_LikeType <- array(0, dim = c(data$n_fish_fleets)) # multinomial for both fleets
     if(comp_joint == 1) data$FishAgeComps_Type <- array(3, dim = c(length(data$years), data$n_fish_fleets)) else data$FishAgeComps_Type <- array(2, dim = c(length(data$years), data$n_fish_fleets)) # Joint age comps # FLAG need to figure out what to do when comps are aggregated by region and sex
 
@@ -237,6 +238,13 @@
     data$srv_q_blocks <- array(0, dim = c(data$n_regions, length(data$years), data$n_srv_fleets)) # catchability blocks are same as selectivity blocks
     data$srv_idx_type <- array(0, dim = c(data$n_regions, data$n_srv_fleets))
     
+
+    # Tagging Stuff -----------------------------------------------------------
+    data$tag_release_indicator <- sim_out$Tag_Release_Ind # tag release indicator, with rows = cohorts, first col = release regino, second col = release year
+    data$n_tag_cohorts <- nrow(data$tag_release_indicator) # number of tag cohorts
+    data$max_tag_liberty <- 30 # maximum liberty to track cohorts
+    data$Tagged_Fish <- array(sim_out$Tag_Fish[,,,sim], dim = c(data$n_tag_cohorts, length(data$ages), data$n_sexes)) # tagged fish
+    data$Obs_Tag_Recap <- array(sim_out$Obs_Tag_Recap[,,,,,sim], dim = c(data$max_tag_liberty, data$n_tag_cohorts, data$n_regions, length(data$ages), data$n_sexes))
     # Prepare Parameters ------------------------------------------------------
     parameters <- list()
     parameters$dummy <- 1
@@ -286,7 +294,7 @@
     parameters$M_offset <- 0 # Male M offset (accidently jittered from OG assessment)
     
     # Recruitment -------------------------------------------------------------
-    parameters$ln_global_R0 <- log(600) # mean recruitment
+    parameters$ln_global_R0 <- log(1e7 + 5e6) # mean recruitment
     parameters$R0_prop <- array(c(0.3, 0.5, 0.3), dim = c(data$n_regions - 1))
     parameters$ln_InitDevs <- array(0, dim = c(data$n_regions, length(data$ages) - 2))
     parameters$ln_RecDevs <- array(0, dim = c(data$n_regions, length(data$years)))
@@ -303,6 +311,12 @@
     parameters$move_pars <- array(0, dim = c(data$n_regions, data$n_regions - 1, length(data$years), length(data$ages), data$n_sexes))
     # parameters$move_pars[1,,1,1,1] = 0.1
     # parameters$move_pars[2,,1,1,1] = 0.1
+    
+
+    # Tagging Stuff -----------------------------------------------------------
+    parameters$ln_Init_Tag_Mort <- log(1e-10) # initial tag induced mortality
+    parameters$ln_Tag_Shed <- log(1e-10) # annual tag sheeding
+    parameters$Tag_Reporting_Pars <- array(log(0.2 / (1 - 0.2)), dim = c(data$n_regions, length(data$years)))
     
     # Mapping -----------------------------------------------------------------
     mapping <- list()
@@ -333,7 +347,7 @@
     mapping$ln_SrvAge_theta <- factor(rep(NA, length(parameters$ln_SrvAge_theta)))
     mapping$ln_SrvLen_theta <- factor(rep(NA, length(parameters$ln_SrvLen_theta)))
     
-    mapping$ln_FishAge_theta <- factor(c(1,NA)) # joint
+    # mapping$ln_FishAge_theta <- factor(c(1,NA)) # joint
     # mapping$ln_FishAge_theta <- factor(c(1,1)) # split 
     # mapping$ln_SrvAge_theta <- factor(c(1,2))
 
@@ -364,7 +378,7 @@
     # mapping$R0_prop <- factor(NA)
     
     # Fixing M
-    mapping$ln_M <- factor(NA)
+    # mapping$ln_M <- factor(NA)
 
     # Fixing fishing mortlaity stuff
     # mapping$ln_F_devs = factor(rep(NA, length(parameters$ln_F_devs)))
@@ -374,6 +388,12 @@
     
     # Fix survey selex
     # mapping$ln_srv_fixed_sel_pars = factor(rep(NA, length(parameters$ln_srv_fixed_sel_pars)))
+    
+    # fixing tagging stuff
+    mapping$ln_Init_Tag_Mort <- factor(NA)
+    mapping$ln_Tag_Shed <- factor(NA)
+    mapping$Tag_Reporting_Pars <- factor(rep(1, length(parameters$Tag_Reporting_Pars)))
+    
     
     # global density dependence
     map_recdevs = parameters$ln_RecDevs
@@ -400,7 +420,6 @@
     data$bias_year = data$bias_year + 1
     data$sigmaR_switch = data$sigmaR_switch + 1
     
-    # parameters$scale = array(0, dim = c(data$n_regions, 5, 1))
     if(catch_type == 0 && est_all_regional_F == 0) mapping$ln_F_devs = factor(c(rep(NA, 14), 1:26))
     if((catch_type == 1 || catch_type == 0) && est_all_regional_F == 1) {
       mapping$ln_F_devs_AggCatch <- factor(rep(NA, data$n_fish_fleets * sum(data$Catch_Type == 0)))
@@ -426,7 +445,9 @@
     sabie_rtmb_model$optim <- sabie_optim # Save optimized model results
     sabie_rtmb_model$sd_rep <- RTMB::sdreport(sabie_rtmb_model) # Get sd report
     sabie_rtmb_model$rep <- sabie_rtmb_model$report(sabie_rtmb_model$env$last.par.best) # Get report
+    
     r0_mat[sim,] <- sabie_rtmb_model$rep$R0
+    tagrep[sim] <- mean(sabie_rtmb_model$rep$Tag_Reporting)
     PD = sabie_rtmb_model$sd_rep$pdHess
     gradient = max(sabie_rtmb_model$sd_rep$gradient.fixed)
     pd[sim] = PD
@@ -506,8 +527,10 @@
     lines(sabie_rtmb_model$rep$fish_sel[1,1,,1,1])
     
     # par(mfrow = c(1,3))
-    hist((r0_mat[,1] - 100) / 100, main = round(median((r0_mat[,1] - 100) / 100, na.rm = T),2), xlab = 'R0 bias region 1')
-    hist((r0_mat[,2] - 500) / 500, main = round(median((r0_mat[,2] - 500) / 500, na.rm = T),2), xlab = 'R0 bias region 2')
+    hist((r0_mat[,1] - 5e6) / 5e6, main = round(median((r0_mat[,1] - 5e6) / 5e6, na.rm = T),2), xlab = 'R0 bias region 1')
+    hist((r0_mat[,2] - 1e7) / 1e7, main = round(median((r0_mat[,2] - 1e7) / 1e7, na.rm = T),2), xlab = 'R0 bias region 2')
+    hist((tagrep - 0.2) / 0.2, main = round(median((tagrep - 0.2) / 0.2, na.rm = T),2), xlab = 'R0 bias region 2')
+    
     # hist((r0_mat[,3] - 100) / 100, main = round(median((r0_mat[,3] - 100) / 100, na.rm = T),2), xlab = 'R0 bias region 3')
     # hist((r0_mat[,4] - 800) / 800, main = round(median((r0_mat[,4] - 800) / 800, na.rm = T),2), xlab = 'R0 bias region 4')
   }
@@ -515,12 +538,6 @@
   median(move_cv_mat, na.rm = TRUE)
   
   dev.off()
-  
-  par(mfrow = c(1,3))
-  hist((r0_mat[,1] - 100) / 100, main = round(median((r0_mat[,1] - 100) / 100, na.rm = T),2), xlab = 'R0 bias region 1')
-  hist((r0_mat[,2] - 500) / 500, main = round(median((r0_mat[,2] - 500) / 500, na.rm = T),2), xlab = 'R0 bias region 2')
-  plot(apply(ssb_mat[,1,], 1, median, na.rm = T), type = 'l', ylab = 'Median total SSB bias')
-  
   max(sabie_rtmb_model$sd_rep$gradient.fixed)
   sabie_rtmb_model$sd_rep$par.fixed[which.max(sabie_rtmb_model$sd_rep$gradient.fixed)]
 
