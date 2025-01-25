@@ -350,9 +350,9 @@ sabie_RTMB = function(pars) {
         if(n_fish_fleets == 1) tmp_F = Fmort[,y,] # only a single fishing fleet
         if(n_fish_fleets > 1) tmp_F = rowSums(Fmort[,y,]) # multiple fleets
         
-        # Get total mortality (discount if not tagging start of the year for the first recapture year)
-        if(ry == 1) tmp_Z = (natmort[,y,,,drop = FALSE] + tmp_F) * t_tagging # discounting if ry == 1
-        else tmp_Z = (natmort[,y,,,drop = FALSE] + tmp_F)
+        # Get total mortality and tag shedding (discount if not tagging start of the year for the first recapture year)
+        if(ry == 1) tmp_Z = (natmort[,y,,,drop = FALSE] + tmp_F + exp(ln_Tag_Shed)) * t_tagging # discounting if ry == 1
+        else tmp_Z = (natmort[,y,,,drop = FALSE] + tmp_F + exp(ln_Tag_Shed))
         
         # Run tagging dynamics
         if(ry == 1) Tags_Avail[1,tc,tr,,] = Tagged_Fish[tc,,] * exp(-exp(ln_Init_Tag_Mort)) # Tag induced mortality in the first recapture year
@@ -360,8 +360,6 @@ sabie_RTMB = function(pars) {
         # Move tagged fish around after mortality and ageing (movement only occurs after first release year if tagging occurs mid year - beginning of the year process)
         if(t_tagging != 0) if(ry > 1) for(a in 1:n_ages) for(s in 1:n_sexes) Tags_Avail[ry,tc,,a,s] = t(Tags_Avail[ry,tc,,a,s]) %*% Movement[,,y,a,s]
         else for(a in 1:n_ages) for(s in 1:n_sexes) Tags_Avail[ry,tc,,a,s] = t(Tags_Avail[ry,tc,,a,s]) %*% Movement[,,y,a,s]
-        
-        for(r in 1:n_regions) Tags_Avail[ry,tc,r,,] = Tags_Avail[ry,tc,r,,] * exp(-exp(ln_Tag_Shed)) # apply tag shedding after
         
         # Mortality and ageing of tagged fish
         for(a in 1:n_ages) {
@@ -529,6 +527,8 @@ sabie_RTMB = function(pars) {
       # set up tagging cohort indexing 
       tr = tag_release_indicator[tc,1] # extract tag release region
       ty = tag_release_indicator[tc,2] # extract tag release year
+      
+      # FLAG -- Incoprorate not fitting to years where release year == 1 for non release area
       
       for(ry in mixing_period:min(max_tag_liberty, n_yrs - ty + 1)) { # loop through recapture years
         for(r in 1:n_regions) {

@@ -413,19 +413,16 @@
         # Input tagged fish into available tags for recapture and adjust initial number of tagged fish for tag induced mortality (exponential mortality process)
         if(recap_yr == 1) Tag_Avail[1,tag_rel,tag_rel_region,,,sim] <- Tag_Fish[tag_rel,,,sim] * exp(-Tag_Ind_Mort[actual_yr,,,sim])
         
-        # Get mortality estimates
+        # Get mortality estimates and account for tag shedding
         if(n_fish_fleets == 1) tmp_F <- Fmort[actual_yr,,,sim] # temporary fishing mortality variable (uniform sel) 
         if(n_fish_fleets > 1) tmp_F <- rowSums(Fmort[actual_yr,,,sim]) # temporary fihsing mortality variable (uniform sel) 
-        if(recap_yr == 1) tmp_Z <- (M[actual_yr,,,,sim, drop = FALSE] + tmp_F) * t_tagging  # temporary total mortality variable
-        else tmp_Z <- (M[actual_yr,,,,sim, drop = FALSE] + tmp_F)
+        if(recap_yr == 1) tmp_Z <- (M[actual_yr,,,,sim, drop = FALSE] + tmp_F + Tag_Shed[actual_yr,,,sim]) * t_tagging  # temporary total mortality variable
+        else tmp_Z <- (M[actual_yr,,,,sim, drop = FALSE] + tmp_F + Tag_Shed[actual_yr,,,sim])
         
         # # Move tagged fish around (movement only occurs after first recapture year if tagging happens midyear, since movement happens at start of yr)
         if(t_tagging != 0) if(recap_yr > 1) for(a in 1:n_ages) for(s in 1:n_sexes) Tag_Avail[recap_yr,tag_rel,,a,s,sim] <- Tag_Avail[recap_yr,tag_rel,,a,s,sim] %*% movement_matrix[,,actual_yr,a,s,sim]
         else for(a in 1:n_ages) for(s in 1:n_sexes) Tag_Avail[recap_yr,tag_rel,,a,s,sim] <- Tag_Avail[recap_yr,tag_rel,,a,s,sim] %*% movement_matrix[,,actual_yr,a,s,sim]
-        
-        # Apply tag shedding after movement occurs (just a mortality process)
-        for(r in 1:n_regions) Tag_Avail[recap_yr,tag_rel,r,,,sim] <- Tag_Avail[recap_yr,tag_rel,r,,,sim] * exp(-Tag_Shed[actual_yr,,,sim]) 
-        
+
         # Apply mortality and ageing to tagged fish
         for(a in 1:n_ages) {
           for(s in 1:n_sexes) {
