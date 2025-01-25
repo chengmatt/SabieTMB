@@ -357,8 +357,10 @@ sabie_RTMB = function(pars) {
         # Run tagging dynamics
         if(ry == 1) Tags_Avail[1,tc,tr,,] = Tagged_Fish[tc,,] * exp(-exp(ln_Init_Tag_Mort)) # Tag induced mortality in the first recapture year
 
-        # Move tagged fish around after mortality and ageing (movement only occurs after first release year - beginning of the year process)
-        if(ry > 1) for(a in 1:n_ages) for(s in 1:n_sexes) Tags_Avail[ry,tc,,a,s] = t(Tags_Avail[ry,tc,,a,s]) %*% Movement[,,y,a,s]
+        # Move tagged fish around after mortality and ageing (movement only occurs after first release year if tagging occurs mid year - beginning of the year process)
+        if(t_tagging != 0) if(ry > 1) for(a in 1:n_ages) for(s in 1:n_sexes) Tags_Avail[ry,tc,,a,s] = t(Tags_Avail[ry,tc,,a,s]) %*% Movement[,,y,a,s]
+        else for(a in 1:n_ages) for(s in 1:n_sexes) Tags_Avail[ry,tc,,a,s] = t(Tags_Avail[ry,tc,,a,s]) %*% Movement[,,y,a,s]
+        
         for(r in 1:n_regions) Tags_Avail[ry,tc,r,,] = Tags_Avail[ry,tc,r,,] * exp(-exp(ln_Tag_Shed)) # apply tag shedding after
         
         # Mortality and ageing of tagged fish
