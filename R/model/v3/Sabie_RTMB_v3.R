@@ -206,6 +206,8 @@ sabie_RTMB = function(pars) {
   # Iterate equilibrium age structure with mortality, followed by movement
   Init_NAA[1,,1,] = R0 * sexratio # initialize equilibrium population first w/ r0
   for(i in 2:init_iter) {
+    # Apply movement first
+    for(a in 1:n_ages) for(s in 1:n_sexes) Init_NAA[i,,a,s] = t(Init_NAA[i,,a,s]) %*% Movement[,,1,a,s]
     for(r in 1:n_regions) {
       for(s in 1:n_sexes) {
         # Recruitment
@@ -220,17 +222,9 @@ sabie_RTMB = function(pars) {
         } # end s loop
       } # end r loop
     
-    # Apply movement after iteration
-    for(a in 1:n_ages) for(s in 1:n_sexes) Init_NAA[i,,a,s] = t(Init_NAA[i,,a,s]) %*% Movement[,,1,a,s]
-    
-    # Recruits don't move
-    if(do_recruits_move == 0) {
-      for(r in 1:n_regions) {
-        for(s in 1:n_sexes) {
-          Init_NAA[i,r,1,s] = R0[r] * sexratio[s]
-        } # end s loop
-      } # end r loop
-    } # end if recruits don't move
+    # Recruits don't move, then just replace value
+    if(do_recruits_move == 0) for(r in 1:n_regions) for(s in 1:n_sexes) Init_NAA[i,r,1,s] = R0[r] * sexratio[s]
+
   } # end i loop
   
   # Apply initial age deviations
@@ -256,6 +250,16 @@ sabie_RTMB = function(pars) {
 
   ## Population Projection ---------------------------------------------------
   for(y in 1:n_yrs) {
+    
+    # Recruits don't move
+    if(do_recruits_move == 0) {
+      # Apply movement after ageing processes - start movement at age 2
+      for(a in 2:n_ages) for(s in 1:n_sexes) NAA[,y,a,s] = t(NAA[,y,a,s]) %*% Movement[,,y,a,s]
+      for(r in 1:n_regions) NAA[r,y,1,] = R0[r] * exp(ln_RecDevs[r,y] - sigmaR2_late/2 * bias_ramp[y]) * sexratio
+    } # end if recruits don't move
+    # Recruits move here
+    if(do_recruits_move == 1) for(a in 1:n_ages) for(s in 1:n_sexes) NAA[,y,a,s] = t(NAA[,y,a,s]) %*% Movement[,,y,a,s]
+    
     for(r in 1:n_regions) {
       for(s in 1:n_sexes) {
         for(a in 1:n_ages) {
@@ -270,16 +274,6 @@ sabie_RTMB = function(pars) {
         } # end a loop
       } # end s loop
     } # end r loop
-    
-    # Recruits don't move
-    if(do_recruits_move == 0) {
-      # Apply movement after ageing processes - start movement at age 2
-      for(a in 2:n_ages) for(s in 1:n_sexes) NAA[,y+1,a,s] = t(NAA[,y+1,a,s]) %*% Movement[,,y,a,s]
-      for(r in 1:n_regions) NAA[r,y,1,] = R0[r] * exp(ln_RecDevs[r,y] - sigmaR2_late/2 * bias_ramp[y]) * sexratio
-    } # end if recruits don't move
-    
-    # Recruits move here
-    if(do_recruits_move == 1) for(a in 1:n_ages) for(s in 1:n_sexes) NAA[,y+1,a,s] = t(NAA[,y+1,a,s]) %*% Movement[,,y,a,s]
   } # end y loop
 
   # Get total biomass and SSB here
@@ -349,7 +343,7 @@ sabie_RTMB = function(pars) {
       tr = tag_release_indicator[tc,1] # extract tag release region
       ty = tag_release_indicator[tc,2] # extract tag release year
       
-      for(ry in 1:min(max_tag_liberty, n_yrs - ty + 1)) {
+      for(ry in mixing_period:min(max_tag_liberty, n_yrs - ty + 1)) {
         # Set up variables for tagging dynamics
         y = ty + ry - 1 # Get index for actual year in the model (instead of tag year)
         # get fishing mortality estimates (assumes uniform selex) 
@@ -359,6 +353,10 @@ sabie_RTMB = function(pars) {
         
         # Run tagging dynamics
         if(ry == 1) Tags_Avail[1,tc,tr,,] = Tagged_Fish[tc,,] * exp(-exp(ln_Init_Tag_Mort)) # Tag induced mortality in the first recapture year
+
+        # Move tagged fish around after mortality and ageing
+        for(a in 1:n_ages) for(s in 1:n_sexes) Tags_Avail[ry,tc,,a,s] = t(Tags_Avail[ry,tc,,a,s]) %*% Movement[,,y,a,s]
+        for(r in 1:n_regions) Tags_Avail[ry,tc,r,,] = Tags_Avail[ry,tc,r,,] * exp(-exp(ln_Tag_Shed)) # apply tag shedding after
         
         # Mortality and ageing of tagged fish
         for(a in 1:n_ages) {
@@ -371,12 +369,6 @@ sabie_RTMB = function(pars) {
         # Get predicted recaptures (Baranov's)
         Tag_Reporting[,y] = plogis(Tag_Reporting_Pars[,y]) # Inverse logit transform tag reporting rate parameters to scale of 0 - 1
         Pred_Tag_Recap[ry,tc,,,] = Tag_Reporting[,y] * (tmp_F / tmp_Z[,1,,]) * Tags_Avail[ry,tc,,,] * (1 - exp(-tmp_Z[,1,,])) 
-        
-        # Move tagged fish around after mortality and ageing
-        for(a in 1:n_ages) for(s in 1:n_sexes) Tags_Avail[ry+1,tc,,a,s] = t(Tags_Avail[ry+1,tc,,a,s]) %*% Movement[,,y,a,s]
-        
-        # Apply tag shedding
-        for(r in 1:n_regions) Tags_Avail[ry+1,tc,r,,] = Tags_Avail[ry+1,tc,r,,] * exp(-exp(ln_Tag_Shed)) 
         
       } # end ry loop
     } # end tc loop

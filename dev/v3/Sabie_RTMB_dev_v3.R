@@ -23,7 +23,7 @@
   tem_par <- read_pars(here('2. Base (23.5)_final model', 'tem'))
   # Read in disaggregated sex composition data which goes until 2021
   compdata_2021 <- readRDS(here('2. Base (23.5)_final model', "SabieRTMB_2021compdata.RDS"))
-  n_sims <- 100
+  n_sims <- 500
   ssb_mat <- array(NA, dim = c(length(1:20), 2, n_sims))
   r0_mat <- matrix(NA, nrow = n_sims, ncol = 2)
   tagrep <- vector()
@@ -247,6 +247,7 @@
     data$Tagged_Fish <- array(sim_out$Tag_Fish[,,,sim], dim = c(data$n_tag_cohorts, length(data$ages), data$n_sexes)) # tagged fish
     data$Obs_Tag_Recap <- array(sim_out$Obs_Tag_Recap[,,,,,sim], dim = c(data$max_tag_liberty, data$n_tag_cohorts, data$n_regions, length(data$ages), data$n_sexes))
     data$Tag_LikeType <- 2 # poisson likelihood
+    data$mixing_period <- 2 # when to start mixing period after first release year
     
     # Prepare Parameters ------------------------------------------------------
     parameters <- list()
@@ -393,7 +394,7 @@
     # fixing tagging stuff
     mapping$ln_Init_Tag_Mort <- factor(NA)
     mapping$ln_Tag_Shed <- factor(NA)
-    mapping$Tag_Reporting_Pars <- factor(rep(1:2, length.out = length(parameters$Tag_Reporting_Pars)))
+    mapping$Tag_Reporting_Pars <- factor(rep(1, length.out = length(parameters$Tag_Reporting_Pars)))
     mapping$ln_tag_theta <- factor(NA)
     
     # global density dependence
@@ -446,6 +447,9 @@
     sabie_rtmb_model$optim <- sabie_optim # Save optimized model results
     sabie_rtmb_model$sd_rep <- RTMB::sdreport(sabie_rtmb_model) # Get sd report
     sabie_rtmb_model$rep <- sabie_rtmb_model$report(sabie_rtmb_model$env$last.par.best) # Get report
+    
+    
+    sabie_rtmb_model$rep$Pred_Tag_Recap[1,1,,,]
     
     r0_mat[sim,] <- sabie_rtmb_model$rep$R0
     tagrep[sim] <- mean(sabie_rtmb_model$rep$Tag_Reporting)
@@ -529,7 +533,7 @@
     # par(mfrow = c(1,3))
     hist((r0_mat[,1] - 5e6) / 5e6, main = round(median((r0_mat[,1] - 5e6) / 5e6, na.rm = T),2), xlab = 'R0 bias region 1')
     hist((r0_mat[,2] - 1e7) / 1e7, main = round(median((r0_mat[,2] - 1e7) / 1e7, na.rm = T),2), xlab = 'R0 bias region 2')
-    hist((tagrep - 0.15) / 0.15, main = round(median((tagrep - 0.15) / 0.15, na.rm = T),2), xlab = 'R0 bias region 2')
+    hist((tagrep - 0.2) / 0.2, main = round(median((tagrep - 0.2) / 0.2, na.rm = T),2), xlab = 'R0 bias region 2')
     
     # hist((r0_mat[,3] - 100) / 100, main = round(median((r0_mat[,3] - 100) / 100, na.rm = T),2), xlab = 'R0 bias region 3')
     # hist((r0_mat[,4] - 800) / 800, main = round(median((r0_mat[,4] - 800) / 800, na.rm = T),2), xlab = 'R0 bias region 4')

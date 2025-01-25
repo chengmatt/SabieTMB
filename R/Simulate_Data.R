@@ -175,7 +175,7 @@
   n_tag_rel_events <- n_tag_yrs * n_regions
   tag_rel_indicator <- expand.grid(regions = 1:n_regions, tag_yrs = tag_years) # get tag release indicator (by tag years and regions = a tag cohort)
   Tag_Reporting <- array(0, dim = c(n_yrs, n_regions, n_sims))
-  Tag_Reporting[,1,] <- 0.1
+  Tag_Reporting[,1,] <- 0.2
   Tag_Reporting[,2,] <- 0.2
   
   # Tag_Reporting[,2,] <- 0.2
@@ -204,9 +204,9 @@
   # Model Structure (Tagged population also follows this structure)
   # 1) Initialize population
   # 2) Recruitment + Release Tags (tag mortality happens instantaneously here)
-  # 3) Mortality and Ageing 
-  # 4) Movement
-  # 5) Tag Shedding
+  # 3) Movement
+  # 4) Tag Shedding
+  # 5) Mortality and Ageing 
   
   # set.seed(1)
   for(sim in 1:n_sims) {
@@ -216,7 +216,11 @@
       if(y == 1) {
         # Iterate equilibrium age structure with mortality, followed by movement
         Init_NAA[1,,1,,sim] = r0[1,,sim] * rec_sexratio[1,,,sim]
+        
         for(i in 2:init_iter) {
+          # Apply movement
+          for(a in 1:n_ages) for(s in 1:n_sexes) Init_NAA[i,,a,s,sim] <- Init_NAA[i,,a,s,sim] %*% movement_matrix[,,1,a,s,sim]
+          
           for(r in 1:n_regions) {
             for(s in 1:n_sexes) {
               for(f in 1:n_fish_fleets) {
@@ -233,8 +237,6 @@
             } # end s loop
           } # end r loop
           
-          # Apply movement after iteration
-          for(a in 1:n_ages) for(s in 1:n_sexes) Init_NAA[i,,a,s,sim] <- Init_NAA[i,,a,s,sim] %*% movement_matrix[,,1,a,s,sim]
           # Recruits don't move
           if(do_recruits_move == 0) {
             for(r in 1:n_regions) {
@@ -253,8 +255,11 @@
           Init_NAA[init_iter,r,2:(n_ages-1),,sim] <- Init_NAA[init_iter,r,2:(n_ages-1),,sim] * rep(exp(tmp_ln_init_devs - init_sigmaR[r]^2/2), n_sexes) # apply deviations
           NAA[1,r,2:n_ages,,sim] <- Init_NAA[init_iter,r,2:n_ages,,sim] # Plug in initial age structure into 1st year (w/o recruitment)
         } # end r loop
-        
       } # end initializing age structure
+      
+
+    # Apply Movement ----------------------------------------------------------
+    for(a in 1:n_ages) for(s in 1:n_sexes) NAA[y,,a,s,sim] <- NAA[y,,a,s,sim] %*% movement_matrix[,,y,a,s,sim]
       
     # Run Annual Cycle --------------------------------------------------------
     tmp_ln_rec_devs <- NULL # Initialize container vector to allow for global recruitment (remains NULL within a given year)
@@ -279,12 +284,10 @@
         } # end a loop
         } # end s loop
       } # end r loop    
-  
-    # Movement following Tag Releases, Catch and Survey Accounting ------------
-    # Apply movement after ageing processes
-    for(a in 1:n_ages) for(s in 1:n_sexes) NAA[y+1,,a,s,sim] <- NAA[y+1,,a,s,sim] %*% movement_matrix[,,y,a,s,sim]
-    # Recruits don't move (reapply movement)
+    
+    # Recruits don't move
     if(do_recruits_move == 0) for(r in 1:n_regions) NAA[y,r,1,,sim] <- r0[y,r,sim] * exp(ln_rec_devs[y,r,sim] - sigmaR[y,r]^2/2) * rec_sexratio[y,r,,sim]
+    
     } # end y loop
     
     # Get Biomass Calculations
@@ -406,6 +409,7 @@
       # Tag Recaptures (do we need to pool individuals into a plus max liberty group or can we just ignore?)
       for(recap_yr in 1:min(max_liberty, n_yrs - tag_rel_yr + 1)) { # recapture year for a given cohort - adding a cut off for time at liberty so we are not tracking fish for 400+ years
         actual_yr <- tag_rel_yr + recap_yr - 1 # Define actual year for indexing purposes
+        
         # Input tagged fish into available tags for recapture and adjust initial number of tagged fish for tag induced mortality (exponential mortality process)
         if(recap_yr == 1) Tag_Avail[1,tag_rel,tag_rel_region,,,sim] <- Tag_Fish[tag_rel,,,sim] * exp(-Tag_Ind_Mort[actual_yr,,,sim])
         
@@ -413,6 +417,13 @@
         if(n_fish_fleets == 1) tmp_F <- Fmort[actual_yr,,,sim] # temporary fishing mortality variable (uniform sel) 
         if(n_fish_fleets > 1) tmp_F <- rowSums(Fmort[actual_yr,,,sim]) # temporary fihsing mortality variable (uniform sel) 
         tmp_Z <- M[actual_yr,,,,sim, drop = FALSE] + tmp_F  # temporary total mortality variable
+        
+        # # Move tagged fish around 
+        for(a in 1:n_ages) for(s in 1:n_sexes) Tag_Avail[recap_yr,tag_rel,,a,s,sim] <- Tag_Avail[recap_yr,tag_rel,,a,s,sim] %*% 
+                                                                                        movement_matrix[,,actual_yr,a,s,sim]
+        
+        # Apply tag shedding after movement occurs (just a mortality process)
+        for(r in 1:n_regions) Tag_Avail[recap_yr,tag_rel,r,,,sim] <- Tag_Avail[recap_yr,tag_rel,r,,,sim] * exp(-Tag_Shed[actual_yr,,,sim]) 
         
         # Apply mortality and ageing to tagged fish
         for(a in 1:n_ages) {
@@ -427,23 +438,10 @@
           } # end s loop
         } # end a loop
         
-        # Get predicted recaptures (Baranov's catch equation for tagged cohorts * tag reporting rate)
-        # Because the dynamics are release tags -> tag induced mortality, ageing + mortality, and then movement,
-        # the predicted recaptures for recapture year 1 only provides expected values for the release region. In the next year,
-        # because individuals have undergone movement dynamics, recaptures are provided for other regions. (i.e., recapture year 1 only
-        # provides information on mortality, while all subsequent years provide information on mortality and movement). So the question is,
-        # what to do with recapture year 1? Do we fit these or just ignore?
+        # Apply Baranov's to get predicted recaptures
         Pred_Tag_Recap[recap_yr,tag_rel,,,,sim] <- Tag_Reporting[actual_yr,,sim] * (tmp_F / tmp_Z[1,,,,1]) * 
                                                    Tag_Avail[recap_yr,tag_rel,,,,sim] * (1 - exp(-tmp_Z[1,,,,1])) 
-        
-        # # Move tagged fish around 
-        for(a in 1:n_ages) for(s in 1:n_sexes) Tag_Avail[recap_yr+1,tag_rel,,a,s,sim] <-
-                                               Tag_Avail[recap_yr+1,tag_rel,,a,s,sim] %*% movement_matrix[,,actual_yr,a,s,sim]
-        
-        # Apply tag shedding after movement occurs (just a mortality process)
-        for(r in 1:n_regions) Tag_Avail[recap_yr+1,tag_rel,r,,,sim] <- Tag_Avail[recap_yr+1,tag_rel,r,,,sim] * exp(-Tag_Shed[actual_yr,,,sim]) 
-  
-  
+      
         # Tag Recapture Likelihoods -----------------------------------------------
         # Simulate observed tag recoveries
         # Poisson tag recovery
