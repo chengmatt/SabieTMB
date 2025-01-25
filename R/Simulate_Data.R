@@ -3,7 +3,7 @@
   library(here)
   # source(here("R", "functions", "Utility_Functions.R"))
   # Set up
-  n_sims <- 500
+  n_sims <- 100
   n_yrs <- 20
   n_regions <- 2
   n_ages <- 15
@@ -416,11 +416,12 @@
         # Get mortality estimates
         if(n_fish_fleets == 1) tmp_F <- Fmort[actual_yr,,,sim] # temporary fishing mortality variable (uniform sel) 
         if(n_fish_fleets > 1) tmp_F <- rowSums(Fmort[actual_yr,,,sim]) # temporary fihsing mortality variable (uniform sel) 
-        tmp_Z <- M[actual_yr,,,,sim, drop = FALSE] + tmp_F  # temporary total mortality variable
+        if(recap_yr == 1) tmp_Z <- (M[actual_yr,,,,sim, drop = FALSE] + tmp_F) * 0.5  # temporary total mortality variable
+        else tmp_Z <- (M[actual_yr,,,,sim, drop = FALSE] + tmp_F)
         
-        # # Move tagged fish around 
-        for(a in 1:n_ages) for(s in 1:n_sexes) Tag_Avail[recap_yr,tag_rel,,a,s,sim] <- Tag_Avail[recap_yr,tag_rel,,a,s,sim] %*% 
-                                                                                        movement_matrix[,,actual_yr,a,s,sim]
+        # # Move tagged fish around (movement only occurs after first recapture year, since movement happens at start of yr)
+        if(recap_yr > 1) for(a in 1:n_ages) for(s in 1:n_sexes) Tag_Avail[recap_yr,tag_rel,,a,s,sim] <- 
+                                                                Tag_Avail[recap_yr,tag_rel,,a,s,sim] %*% movement_matrix[,,actual_yr,a,s,sim]
         
         # Apply tag shedding after movement occurs (just a mortality process)
         for(r in 1:n_regions) Tag_Avail[recap_yr,tag_rel,r,,,sim] <- Tag_Avail[recap_yr,tag_rel,r,,,sim] * exp(-Tag_Shed[actual_yr,,,sim]) 

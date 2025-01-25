@@ -248,6 +248,7 @@
     data$Obs_Tag_Recap <- array(sim_out$Obs_Tag_Recap[,,,,,sim], dim = c(data$max_tag_liberty, data$n_tag_cohorts, data$n_regions, length(data$ages), data$n_sexes))
     data$Tag_LikeType <- 2 # poisson likelihood
     data$mixing_period <- 2 # when to start mixing period after first release year
+    data$t_tagging <- 0.5 # discounting for tagging 
     
     # Prepare Parameters ------------------------------------------------------
     parameters <- list()

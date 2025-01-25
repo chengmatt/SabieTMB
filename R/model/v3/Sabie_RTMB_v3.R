@@ -343,19 +343,22 @@ sabie_RTMB = function(pars) {
       tr = tag_release_indicator[tc,1] # extract tag release region
       ty = tag_release_indicator[tc,2] # extract tag release year
       
-      for(ry in mixing_period:min(max_tag_liberty, n_yrs - ty + 1)) {
+      for(ry in 1:min(max_tag_liberty, n_yrs - ty + 1)) {
         # Set up variables for tagging dynamics
         y = ty + ry - 1 # Get index for actual year in the model (instead of tag year)
         # get fishing mortality estimates (assumes uniform selex) 
         if(n_fish_fleets == 1) tmp_F = Fmort[,y,] # only a single fishing fleet
         if(n_fish_fleets > 1) tmp_F = rowSums(Fmort[,y,]) # multiple fleets
-        tmp_Z = natmort[,y,,,drop = FALSE] + tmp_F # get total mortality
+        
+        # Get total mortality (discount if not tagging start of the year for the first recapture year)
+        if(ry == 1) tmp_Z = (natmort[,y,,,drop = FALSE] + tmp_F) * t_tagging # discounting if ry == 1
+        else tmp_Z = (natmort[,y,,,drop = FALSE] + tmp_F)
         
         # Run tagging dynamics
         if(ry == 1) Tags_Avail[1,tc,tr,,] = Tagged_Fish[tc,,] * exp(-exp(ln_Init_Tag_Mort)) # Tag induced mortality in the first recapture year
 
-        # Move tagged fish around after mortality and ageing
-        for(a in 1:n_ages) for(s in 1:n_sexes) Tags_Avail[ry,tc,,a,s] = t(Tags_Avail[ry,tc,,a,s]) %*% Movement[,,y,a,s]
+        # Move tagged fish around after mortality and ageing (movement only occurs after first release year - beginning of the year process)
+        if(ry > 1) for(a in 1:n_ages) for(s in 1:n_sexes) Tags_Avail[ry,tc,,a,s] = t(Tags_Avail[ry,tc,,a,s]) %*% Movement[,,y,a,s]
         for(r in 1:n_regions) Tags_Avail[ry,tc,r,,] = Tags_Avail[ry,tc,r,,] * exp(-exp(ln_Tag_Shed)) # apply tag shedding after
         
         # Mortality and ageing of tagged fish
@@ -525,7 +528,7 @@ sabie_RTMB = function(pars) {
       tr = tag_release_indicator[tc,1] # extract tag release region
       ty = tag_release_indicator[tc,2] # extract tag release year
       
-      for(ry in 1:min(max_tag_liberty, n_yrs - ty + 1)) { # loop through recapture years
+      for(ry in mixing_period:min(max_tag_liberty, n_yrs - ty + 1)) { # loop through recapture years
         for(r in 1:n_regions) {
           for(a in 1:n_ages) {
             for(s in 1:n_sexes) {
@@ -603,31 +606,30 @@ sabie_RTMB = function(pars) {
 
     ### Selectivity (Penalty) ---------------------------------------------------
     for(f in 1:n_fish_fleets) {
-      # iid selectivity
-      if(cont_tv_fish_sel[r,f] == 1) {
-        for(s in 1:n_sexes) {
-          for(y in 1:n_yrs) {
-            for(r in 1:n_regions) {
+      for(r in 1:n_regions) {
+        # iid selectivity
+        if(cont_tv_fish_sel[r,f] == 0) {
+          for(s in 1:n_sexes) {
+            for(y in 1:n_yrs) {
               sel_Pen = sel_Pen + -dnorm(ln_fishsel_dev1[r,y,s,f], 0, exp(ln_fishsel_dev1_sd[r,s,f]), TRUE)
               sel_Pen = sel_Pen + -dnorm(ln_fishsel_dev2[r,y,s,f], 0, exp(ln_fishsel_dev2_sd[r,s,f]), TRUE)
-            } # end r loop
-          } # end y loop
-        } # end s loop
-      } # end if for iid selectivity
-
-      # random walk selectivity
-      if(cont_tv_fish_sel[r,f] == 2) {
-        for(s in 1:n_sexes) {
-          for(r in 1:n_regions) {
+            } # end y loop
+          } # end s loop
+        } # end if for iid selectivity
+        
+        # random walk selectivity
+        if(cont_tv_fish_sel[r,f] == 2) {
+          for(s in 1:n_sexes) {
             sel_Pen = sel_Pen + -dnorm(ln_fishsel_dev1[r,1,s,f], 0, 50, TRUE) # initialize first value w/ large prior (prior sd is just arbitrarily large)
             sel_Pen = sel_Pen + -dnorm(ln_fishsel_dev2[r,1,s,f], 0, 50, TRUE) # initialize first value w/ large prior (prior sd is just arbitrarily large)
             for(y in 2:n_yrs) {
               sel_Pen = sel_Pen + -dnorm(ln_fishsel_dev1[r,y,s,f], ln_fishsel_dev1[r,y-1,s,f], exp(ln_fishsel_dev1_sd[r,s,f]), TRUE)
               sel_Pen = sel_Pen + -dnorm(ln_fishsel_dev2[r,y,s,f], ln_fishsel_dev2[r,y-1,s,f], exp(ln_fishsel_dev2_sd[r,s,f]), TRUE)
             } # end y loop
-          } # end r loop
-        } # end s loop
-      } # end if for random walk selectivity
+          } # end s loop
+        } # end if for random walk selectivity     
+        
+      } # end r loop
     } # end f loop
 
   
