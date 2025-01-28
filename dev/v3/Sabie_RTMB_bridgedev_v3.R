@@ -528,11 +528,17 @@ data$bias_year = data$bias_year + 1
 data$sigmaR_switch = data$sigmaR_switch + 1
 
 # make AD model function
+source(here("R", "model", "v3", "Sabie_RTMB_v3.R"))
 sabie_rtmb_model <- RTMB::MakeADFun(sabie_RTMB, parameters = parameters, map = mapping)
 
 # Uptomizied --------------------------------------------------------------
 
 unopt_rep = sabie_rtmb_model$report(sabie_rtmb_model$env$last.par.best) # Get un optimized report
+
+plot(unopt_rep$NAA[1,1,,1])
+lines(tem_dat$natage.female[1,])
+plot(unopt_rep$NAA[1,1,,2])
+lines(tem_dat$natage.male[1,])
 
 # Some of these are slightly off because:
 # 1) The comp data normalizaiton is a bit different and inconsistent in ADMB - this is corrected in this version 
@@ -631,7 +637,6 @@ try_improve <- tryCatch(expr =
 sabie_rtmb_model$optim <- sabie_optim # Save optimized model results
 sabie_rtmb_model$rep <- sabie_rtmb_model$report(sabie_rtmb_model$env$last.par.best) # Get report
 sabie_rtmb_model$sd_rep <- RTMB::sdreport(sabie_rtmb_model) # Get sd report
-
 
 # Check consistency -------------------------------------------------------
 

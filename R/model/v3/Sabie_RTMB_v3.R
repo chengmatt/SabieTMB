@@ -51,8 +51,10 @@ sabie_RTMB = function(pars) {
   SSB = array(0, dim = c(n_regions, n_yrs)) # Spawning stock biomass
   
   # Movement Stuff
-  init_iter = n_ages * 10 # Number of times to iterate to equilibrium when movement occurs
-  Init_NAA = array(data = 0, dim = c(init_iter, n_regions, n_ages, n_sexes)) # Initial numbers at age
+  init_iter = n_ages * 5 # Number of times to iterate to equilibrium when movement occurs
+  # Set up initial age structure
+  Init_NAA = array(0, dim = c(n_regions, n_ages, n_sexes))
+  Init_NAA_next_year = Init_NAA
   Movement = array(data = 0, dim = c(n_regions, n_regions, n_yrs, n_ages, n_sexes)) # movement "matrix"
   
   # Tagging Stuff
@@ -205,50 +207,51 @@ sabie_RTMB = function(pars) {
   
 
   ## Initial Age Structure ---------------------------------------------------
-  # Iterate equilibrium age structure with mortality, followed by movement
-  # Init_NAA[1,,1,] = R0 * sexratio # initialize equilibrium population first w/ r0
-  # for(i in 2:init_iter) {
-  #   # Apply movement first
-  #   for(a in 1:n_ages) for(s in 1:n_sexes) Init_NAA[i,,a,s] = t(Init_NAA[i,,a,s]) %*% Movement[,,1,a,s]
-  #   # Recruits don't move, then just replace value
-  #   if(do_recruits_move == 0) for(r in 1:n_regions) for(s in 1:n_sexes) Init_NAA[i,r,1,s] = R0[r] * sexratio[s]
-  #   for(r in 1:n_regions) {
-  #     for(s in 1:n_sexes) {
-  #       # Recruitment
-  #       Init_NAA[i,r,1,s] = R0[r] * sexratio[s]
-  #       # Iterate from previous "virtual time step"
-  #       Init_NAA[i,r,2:n_ages,s] = Init_NAA[i - 1,r,1:(n_ages-1),s] *
-  #                                   exp(-(natmort[r,1,1:(n_ages-1),s] + init_F * fish_sel[r,1,1:(n_ages-1),s,1])) # mortality
-  #       # Accumulate plus group
-  #       Init_NAA[i,r,n_ages,s] = Init_NAA[i,r,n_ages,s] + # individuals from equilibrium that get aged a year
-  #                                 Init_NAA[i-1,r,n_ages,s] * # decrement and accumulate plus group
-  #                                 exp(-(natmort[r,1,n_ages,s] + init_F * fish_sel[r,1,n_ages,s,1])) # mortality
-  #       } # end s loop
-  #     } # end r loop
-  # } # end i loop
-  # 
-  # # Apply initial age deviations
-  # for(r in 1:n_regions) {
-  #   for(s in 1:n_sexes) {
-  #     Init_NAA[init_iter,r,2:(n_ages-1),s] = Init_NAA[init_iter,r,2:(n_ages-1),s] * exp(ln_InitDevs[r,] - sigmaR2_early/2 * bias_ramp[1]) # add in non-equilibrium age structure
-  #     NAA[r,1,2:n_ages,s] = Init_NAA[init_iter,r,2:n_ages,s] # add in plus group
-  #   } # end s loop
-  # } # end r loop
-
-  
-  init_age_idx = 1:(n_ages - 2) # Get initial age indexing
+  # Set up initial equilibrium age structure, with cumulative sum of selectivity incorporated
   for(r in 1:n_regions) {
     for(s in 1:n_sexes) {
-      NAA[r,1,init_age_idx + 1,s] = R0[r] * exp(ln_InitDevs[r,init_age_idx] -
-                                        (init_age_idx * (natmort[r,1, init_age_idx + 1, s] +
-                                                           (init_F * fish_sel[r,1, init_age_idx + 1, s, 1])))) * sexratio[s] # not plus group
-      # Plus group calculations
-      NAA[r,1,n_ages,s] = R0[r] *  exp( - ((n_ages - 1) * (natmort[r,1, n_ages, s] + (init_F * fish_sel[r,1, n_ages, s, 1]))) ) /
-        (1 - exp(-(natmort[r,1, n_ages, s] + (init_F * fish_sel[r,1, n_ages, s, 1])))) * sexratio[s]
-
+      tmp_cumsum_Z = cumsum(natmort[r,1,1:(n_ages-1),s] + init_F * fish_sel[r,1,1:(n_ages-1),s,1])
+      Init_NAA[r,,s] = c(R0[r], R0[r] * exp(-tmp_cumsum_Z)) * sexratio[s]
     } # end s loop
-  }
+  } # end r loop
+  
+  # Apply annual cycle and iterate to equilibrium 
+  for(i in 1:init_iter) {
+    for(s in 1:n_sexes) {
+      Init_NAA_next_year[,1,s] = R0 * sexratio[s] # recruitment
+      for(a in 1:n_ages) Init_NAA_next_year[,a,s] = t(Init_NAA_next_year[,a,s]) %*% Movement[,,1,a,s] # movement
+      # ageing and mortality 
+      Init_NAA_next_year[,2:n_ages,s] = Init_NAA[,1:(n_ages-1),s] * 
+                                        exp(-(natmort[,1,1:(n_ages-1),s] + 
+                                             (init_F * fish_sel[,1,1:(n_ages-1),s,1])))
+      # accumulate plus group
+      Init_NAA_next_year[,n_ages,s] = (Init_NAA_next_year[,n_ages,s] * exp(-(natmort[,1,n_ages,s] + (init_F * fish_sel[,1,n_ages,s,1])))) +
+                                      (Init_NAA[,n_ages,s] * exp(-(natmort[,1,n_ages,s] + (init_F * fish_sel[,1,n_ages,s,1]))))
+      Init_NAA = Init_NAA_next_year # iterate to next cycle
+    } # end s loop
+  } # end i loop
+  
+  # Apply initial age deviations
+  for(r in 1:n_regions) {
+    for(s in 1:n_sexes) {
+      Init_NAA[r,2:(n_ages-1),s] = Init_NAA[r,2:(n_ages-1),s] * exp(ln_InitDevs[r,] - sigmaR2_early/2 * bias_ramp[1]) # add in non-equilibrium age structure
+      NAA[r,1,2:n_ages,s] = Init_NAA[r,2:n_ages,s] # add in plus group
+    } # end s loop
+  } # end r loop
 
+  # Current Assessment Approach -- FLAG!
+  # init_age_idx = 1:(n_ages - 2) # Get initial age indexing
+  # for(r in 1:n_regions) {
+  #   for(s in 1:n_sexes) {
+  #     NAA[r,1,init_age_idx + 1,s] = R0[r] * exp(ln_InitDevs[r,init_age_idx] -
+  #                                       (init_age_idx * (natmort[r,1, init_age_idx + 1, s] +
+  #                                                          (init_F * fish_sel[r,1, init_age_idx + 1, s, 1])))) * sexratio[s] # not plus group
+  #     # Plus group calculations
+  #     NAA[r,1,n_ages,s] = R0[r] *  exp( - ((n_ages - 1) * (natmort[r,1, n_ages, s] + (init_F * fish_sel[r,1, n_ages, s, 1]))) ) /
+  #       (1 - exp(-(natmort[r,1, n_ages, s] + (init_F * fish_sel[r,1, n_ages, s, 1])))) * sexratio[s]
+  # 
+  #   } # end s loop
+  # }
 
   ## Annual Recruitment ------------------------------------------------------
   for(r in 1:n_regions) {
