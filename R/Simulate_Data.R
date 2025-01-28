@@ -221,6 +221,15 @@
           # Apply movement
           for(a in 1:n_ages) for(s in 1:n_sexes) Init_NAA[i,,a,s,sim] <- Init_NAA[i,,a,s,sim] %*% movement_matrix[,,1,a,s,sim]
           
+          # Recruits don't move
+          if(do_recruits_move == 0) {
+            for(r in 1:n_regions) {
+              for(s in 1:n_sexes) {
+                Init_NAA[i,r,1,s,sim] = r0[1,r,sim] * rec_sexratio[1,r,s,sim]
+              } # end s loop
+            } # end r loop
+          } # end if recruits don't move
+          
           for(r in 1:n_regions) {
             for(s in 1:n_sexes) {
               for(f in 1:n_fish_fleets) {
@@ -237,14 +246,6 @@
             } # end s loop
           } # end r loop
           
-          # Recruits don't move
-          if(do_recruits_move == 0) {
-            for(r in 1:n_regions) {
-              for(s in 1:n_sexes) {
-                Init_NAA[i,r,1,s,sim] = r0[1,r,sim] * rec_sexratio[1,r,s,sim]
-              } # end s loop
-            } # end r loop
-          } # end if recruits don't move
         } # end i
         
         # Apply initial age structure deviations here (FLAG: Revise to incorporate more options)

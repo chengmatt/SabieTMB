@@ -40,12 +40,12 @@ Get_Comp_Likelihoods = function(Exp,
   source(here("R", "model", "dlogistnormal.R")) # logistic normal
   
   comp_nLL = array(0, dim = c(n_regions, n_sexes)) # initialize nLL here
-  const = 1e-10 # small constant
+  const = 0.001 # small constant
   # Filter expectation and observations to regions that have observations
   n_regions_obs_use = sum(use == 1) # get number of regions that have observations
 
-  # Obs = data$ObsFishAgeComps[,1,,1,1]
-  # Exp = sabie_rtmb_model$rep$CAA[,1,,1,1]
+  # Obs = data$ObsFishAgeComps[,41,,,1]
+  # Exp = sabie_rtmb_model$rep$CAA[,41,,,1]
   
   # Making sure things are correctly formatted (and regions are not dropped)
   Obs = array(Obs, dim = c(n_regions, n_bins, n_sexes)) 
@@ -61,17 +61,17 @@ Get_Comp_Likelihoods = function(Exp,
   # Aggregated comps by sex and region
   if(Comp_Type == 0) {
     # Expected Values
-    tmp_Exp = Exp / array(data = rowSums(Exp, dims = 1), dim = dim(Exp)) # normalize by sex and region
-    tmp_Exp = matrix(colSums(tmp_Exp) / (n_sexes * n_regions), nrow = 1) # take average proportions and transpose
+    tmp_Exp = Exp / array(data = rep(colSums(matrix(Exp, nrow = n_bins)), each = n_bins), dim = dim(Exp)) # normalize by sex and region
+    tmp_Exp = matrix(rowSums(matrix(tmp_Exp, nrow = n_bins)) / (n_sexes * n_regions), nrow = 1) # take average proportions and transpose
     if(age_or_len == 0) tmp_Exp = tmp_Exp %*% AgeingError # apply ageing error
-    tmp_Exp = as.vector((tmp_Exp + const) / sum(tmp_Exp + const)) # renormalize
+    tmp_Exp = as.vector((tmp_Exp) / sum(tmp_Exp)) # renormalize
     
     # Multinomial likelihood
     if(Likelihood_Type == 0) { # Note that this indexes 1 because it's only a single sex and single region
-      tmp_Obs = apply(Obs + const, 2:3, sum) / sum(Obs + const) # Normalize observed values 
+      tmp_Obs = (Obs[1,,1]) / sum(Obs[1,,1]) # Normalize observed values 
       ESS = ISS[1,1] * Wt_Mltnml[1,1] # Effective sample size
-      comp_nLL[1,1] = -1 * ESS * sum(((tmp_Obs) * log(tmp_Exp))) # ADMB multinomial likelihood
-      comp_nLL[1,1] = comp_nLL[1,1] - -1 * ESS * sum(((tmp_Obs) * log(tmp_Obs))) # Multinomial offset (subtract offset from actual likelihood)
+      comp_nLL[1,1] = -1 * ESS * sum(((tmp_Obs + const) * log(tmp_Exp + const))) # ADMB multinomial likelihood
+      comp_nLL[1,1] = comp_nLL[1,1] - -1 * ESS * sum(((tmp_Obs + const) * log(tmp_Obs + const))) # Multinomial offset (subtract offset from actual likelihood)
     } # end if multinomial likelihood
     
     if(Likelihood_Type == 1) {
@@ -92,15 +92,15 @@ Get_Comp_Likelihoods = function(Exp,
     for(s in 1:n_sexes) {
       for(r in 1:n_regions_obs_use) {
         # Expected Values
-        if(age_or_len == 0) tmp_Exp = ((Exp[r,,s] + const) / sum(Exp[r,,s] + const)) %*% AgeingError # Normalize temporary variable (ages)
-        if(age_or_len == 1) tmp_Exp = (Exp[r,,s] + const) / sum(Exp[r,,s] + const) # Normalize temporary variable (lengths)
+        if(age_or_len == 0) tmp_Exp = ((Exp[r,,s]) / sum(Exp[r,,s])) %*% AgeingError # Normalize temporary variable (ages)
+        if(age_or_len == 1) tmp_Exp = (Exp[r,,s]) / sum(Exp[r,,s]) # Normalize temporary variable (lengths)
 
         # Multinomial likelihood
         if(Likelihood_Type == 0) { 
-          tmp_Obs = (Obs[r,,s] + const) / sum(Obs[r,,s] + const) # Normalize observed temporary variable
+          tmp_Obs = (Obs[r,,s]) / sum(Obs[r,,s]) # Normalize observed temporary variable
           ESS = ISS[r,s] * Wt_Mltnml[r,s] # Effective sample size
-          comp_nLL[r,s] = -1 * ESS * sum(((tmp_Obs) * log(tmp_Exp))) # ADMB multinomial likelihood
-          comp_nLL[r,s] = comp_nLL[r,s] - -1 * ESS * sum(((tmp_Obs) * log(tmp_Obs))) # Multinomial offset (subtract offset from actual likelihood)
+          comp_nLL[r,s] = -1 * ESS * sum(((tmp_Obs + const) * log(tmp_Exp + const))) # ADMB multinomial likelihood
+          comp_nLL[r,s] = comp_nLL[r,s] - -1 * ESS * sum(((tmp_Obs + const) * log(tmp_Obs + const))) # Multinomial offset (subtract offset from actual likelihood)
         } # end if multinomial likelihood
         
         if(Likelihood_Type == 1) {
@@ -123,17 +123,17 @@ Get_Comp_Likelihoods = function(Exp,
     for(r in 1:n_regions_obs_use) {
       # Expected values
       if(age_or_len == 0) { # if ages
-        tmp_Exp = t(as.vector((Exp[r,,] + const)/ sum(Exp[r,,] + const))) %*% kronecker(diag(n_sexes), AgeingError) # apply ageing error
-        tmp_Exp = as.vector((tmp_Exp + const) / sum(tmp_Exp + const)) # renormalize to make sure sum to 1
+        tmp_Exp = t(as.vector((Exp[r,,])/ sum(Exp[r,,]))) %*% kronecker(diag(n_sexes), AgeingError) # apply ageing error
+        tmp_Exp = as.vector((tmp_Exp ) / sum(tmp_Exp)) # renormalize to make sure sum to 1
       } # if ages
-      if(age_or_len == 1) tmp_Exp = as.vector((Exp[r,,] + const) / sum((Exp[r,,] + const))) # Normalize temporary variable (lengths)
+      if(age_or_len == 1) tmp_Exp = as.vector((Exp[r,,]) / sum((Exp[r,,]))) # Normalize temporary variable (lengths)
 
       # Multinomial likelihood 
       if(Likelihood_Type == 0) { # Indexing by r for a given region since it's 'Split' by region and 1 for sex since it's 'Joint' for sex
-        tmp_Obs = as.vector((Obs[r,,] + const) / sum(Obs[r,,] + const)) # Normalize observed temporary variable
+        tmp_Obs = as.vector((Obs[r,,]) / sum(Obs[r,,])) # Normalize observed temporary variable
         ESS = ISS[r,1] * Wt_Mltnml[r,1] # Effective sample size
-        comp_nLL[r,1] = -1 * ESS * sum(((tmp_Obs) * log(tmp_Exp))) # ADMB multinomial likelihood
-        comp_nLL[r,1] = comp_nLL[r,1] - -1 * ESS * sum(((tmp_Obs) * log(tmp_Obs))) # Multinomial offset (subtract offset from actual likelihood)
+        comp_nLL[r,1] = -1 * ESS * sum(((tmp_Obs + const) * log(tmp_Exp + const))) # ADMB multinomial likelihood
+        comp_nLL[r,1] = comp_nLL[r,1] - -1 * ESS * sum(((tmp_Obs + const) * log(tmp_Obs + const))) # Multinomial offset (subtract offset from actual likelihood)
       } # end if multinomial likelihood
       
       if(Likelihood_Type == 1) {
@@ -157,19 +157,18 @@ Get_Comp_Likelihoods = function(Exp,
     
     # Expected values
     if(age_or_len == 0) { # if ages
-      tmp_Exp = t(as.vector((tmp_Exp + const) / sum(tmp_Exp + const))) %*% kronecker(diag(n_regions_obs_use * n_sexes), AgeingError) # apply ageing error
-      tmp_Exp = as.vector((tmp_Exp + const)/ sum(tmp_Exp + const)) # renormalize to make sure sum to 1
-      tmp_Exp = as.vector((tmp_Exp + const)/ sum(tmp_Exp + const)) # renormalize to make sure sum to 1
+      tmp_Exp = t(as.vector((tmp_Exp) / sum(tmp_Exp + const))) %*% kronecker(diag(n_regions_obs_use * n_sexes), AgeingError) # apply ageing error
+      tmp_Exp = as.vector((tmp_Exp)/ sum(tmp_Exp)) # renormalize to make sure sum to 1
     } # if ages
     
-    if(age_or_len == 1) tmp_Exp = as.vector((Exp + const) / sum(Exp + const)) # Normalize temporary variable (lengths)
+    if(age_or_len == 1) tmp_Exp = as.vector((Exp) / sum(Exp)) # Normalize temporary variable (lengths)
     
     # Multinomial likelihood 
     if(Likelihood_Type == 0) { # Indexing by 1,1 because Joint by sex and regions
-      tmp_Obs = as.vector((tmp_Obs + const) / sum(tmp_Obs + const)) # Normalize observed temporary variable   
+      tmp_Obs = as.vector((tmp_Obs) / sum(tmp_Obs)) # Normalize observed temporary variable   
       ESS = ISS[1,1] * Wt_Mltnml[1,1] # Effective sample size
-      comp_nLL[1,1] = -1 * ESS * sum(((tmp_Obs) * log(tmp_Exp))) # ADMB multinomial likelihood
-      comp_nLL[1,1] = comp_nLL[1,1] - -1 * ESS * sum(((tmp_Obs) * log(tmp_Obs))) # Multinomial offset (subtract offset from actual likelihood)
+      comp_nLL[1,1] = -1 * ESS * sum(((tmp_Obs + const) * log(tmp_Exp + const))) # ADMB multinomial likelihood
+      comp_nLL[1,1] = comp_nLL[1,1] - -1 * ESS * sum(((tmp_Obs + const) * log(tmp_Obs + const))) # Multinomial offset (subtract offset from actual likelihood)
     } # end if multinomial likelihood
     
     if(Likelihood_Type == 1)  {
