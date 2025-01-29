@@ -63,8 +63,11 @@ Get_Comp_Likelihoods = function(Exp,
     # Expected Values
     tmp_Exp = Exp / array(data = rep(colSums(matrix(Exp, nrow = n_bins)), each = n_bins), dim = dim(Exp)) # normalize by sex and region
     tmp_Exp = matrix(rowSums(matrix(tmp_Exp, nrow = n_bins)) / (n_sexes * n_regions), nrow = 1) # take average proportions and transpose
-    if(age_or_len == 0) tmp_Exp = tmp_Exp %*% AgeingError # apply ageing error
-    tmp_Exp = as.vector((tmp_Exp) / sum(tmp_Exp)) # renormalize
+    if(age_or_len == 0) {
+      tmp_Exp = tmp_Exp %*% AgeingError # apply ageing error
+      tmp_Exp = as.vector((tmp_Exp) / sum(tmp_Exp)) # renormalize
+    }
+    if(age_or_len == 1) tmp_Exp = as.vector((tmp_Exp) / sum(tmp_Exp)) # renormalize (lengths)
     
     # Multinomial likelihood
     if(Likelihood_Type == 0) { # Note that this indexes 1 because it's only a single sex and single region
@@ -93,7 +96,7 @@ Get_Comp_Likelihoods = function(Exp,
       for(r in 1:n_regions_obs_use) {
         # Expected Values
         if(age_or_len == 0) tmp_Exp = ((Exp[r,,s]) / sum(Exp[r,,s])) %*% AgeingError # Normalize temporary variable (ages)
-        if(age_or_len == 1) tmp_Exp = (Exp[r,,s]) / sum(Exp[r,,s]) # Normalize temporary variable (lengths)
+        if(age_or_len == 1) tmp_Exp = (Exp[r,,s]) / sum(Exp[r,,s]) # Normalize temporary variable (also used for computing lengths)
 
         # Multinomial likelihood
         if(Likelihood_Type == 0) { 
@@ -121,10 +124,11 @@ Get_Comp_Likelihoods = function(Exp,
   # Joint by sex, Split by region
   if(Comp_Type == 2) {
     for(r in 1:n_regions_obs_use) {
+      
       # Expected values
       if(age_or_len == 0) { # if ages
         tmp_Exp = t(as.vector((Exp[r,,])/ sum(Exp[r,,]))) %*% kronecker(diag(n_sexes), AgeingError) # apply ageing error
-        tmp_Exp = as.vector((tmp_Exp ) / sum(tmp_Exp)) # renormalize to make sure sum to 1
+        tmp_Exp = as.vector((tmp_Exp) / sum(tmp_Exp)) # renormalize to make sure sum to 1
       } # if ages
       if(age_or_len == 1) tmp_Exp = as.vector((Exp[r,,]) / sum((Exp[r,,]))) # Normalize temporary variable (lengths)
 
@@ -157,7 +161,7 @@ Get_Comp_Likelihoods = function(Exp,
     
     # Expected values
     if(age_or_len == 0) { # if ages
-      tmp_Exp = t(as.vector((tmp_Exp) / sum(tmp_Exp + const))) %*% kronecker(diag(n_regions_obs_use * n_sexes), AgeingError) # apply ageing error
+      tmp_Exp = t(as.vector((tmp_Exp) / sum(tmp_Exp))) %*% kronecker(diag(n_regions_obs_use * n_sexes), AgeingError) # apply ageing error
       tmp_Exp = as.vector((tmp_Exp)/ sum(tmp_Exp)) # renormalize to make sure sum to 1
     } # if ages
     

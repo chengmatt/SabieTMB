@@ -238,7 +238,7 @@
     data$max_tag_liberty <- 30 # maximum liberty to track cohorts
     data$Tagged_Fish <- array(sim_out$Tag_Fish[,,,sim], dim = c(data$n_tag_cohorts, length(data$ages), data$n_sexes)) # tagged fish
     data$Obs_Tag_Recap <- array(sim_out$Obs_Tag_Recap[,,,,,sim], dim = c(data$max_tag_liberty, data$n_tag_cohorts, data$n_regions, length(data$ages), data$n_sexes))
-    data$Tag_LikeType <- 1 # poisson likelihood
+    data$Tag_LikeType <- 0 # poisson likelihood
     data$mixing_period <- 2 # when to start mixing period after first release year
     data$t_tagging <- 0.5 # discounting for tagging 
     
@@ -388,7 +388,7 @@
     mapping$ln_Init_Tag_Mort <- factor(NA)
     mapping$ln_Tag_Shed <- factor(NA)
     mapping$Tag_Reporting_Pars <- factor(rep(1, length.out = length(parameters$Tag_Reporting_Pars)))
-    # mapping$ln_tag_theta <- factor(NA)
+    mapping$ln_tag_theta <- factor(NA)
     
     # global density dependence
     map_recdevs = parameters$ln_RecDevs

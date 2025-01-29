@@ -128,7 +128,9 @@
   # movement_matrix[] <- 1
   
   # Create containers
-  Init_NAA <- array(0, dim = c(init_iter, n_regions, n_ages, n_sexes, n_sims))
+  # Set up initial age structure
+  Init_NAA = array(0, dim = c(n_regions, n_ages, n_sexes, n_sims))
+  Init_NAA_next_year = Init_NAA
   NAA <- array(0, dim = c(n_yrs+1, n_regions, n_ages, n_sexes, n_sims))
   SSB <- array(0, dim = c(n_yrs, n_regions, n_sims))
   Total_Biom <- array(0, dim = c(n_yrs, n_regions, n_sims))
@@ -168,7 +170,7 @@
   Obs_SrvAgeComps <- array(0, dim = c(n_yrs, n_regions, n_ages, n_sexes, n_srv_fleets, n_sims))
   
   # Tagging stuff
-  n_tags <- 1e3
+  n_tags <- 1e5
   max_liberty <- 30
   tag_years <- seq(1, n_yrs, 5)
   n_tag_yrs <- length(tag_years)
@@ -193,7 +195,7 @@
   comp_srv_like <- 0 # mutlinomial
   comp_fish_like <- 0 # dirmultinomial likelihood
   
-  tag_like <- 2
+  tag_like <- 0
   # 0 = Poisson
   # 1 = Negative Binomial
   # 2 = Multinomial Release Conditioned
@@ -214,50 +216,43 @@
       
       # Initialize Age Structure ------------------------------------------------
       if(y == 1) {
-        # Iterate equilibrium age structure with mortality, followed by movement
-        Init_NAA[1,,1,,sim] = r0[1,,sim] * rec_sexratio[1,,,sim]
         
-        for(i in 2:init_iter) {
-          # Apply movement
-          for(a in 1:n_ages) for(s in 1:n_sexes) Init_NAA[i,,a,s,sim] <- Init_NAA[i,,a,s,sim] %*% movement_matrix[,,1,a,s,sim]
-          
-          # Recruits don't move
-          if(do_recruits_move == 0) {
-            for(r in 1:n_regions) {
-              for(s in 1:n_sexes) {
-                Init_NAA[i,r,1,s,sim] = r0[1,r,sim] * rec_sexratio[1,r,s,sim]
-              } # end s loop
-            } # end r loop
-          } # end if recruits don't move
-          
-          for(r in 1:n_regions) {
-            for(s in 1:n_sexes) {
-              for(f in 1:n_fish_fleets) {
-                # Recruitment
-                Init_NAA[i,r,1,s,sim] <- r0[1,r,sim] * rec_sexratio[1,r,s,sim]
-                # Iterate from previous "virtual time step"
-                Init_NAA[i,r,2:n_ages,s,sim] <- Init_NAA[i - 1,r,1:(n_ages-1),s,sim] *
-                                                exp(-(M[1,r,1:(n_ages-1),s,sim] + init_F[1,r,f,sim] * fish_sel[1,r,1:(n_ages-1),s,f,sim])) # mortality
-                # Accumulate plus group
-                Init_NAA[i,r,n_ages,s,sim] <- Init_NAA[i,r,n_ages,s,sim] + # individuals from equilibrium that get aged a year
-                                              Init_NAA[i-1,r,n_ages,s,sim] * # decrement and accumulate plus group
-                                              exp(-(M[1,r,n_ages,s,sim] + init_F[1,r,f,sim] * fish_sel[1,r,n_ages,s,f,sim])) # mortality
-              } # end f loop
-            } # end s loop
-          } # end r loop
-          
-        } # end i
-        
-        # Apply initial age structure deviations here (FLAG: Revise to incorporate more options)
-        tmp_ln_init_devs <- NULL # Initialize container vector to allow for global recruitment
-        for(r in 1:n_regions) {
-          if(recdev_opt == 0 && is.null(tmp_ln_init_devs)) tmp_ln_init_devs <- rnorm(n_ages-2, 0, init_sigmaR[r]) # simulate initial deviations (global density dependence)
-          if(recdev_opt == 1) tmp_ln_init_devs <- rnorm(n_ages-2, 0, init_sigmaR[r]) # simulate initial deviations (local density dependence)
-          Init_NAA[init_iter,r,2:(n_ages-1),,sim] <- Init_NAA[init_iter,r,2:(n_ages-1),,sim] * rep(exp(tmp_ln_init_devs - init_sigmaR[r]^2/2), n_sexes) # apply deviations
-          NAA[1,r,2:n_ages,,sim] <- Init_NAA[init_iter,r,2:n_ages,,sim] # Plug in initial age structure into 1st year (w/o recruitment)
-        } # end r loop
-      } # end initializing age structure
-      
+       # Set up initial equilibrium age structure, with cumulative sum of selectivity incorporated
+       for(r in 1:n_regions) {
+         for(s in 1:n_sexes) {
+           tmp_cumsum_Z = cumsum(M[1,r,1:(n_ages-1),s,sim] + init_F[1,r,1,sim] * fish_sel[1,r,1:(n_ages-1),s,1,sim])
+           Init_NAA[r,,s,sim] = c(r0[1,r,sim], r0[1,r,sim] * exp(-tmp_cumsum_Z)) * rec_sexratio[1,r,s,sim]
+         } # end s loop
+       } # end r loop
+
+       # Apply annual cycle and iterate to equilibrium
+       for(i in 1:init_iter) {
+         for(s in 1:n_sexes) {
+           Init_NAA_next_year[,1,s,sim] = r0[1,,sim] * rec_sexratio[1,,s,sim] # recruitment
+           
+           # recruits don't move
+           if(do_recruits_move == 0) for(a in 2:n_ages) Init_NAA_next_year[,a,s,sim] = t(Init_NAA_next_year[,a,s,sim]) %*% movement_matrix[,,1,a,s,sim] # movement
+           # recruits move
+           if(do_recruits_move == 1) for(a in 1:n_ages) Init_NAA_next_year[,a,s,sim] = t(Init_NAA_next_year[,a,s,sim]) %*% movement_matrix[,,1,a,s,sim] # movement
+           
+           # ageing and mortality
+           Init_NAA_next_year[,2:n_ages,s,sim] = Init_NAA[,1:(n_ages-1),s,sim] * exp(-(M[1,,1:(n_ages-1),s,sim] + (init_F[1,,1,sim] * fish_sel[1,,1:(n_ages-1),s,1,sim])))
+           # accumulate plus group
+           Init_NAA_next_year[,n_ages,s,sim] = (Init_NAA_next_year[,n_ages,s,sim] * exp(-(M[1,,n_ages,s,sim] + (init_F[1,,1,sim] * fish_sel[1,,n_ages,s,1,sim])))) +
+                                               (Init_NAA[,n_ages,s,sim] * exp(-(M[1,,n_ages,s,sim] + (init_F[1,,1,sim] * fish_sel[1,,n_ages,s,1,sim]))))
+           Init_NAA = Init_NAA_next_year # iterate to next cycle
+         } # end s loop
+       } # end i loop
+         
+       # Apply initial age structure deviations here (FLAG: Revise to incorporate more options)
+       tmp_ln_init_devs <- NULL # Initialize container vector to allow for global recruitment
+       for(r in 1:n_regions) {
+         if(recdev_opt == 0 && is.null(tmp_ln_init_devs)) tmp_ln_init_devs <- rnorm(n_ages-2, 0, init_sigmaR[r]) # simulate initial deviations (global density dependence)
+         if(recdev_opt == 1) tmp_ln_init_devs <- rnorm(n_ages-2, 0, init_sigmaR[r]) # simulate initial deviations (local density dependence)
+         Init_NAA[r,2:(n_ages-1),s,sim] <- Init_NAA[r,2:(n_ages-1),s,sim] * rep(exp(tmp_ln_init_devs - init_sigmaR[r]^2/2), n_sexes) # apply deviations
+         NAA[1,r,2:n_ages,,sim] <- Init_NAA[r,2:n_ages,s,sim] # Plug in initial age structure into 1st year (w/o recruitment)
+       } # end r loop
+    } # end initializing age structure
 
     # Apply Movement ----------------------------------------------------------
     for(a in 1:n_ages) for(s in 1:n_sexes) NAA[y,,a,s,sim] <- NAA[y,,a,s,sim] %*% movement_matrix[,,y,a,s,sim]

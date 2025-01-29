@@ -616,8 +616,8 @@ RTMB = c(
   sum(unopt_rep$FishIdx_nLL[1,-c(36:63),1]) * data$Wt_FishIdx,
   sum(unopt_rep$Fmort_Pen) * data$Wt_F,
   unopt_rep$M_Pen,
-  sum(unopt_rep$Init_Rec_nLL) * 0.5 * data$Wt_Rec +
-    sum(unopt_rep$Rec_nLL) * 0.5 * data$Wt_Rec
+  sum(unopt_rep$Init_Rec_nLL) * data$Wt_Rec +
+    sum(unopt_rep$Rec_nLL) * data$Wt_Rec
 )) %>% 
   mutate(ADMB = round(ADMB, 4), RTMB = round(RTMB, 4), diff = ADMB - RTMB)
 
@@ -775,7 +775,7 @@ ggplot(ts_df, aes(x = Year, y = (TMB - ADMB) / ADMB, color = Par)) +
   geom_hline(yintercept = 0, lty = 1.3, size = 1.3) +
   ggthemes::scale_color_hc() +
   # coord_cartesian(ylim = c(-0.05, 0.05)) +
-  labs(x = "(RTMB - ADMB) / ADMB") +
+  labs(y = "(RTMB - ADMB) / ADMB") +
   labs(color = "Time Series") +
   theme_sablefish()
 
