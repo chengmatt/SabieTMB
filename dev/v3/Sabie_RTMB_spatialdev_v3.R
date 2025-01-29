@@ -51,6 +51,7 @@
     data$bias_year <- NA
     data$sigmaR_switch <- 0
     data$sexratio <- as.vector(1) # recruitment sex ratio (assuming 1, since single sex)
+    data$init_age_strc = 0 # iterative approach to calculate initial age structure
     
     # Movement stuff
     data$do_recruits_move = 0 # recruits dont move

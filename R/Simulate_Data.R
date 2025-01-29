@@ -101,7 +101,7 @@
           
           # movement_matrix[,,y,a,s,sim] <- rep(0.25, 16)
           
-          movement_matrix[,,y,a,s,sim] <- c(0.5,0.5,0.5,0.5)
+          movement_matrix[,,y,a,s,sim] <- c(0.7,0.1,0.3,0.9)
           # movement_matrix[,,y,13:15,s,sim] <- c(0.2,0.8,0.8,0.2)
           # movement_matrix[,,y,11:12,s,sim] <- c(0.2,0.8,0.8,0.2)
           # movement_matrix[,,y,10:11,s,sim] <- c(0.2,0.8,0.8,0.2)
@@ -231,9 +231,9 @@
            Init_NAA_next_year[,1,s,sim] = r0[1,,sim] * rec_sexratio[1,,s,sim] # recruitment
            
            # recruits don't move
-           if(do_recruits_move == 0) for(a in 2:n_ages) Init_NAA_next_year[,a,s,sim] = t(Init_NAA_next_year[,a,s,sim]) %*% movement_matrix[,,1,a,s,sim] # movement
+           if(do_recruits_move == 0) for(a in 2:n_ages) Init_NAA[,a,s,sim] = t(Init_NAA[,a,s,sim]) %*% movement_matrix[,,1,a,s,sim] # movement
            # recruits move
-           if(do_recruits_move == 1) for(a in 1:n_ages) Init_NAA_next_year[,a,s,sim] = t(Init_NAA_next_year[,a,s,sim]) %*% movement_matrix[,,1,a,s,sim] # movement
+           if(do_recruits_move == 1) for(a in 1:n_ages) Init_NAA[,a,s,sim] = t(Init_NAA[,a,s,sim]) %*% movement_matrix[,,1,a,s,sim] # movement
            
            # ageing and mortality
            Init_NAA_next_year[,2:n_ages,s,sim] = Init_NAA[,1:(n_ages-1),s,sim] * exp(-(M[1,,1:(n_ages-1),s,sim] + (init_F[1,,1,sim] * fish_sel[1,,1:(n_ages-1),s,1,sim])))

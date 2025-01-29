@@ -70,6 +70,7 @@ data$sigmaR_switch <- as.integer(length(1960:1975)) - 1 # when to switch sigmaR 
 data$sexratio <- as.vector(c(0.5, 0.5)) # recruitment sex ratio (assuming 50,50)
 
 # Movement stuff
+data$init_age_strc = 1 # geometric series to calculate initial age structure
 data$do_recruits_move = 0 # recruits dont move
 
 data$likelihoods <- 0
@@ -665,8 +666,18 @@ ssb_series <- data.frame(Par = "SSB",
                          Year = 1960:2023,
                          TMB = t(sabie_rtmb_model$rep$SSB),
                          ADMB = ssb)
-  
-ts_df <- rbind(rec_series, f_series, females_series, males_series, ssb_series)
+
+ssb_se_series <- data.frame(Par = "SSB (SE)",
+                            Year = 1960:2023,
+                            TMB = sabie_rtmb_model$sd_rep$sd[names(sabie_rtmb_model$sd_rep$value) == "SSB"],
+                            ADMB = tem_par$se[str_detect(names(tem_par$se), "ssb")])
+
+rec_se_series <- data.frame(Par = "Recruitment (SE)",
+                            Year = 1960:2023,
+                            TMB = sabie_rtmb_model$sd_rep$sd[names(sabie_rtmb_model$sd_rep$value) == "Rec"],
+                            ADMB = tem_par$se[str_detect(names(tem_par$se), "pred_rec")])
+
+ts_df <- rbind(ssb_se_series,rec_series, f_series, females_series, males_series, ssb_series, rec_se_series)
 
 # Get selectivities
 dom_ll_fish_f1 <- data.frame(Age = 1:30,
