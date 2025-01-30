@@ -485,8 +485,8 @@
     # plot(res)
     # sd(res, na.rm = T)
 
-    move_cv = unique(sabie_rtmb_model$sd_rep$sd[names(sabie_rtmb_model$sd_rep$value) == "Movement"] / sabie_rtmb_model$sd_rep$value[names(sabie_rtmb_model$sd_rep$value) == "Movement"])
-    move_cv_mat[1:length(move_cv),sim] <- move_cv
+    # move_cv = unique(sabie_rtmb_model$sd_rep$sd[names(sabie_rtmb_model$sd_rep$value) == "Movement"] / sabie_rtmb_model$sd_rep$value[names(sabie_rtmb_model$sd_rep$value) == "Movement"])
+    # move_cv_mat[1:length(move_cv),sim] <- move_cv
     
     par(mfrow = c(2,4))
     #
