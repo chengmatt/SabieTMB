@@ -100,8 +100,9 @@
           # movement_matrix[,,y,a,s,sim] <- rep(1/3, 9)
           
           # movement_matrix[,,y,a,s,sim] <- rep(0.25, 16)
+          movement_matrix[,,y,a,s,sim] <- rep(0.5,4)
           
-          movement_matrix[,,y,a,s,sim] <- c(0.7,0.1,0.3,0.9)
+          # movement_matrix[,,y,a,s,sim] <- c(0.7,0.1,0.3,0.9)
           # movement_matrix[,,y,13:15,s,sim] <- c(0.2,0.8,0.8,0.2)
           # movement_matrix[,,y,11:12,s,sim] <- c(0.2,0.8,0.8,0.2)
           # movement_matrix[,,y,10:11,s,sim] <- c(0.2,0.8,0.8,0.2)

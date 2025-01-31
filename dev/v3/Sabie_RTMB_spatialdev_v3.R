@@ -243,6 +243,12 @@
     data$mixing_period <- 2 # when to start mixing period after first release year
     data$t_tagging <- 0.5 # discounting for tagging 
     
+    # tag reporting rate priors
+    data$Use_TagRep_Prior = 1 # use tag reporting rate prior
+    data$TagRep_PenType = 1 # symmetric beta prior with upper and lower bounds at 1 and 0
+    data$TagRep_mu = 0.2 # penalize mu 
+    data$TagRep_sd = 0.03 # sd of tag reporting rate prior
+    
     # Prepare Parameters ------------------------------------------------------
     parameters <- list()
     parameters$dummy <- 1
@@ -389,6 +395,7 @@
     mapping$ln_Init_Tag_Mort <- factor(NA)
     mapping$ln_Tag_Shed <- factor(NA)
     mapping$Tag_Reporting_Pars <- factor(rep(1, length.out = length(parameters$Tag_Reporting_Pars)))
+    data$map_Tag_Reporting_Pars = array(as.numeric(mapping$Tag_Reporting_Pars), dim = dim(parameters$Tag_Reporting_Pars))
     mapping$ln_tag_theta <- factor(NA)
     
     # global density dependence
@@ -442,9 +449,7 @@
     sabie_rtmb_model$sd_rep <- RTMB::sdreport(sabie_rtmb_model) # Get sd report
     sabie_rtmb_model$rep <- sabie_rtmb_model$report(sabie_rtmb_model$env$last.par.best) # Get report
     
-    
-    sabie_rtmb_model$rep$Pred_Tag_Recap[1,1,,,]
-    
+
     r0_mat[sim,] <- sabie_rtmb_model$rep$R0
     tagrep[sim] <- mean(sabie_rtmb_model$rep$Tag_Reporting)
     PD = sabie_rtmb_model$sd_rep$pdHess

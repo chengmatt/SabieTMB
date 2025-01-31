@@ -27,6 +27,7 @@ sabie_RTMB = function(pars) {
   source(here("R", "model", "v3", "Get_Selex_v3.R")) # selectivity options
   source(here("R", "model", "v3", "Get_Comp_Likelihoods_v3.R")) # selectivity options
   source(here("R", "model", "ddirmult.R")) # dirichlet multinomial
+  source(here("R", "model", "dbeta_symmetric.R")) # dbeta
   
   RTMB::getAll(pars, data) # load in starting values and data
   
@@ -101,6 +102,7 @@ sabie_RTMB = function(pars) {
   bias_ramp = rep(0, n_yrs) # bias ramp from Methot and Taylor 2011
   M_Pen = 0 # Penalty/Prior for natural mortality
   sel_Pen = 0 # Penalty for selectivity deviations
+  TagRep_Pen = 0 # penalty for tag reporting rate
   jnLL = 0 # Joint negative log likelihood
   
   # Model Process Equations -------------------------------------------------
@@ -240,9 +242,9 @@ sabie_RTMB = function(pars) {
       } # end s loop
     } # end r loop
   } # end if
-
   
-  if(init_age_strc == 1) { # get initial age structure using standard geometric series
+  # Current Assessment Approach -- FLAG, I think it's wrong!
+  if(init_age_strc == 1) {
     init_age_idx = 1:(n_ages - 2) # Get initial age indexing
     for(r in 1:n_regions) {
       for(s in 1:n_sexes) {
@@ -251,7 +253,7 @@ sabie_RTMB = function(pars) {
                                                                        (init_F * fish_sel[r,1, init_age_idx + 1, s, 1])))) * sexratio[s] # not plus group
         # Plus group calculations
         NAA[r,1,n_ages,s] = R0[r] *  exp( - ((n_ages - 1) * (natmort[r,1, n_ages, s] + (init_F * fish_sel[r,1, n_ages, s, 1]))) ) /
-                                     (1 - exp(-(natmort[r,1, n_ages, s] + (init_F * fish_sel[r,1, n_ages, s, 1])))) * sexratio[s]
+          (1 - exp(-(natmort[r,1, n_ages, s] + (init_F * fish_sel[r,1, n_ages, s, 1])))) * sexratio[s]
         
       } # end s loop
     } # end r loop
@@ -694,6 +696,25 @@ sabie_RTMB = function(pars) {
     }
   } 
   
+
+  ### Tag Reporting Rate (Penalty) --------------------------------------------
+  if(Use_TagRep_Prior == 1) {
+    unique_tagrep_pars = sort(unique(as.vector(map_Tag_Reporting_Pars))) # Figure out unique tag reporting parameters estimated
+    for(i in 1:length(unique_tagrep_pars)) {
+      par_idx = which(map_Tag_Reporting_Pars == i, arr.ind = TRUE)[1,] # figure out where unique tagrep parameter first occurs
+      r = par_idx[1] # get region index
+      y = par_idx[2] # get year index
+      if(TagRep_PenType == 0) {
+        TagRep_Pen = TagRep_Pen - dbeta_symmetric(p_val = Tag_Reporting[r,y], p_ub = 1,  p_lb = 0, p_prsd = TagRep_sd) # penalize
+      } # end if symmetric beta
+      if(TagRep_PenType == 1) {
+        a = TagRep_mu / (TagRep_sd * TagRep_sd) # alpha parameter
+        b = (1 - TagRep_mu) / (TagRep_sd * TagRep_sd) # beta parameter
+        TagRep_Pen = TagRep_Pen - dbeta(x = Tag_Reporting[r,y], shape1 = a, shape2 = b, log = TRUE) # penalize
+      } # end if for full beta
+    } # end i loop
+  } # if use tag reporting prior
+  
   # Apply likelihood weights here and compute joint negative log likelihood
   jnLL = (Wt_Catch * sum(Catch_nLL)) + # Catch likelihoods
     (Wt_FishIdx * sum(FishIdx_nLL)) + # Fishery Index likelihood
@@ -707,7 +728,8 @@ sabie_RTMB = function(pars) {
     M_Pen + # Natural Mortality Prior (Penalty)
     (Wt_Rec * sum(Rec_nLL)) + # Recruitment Penalty
     (Wt_Rec * sum(Init_Rec_nLL)) + #  Initial Age Penalty
-    sel_Pen; #  selectivity penalty
+    sel_Pen + #  selectivity penalty
+    TagRep_Pen # tag reporting rate penalty
   
   # Report Section ----------------------------------------------------------
   # Biological Processes
@@ -756,6 +778,7 @@ sabie_RTMB = function(pars) {
   RTMB::REPORT(Init_Rec_nLL)
   RTMB::REPORT(Rec_nLL)
   RTMB::REPORT(Tag_nLL)
+  RTMB::REPORT(TagRep_Pen)
   RTMB::REPORT(jnLL)
   
   # Effective Sample Sizes
@@ -772,7 +795,9 @@ sabie_RTMB = function(pars) {
   RTMB::ADREPORT(log(Total_Biom))
   RTMB::ADREPORT(log(SSB))
   RTMB::ADREPORT(log(Rec))
-  RTMB::ADREPORT(Movement)
-  
+  RTMB::ADREPORT(Total_Biom)
+  RTMB::ADREPORT(SSB)
+  RTMB::ADREPORT(Rec)
+
   return(jnLL)
 } # end function
