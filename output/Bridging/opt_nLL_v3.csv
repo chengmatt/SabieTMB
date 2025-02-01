@@ -1,0 +1,23 @@
+"","dat_type","ADMB","RTMB","Difference","Relative_Difference"
+"obj.fun","jnLL",768.835,768.8349,0.000100000000088585,1.30066936462672e-05
+"L.fish1age","Fixed Gear Fishery Age",46.6359,46.6359,0,0
+"L.fish1sizef","Fixed Gear Fishery Length (F)",85.5592,85.5591,0.00010000000000332,0.000116878274787042
+"L.fish1sizem","Fixed Gear Fishery Length (M)",91.0724,91.0725,-0.00010000000000332,-0.000109802629776628
+"L.fish3sizef","Trawl Gear Fishery Length (F)",25.4665,25.4665,0,0
+"L.fish3sizem","Trawl Gear Fishery Length (M)",17.9053,17.9053,0,0
+"L.surv1age","Domestic Survey LL Age",173.994,173.9936,0.000400000000013279,0.00022989351333226
+"L.surv1sizef","Domestic Survey LL Length (F)",48.073,48.073,0,0
+"L.surv1sizem","Domestic Survey LL Length (M)",34.7405,34.7405,0,0
+"L.surv7sizef","Domestic Trawl Survey Length (F)",23.1276,23.1275,9.99999999997669e-05,0.000432385688032718
+"L.surv7sizem","Domestic Trawl Survey Length (M)",17.643,17.643,0,0
+"L.surv2sizef","Japanese LL Survey Length (F)",27.9254,27.9254,0,0
+"L.surv2sizem","Japanese LL Survey Length (M)",17.5397,17.5397,0,0
+"Catch","Catch",3.6787,3.6787,0,0
+"L.surv3","Domestic LL Survey Index",33.7602,33.7602,0,0
+"L.surv4","Japanese LL Survey Index",10.1596,10.1596,0,0
+"L.surv7","Trawl Survey Index",20.5692,20.5692,0,0
+"L.surv5","Domestic LL Fishery Index",13.4938,13.4938,0,0
+"L.surv6","Japanese LL Fishery Index",24.2298,24.2298,0,0
+"F.reg","FMort Penalty",6.0941,6.0941,0,0
+"M.prior","M Prior",0.7924,0.7924,0,0
+"Rec.Pen","Rec Penalty",23.2783,23.2783,0,0

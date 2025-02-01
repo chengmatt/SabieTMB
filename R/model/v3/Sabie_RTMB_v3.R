@@ -19,6 +19,9 @@
 # mean fishing mortality, fishing mortlaity deviates) can be estimated spatially
 # Incorporated options to allow for estimation of movement parameters across
 # years, ages, and sexes
+# Tag integrated model incorporated using a Brownie Tag Attrition Model
+# Tag Reporting Rates, Tag Shedding, and Tag Induced Mortality are parameters that can be estimated
+
 
 
 sabie_RTMB = function(pars) {
@@ -137,6 +140,7 @@ sabie_RTMB = function(pars) {
           fish_sel[r,y,,s,f] = Get_Selex(Selex_Model = fish_sel_model[r,y,f],
                                          ln_Pars = tmp_fish_sel_vec,
                                          Age = ages) # Calculate selectivity
+
         } # end s loop
       } # end f loop
     } # end y loop
@@ -320,7 +324,8 @@ sabie_RTMB = function(pars) {
         
         for(s in 1:n_sexes) {
           CAA[r,y,,s,f] = FAA[r,y,,s,f] / ZAA[r,y,,s] * NAA[r,y,,s] * (1 - exp(-ZAA[r,y,,s])) # Catch at age (Baranov's)
-          if(fit_lengths == 0) CAL[r,y,,s,f] = SizeAgeTrans[r,y,,,s] %*% CAA[r,y,,s,f] # Catch at length
+          if(fit_lengths == 0 && sablefish_ADMB == 1) CAL[r,y,,s,f] = SizeAgeTrans[r,y,,,s] %*% (CAA[r,y,,s,f] / sum(CAA[r,y,,s,f])) # Catch at length (Sablefish bridging specific)
+          else if(fit_lengths == 0) CAL[r,y,,s,f] = SizeAgeTrans[r,y,,,s] %*% CAA[r,y,,s,f] # Catch at length
         } # end s loop
         
         PredCatch[r,y,f] = sum(CAA[r,y,,,f] * WAA[r,y,,]) # get total catch
@@ -328,9 +333,7 @@ sabie_RTMB = function(pars) {
         # Get fishery index
         if(fish_idx_type[r,f] == 0) PredFishIdx[r,y,f] = fish_q[r,y,f] * sum(NAA[r,y,,] * SAA_mid[r,y,,] * fish_sel[r,y,,,f]) # abundance
         if(fish_idx_type[r,f] == 1) {
-          # Sablefish specific - for fitting Japanese LL RPW cpue fishery as is implemented in the ADMB assessment
-          # (i.e., only using female selex to calculate this)
-          if(fish_q_blk_idx == 1 && share_sel == 0) PredFishIdx[r,y,f] = fish_q[r,y,f] * sum(NAA[r,y,,] * SAA_mid[r,y,,] * fish_sel[r,y,,1,f] * WAA[r,y,,]) # first time block
+          if(fish_q_blk_idx == 1 && sablefish_ADMB == 1) PredFishIdx[r,y,f] = fish_q[r,y,f] * sum(NAA[r,y,,] * SAA_mid[r,y,,] * fish_sel[r,y,,1,f] * WAA[r,y,,]) # first time block (Sablefish bridging specific)
           else PredFishIdx[r,y,f] = fish_q[r,y,f] * sum(NAA[r,y,,] * SAA_mid[r,y,,] * fish_sel[r,y,,,f] * WAA[r,y,,]) # for not first time block
         } # weight
         
@@ -348,13 +351,14 @@ sabie_RTMB = function(pars) {
         srv_q[r,y,sf] = exp(ln_srv_q[r,srv_q_blk_idx,sf]) # Input into survey catchability container
         
         for(s in 1:n_sexes) {
-          SrvIAA[r,y,,s,sf] = NAA[r,y,,s] * SAA_mid[r,y,,s] * srv_sel[r,y,,s,sf] # Survey index at age
+          if(sablefish_ADMB == 1) SrvIAA[r,y,,s,sf] = NAA[r,y,,s] * srv_sel[r,y,,s,sf] # Survey index at age (sablefish specific)
+          else SrvIAA[r,y,,s,sf] = NAA[r,y,,s] * srv_sel[r,y,,s,sf] * SAA_mid[r,y,,s] # Survey index at age
           if(fit_lengths == 0) SrvIAL[r,y,,s,sf] = SizeAgeTrans[r,y,,,s] %*% SrvIAA[r,y,,s,sf] # Survey index at length
         } # end s loop
         
         # Get predicted survey index
-        if(srv_idx_type[r,sf] == 0) PredSrvIdx[r,y,sf] = srv_q[r,y,sf] * sum(SrvIAA[r,y,,,sf]) # abundance
-        if(srv_idx_type[r,sf] == 1) PredSrvIdx[r,y,sf] = srv_q[r,y,sf] * sum(SrvIAA[r,y,,,sf] * WAA[r,y,,]) # biomass
+        if(srv_idx_type[r,sf] == 0) PredSrvIdx[r,y,sf] = srv_q[r,y,sf] * sum(NAA[r,y,,] * srv_sel[r,y,,,sf] * SAA_mid[r,y,,]) # abundance
+        if(srv_idx_type[r,sf] == 1) PredSrvIdx[r,y,sf] = srv_q[r,y,sf] * sum(NAA[r,y,,] * srv_sel[r,y,,,sf] * SAA_mid[r,y,,] * WAA[r,y,,]) # biomass
         
       } # end sf loop
     } # end y loop
@@ -451,7 +455,7 @@ sabie_RTMB = function(pars) {
         if(UseFishIdx[r,y,f] == 1) {
           if(likelihoods == 0)  {
             FishIdx_nLL[r,y,f] = UseFishIdx[r,y,f] * (log(ObsFishIdx[r,y,f] + 1e-4) - log(PredFishIdx[r,y,f] + 1e-4))^2 /
-              (2 * (ObsFishIdx_SE[r,y,f] / ObsFishIdx[r,y,f])^2) # lognormal fishery index
+                                                    (2 * (ObsFishIdx_SE[r,y,f] / ObsFishIdx[r,y,f])^2) # lognormal fishery index
           } # ADMB likelihoods
           if(likelihoods == 1) {
             FishIdx_nLL[r,y,f] = UseFishIdx[r,y,f] -1 * dnorm(log(ObsFishIdx[r,y,f] + 1e-10),
@@ -479,7 +483,8 @@ sabie_RTMB = function(pars) {
           # Composition and Likelihood Type
           Comp_Type = FishAgeComps_Type[y,f], Likelihood_Type = FishAgeComps_LikeType[f], 
           # overdispersion par, Number of sexes, regions, age or length comps, and ageing error
-          ln_theta = ln_FishAge_theta[,f], n_regions =  n_regions, n_sexes = n_sexes, age_or_len = 0, AgeingError = AgeingError, use = UseFishAgeComps[,y,f], n_bins = n_ages)
+          ln_theta = ln_FishAge_theta[,f], n_regions =  n_regions, n_sexes = n_sexes, age_or_len = 0, 
+          AgeingError = AgeingError, use = UseFishAgeComps[,y,f], n_bins = n_ages, comp_agg_type = FishAge_comp_agg_type[f])
       } # if we have fishery age comps
       
       # Fishery Length Compositions
@@ -488,11 +493,12 @@ sabie_RTMB = function(pars) {
           # Expected and Observed values
           Exp = CAL[,y,,,f], Obs = ObsFishLenComps[,y,,,f], 
           # Input sample size and multinomial weight
-          ISS = ISS_FishLenComps[,y,,f], Wt_Mltnml = Wt_FishLenComps[r,,f], 
+          ISS = ISS_FishLenComps[,y,,f], Wt_Mltnml = Wt_FishLenComps[,,f], 
           # Composition and Likelihood Type
           Comp_Type = FishLenComps_Type[y,f], Likelihood_Type = FishLenComps_LikeType[f], 
           # overdispersion, Number of sexes, regions age or length comps, and ageing error
-          ln_theta = ln_FishLen_theta[,f], n_regions = n_regions, n_sexes = n_sexes, age_or_len = 1, AgeingError = NA, use = UseFishLenComps[,y,f], n_bins = n_lens) 
+          ln_theta = ln_FishLen_theta[,f], n_regions = n_regions, n_sexes = n_sexes, age_or_len = 1, 
+          AgeingError = NA, use = UseFishLenComps[,y,f], n_bins = n_lens, comp_agg_type = FishLen_comp_agg_type[f]) 
       } # if we have fishery length comps
       
     } # end f loop
@@ -508,7 +514,7 @@ sabie_RTMB = function(pars) {
         if(UseSrvIdx[r,y,sf] == 1) {
           if(likelihoods == 0) {
             SrvIdx_nLL[r,y,sf] = UseSrvIdx[r,y,sf] * (log(ObsSrvIdx[r,y,sf] + 1e-4) - log(PredSrvIdx[r,y,sf] + 1e-4))^2 /
-              (2 * (ObsSrvIdx_SE[r,y,sf] / ObsSrvIdx[r,y,sf])^2) # lognormal survey index
+                                                     (2 * (ObsSrvIdx_SE[r,y,sf] / ObsSrvIdx[r,y,sf])^2) # lognormal survey index
           } # ADMB likelihoods
           if(likelihoods == 1) {
             SrvIdx_nLL[r,y,sf] = UseSrvIdx[r,y,sf] -1 * dnorm(log(ObsSrvIdx[r,y,sf] + 1e-10),
@@ -536,7 +542,8 @@ sabie_RTMB = function(pars) {
           # Composition and Likelihood Type
           Comp_Type = SrvAgeComps_Type[y,sf], Likelihood_Type = SrvAgeComps_LikeType[sf], 
           # overdispersion, Number of sexes, regions, age or length comps, and ageing error
-          ln_theta = ln_SrvAge_theta[,sf], n_regions = n_regions, n_sexes = n_sexes, age_or_len = 0, AgeingError = AgeingError, use = UseSrvAgeComps[,y,sf], n_bins = n_ages)
+          ln_theta = ln_SrvAge_theta[,sf], n_regions = n_regions, n_sexes = n_sexes, age_or_len = 0,
+          AgeingError = AgeingError, use = UseSrvAgeComps[,y,sf], n_bins = n_ages, comp_agg_type = SrvAge_comp_agg_type[sf])
       } # if we have survey age comps
       
       # Survey Length Compositions
@@ -549,7 +556,8 @@ sabie_RTMB = function(pars) {
           # Composition and Likelihood Type
           Comp_Type = SrvLenComps_Type[y,sf], Likelihood_Type = SrvLenComps_LikeType[sf], 
           # overdispersion, Number of sexes, regions, age or length comps, and ageing error
-          ln_theta = ln_SrvLen_theta[,sf], n_regions = n_regions, n_sexes = n_sexes, age_or_len = 1, AgeingError = NA, use = UseSrvLenComps[,y,sf], n_bins = n_lens)
+          ln_theta = ln_SrvLen_theta[,sf], n_regions = n_regions, n_sexes = n_sexes, age_or_len = 1, 
+          AgeingError = NA, use = UseSrvLenComps[,y,sf], n_bins = n_lens, comp_agg_type = SrvLen_comp_agg_type[sf])
       } # if we have survey length comps
       
     } # end sf loop
@@ -697,11 +705,19 @@ sabie_RTMB = function(pars) {
   } 
   
 
+  ### Mean Recruitment or R0 (Penalty) ----------------------------------------
+
+
+  ### Movement Rates (Penalty) ------------------------------------------------
+
+  
+  
+
   ### Tag Reporting Rate (Penalty) --------------------------------------------
   if(Use_TagRep_Prior == 1) {
     unique_tagrep_pars = sort(unique(as.vector(map_Tag_Reporting_Pars))) # Figure out unique tag reporting parameters estimated
     for(i in 1:length(unique_tagrep_pars)) {
-      par_idx = which(map_Tag_Reporting_Pars == i, arr.ind = TRUE)[1,] # figure out where unique tagrep parameter first occurs
+      par_idx = which(map_Tag_Reporting_Pars == unique_tagrep_pars[i], arr.ind = TRUE)[1,] # figure out where unique tagrep parameter first occurs
       r = par_idx[1] # get region index
       y = par_idx[2] # get year index
       if(TagRep_PenType == 0) {

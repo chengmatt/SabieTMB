@@ -32,7 +32,8 @@ Get_Comp_Likelihoods = function(Exp,
                                 n_sexes, 
                                 age_or_len, 
                                 AgeingError, 
-                                use) {
+                                use,
+                                comp_agg_type) {
   
   # Read in functions
   require(here)
@@ -60,9 +61,12 @@ Get_Comp_Likelihoods = function(Exp,
 
   # Aggregated comps by sex and region
   if(Comp_Type == 0) {
-    # Expected Values
-    tmp_Exp = Exp / array(data = rep(colSums(matrix(Exp, nrow = n_bins)), each = n_bins), dim = dim(Exp)) # normalize by sex and region
-    tmp_Exp = matrix(rowSums(matrix(tmp_Exp, nrow = n_bins)) / (n_sexes * n_regions), nrow = 1) # take average proportions and transpose
+    if(comp_agg_type == 0) { # aggregated age comps are normalized, aggregated, ageing error, and then normalized again 
+      # Expected Values
+      tmp_Exp = Exp / array(data = rep(colSums(matrix(Exp, nrow = n_bins)), each = n_bins), dim = dim(Exp)) # normalize by sex and region
+      tmp_Exp = matrix(rowSums(matrix(tmp_Exp, nrow = n_bins)) / (n_sexes * n_regions), nrow = 1) # take average proportions and transpose
+    }
+    if(comp_agg_type == 1) tmp_Exp = matrix(rowSums(matrix(Exp, nrow = n_bins)) / (n_sexes * n_regions), nrow = 1) # age comps are aggregated, ageing error, and the normalized
     if(age_or_len == 0) {
       tmp_Exp = tmp_Exp %*% AgeingError # apply ageing error
       tmp_Exp = as.vector((tmp_Exp) / sum(tmp_Exp)) # renormalize
@@ -96,8 +100,9 @@ Get_Comp_Likelihoods = function(Exp,
       for(r in 1:n_regions_obs_use) {
         # Expected Values
         if(age_or_len == 0) tmp_Exp = ((Exp[r,,s]) / sum(Exp[r,,s])) %*% AgeingError # Normalize temporary variable (ages)
-        if(age_or_len == 1) tmp_Exp = (Exp[r,,s]) / sum(Exp[r,,s]) # Normalize temporary variable (also used for computing lengths)
-
+        if(age_or_len == 1 && comp_agg_type == 0) tmp_Exp = (Exp[r,,s]) / sum(Exp[r,,s]) # Length comps are not normalized prior to age length transition
+        if(age_or_len == 1 && comp_agg_type == 1) tmp_Exp = (Exp[r,,s]) # Length comps are normalized prior to age length transition
+        
         # Multinomial likelihood
         if(Likelihood_Type == 0) { 
           tmp_Obs = (Obs[r,,s]) / sum(Obs[r,,s]) # Normalize observed temporary variable

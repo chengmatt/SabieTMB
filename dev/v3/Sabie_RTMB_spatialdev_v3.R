@@ -128,7 +128,12 @@
     colnames(data$ObsFishIdx_SE) <- data$years # define row years
     
     # fishery CPUE
-    data$share_sel <- 0
+    data$sablefish_ADMB = 0
+    data$FishAge_comp_agg_type = NA
+    data$FishLen_comp_agg_type = NA
+    data$SrvAge_comp_agg_type = NA
+    data$SrvLen_comp_agg_type = NA
+    
     data$UseFishIdx[is.na(data$ObsFishIdx)] <- 0 # don't fit if missing data
     
     # Fishery Age Comps
