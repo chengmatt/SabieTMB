@@ -21,6 +21,7 @@
 # years, ages, and sexes
 # Tag integrated model incorporated using a Brownie Tag Attrition Model
 # Tag Reporting Rates, Tag Shedding, and Tag Induced Mortality are parameters that can be estimated
+# Beta priors for movement rates, tag reporting rates
 
 
 

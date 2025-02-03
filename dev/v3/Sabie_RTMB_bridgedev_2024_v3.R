@@ -621,7 +621,6 @@ RTMB = c(
 
 write.csv(unopt_like_df, here("output", "Bridging", "unopt_nLL_v1.csv"))
 
-# Check consistency v1 -------------------------------------------------------
 sabie_rtmb_model$rep = sabie_rtmb_model$report(sabie_rtmb_model$env$last.par.best) # Get unoptimized report
 
 # Get time series
@@ -650,7 +649,7 @@ ssb_series <- data.frame(Par = "SSB",
                          TMB = t(sabie_rtmb_model$rep$SSB),
                          ADMB = ssb)
 
-ts_df <- rbind(rec_series, f_series, females_series, males_series, ssb_series)
+unopt_ts_df_v1 <- rbind(rec_series, f_series, females_series, males_series, ssb_series)
 
 # Get selectivities
 dom_ll_fish_f1 <- data.frame(Age = 1:30,
@@ -733,7 +732,7 @@ coop_ll_srv_m2 <- data.frame(Age = 1:30,
                              ADMB = tem_dat$agesel$srv2sel.m,
                              Type = "Coop LL Survey Male")
 
-combined_sel <- rbind(
+unopt_combined_sel_v1 <- rbind(
   dom_ll_fish_m1,
   dom_ll_fish_f2,
   dom_ll_fish_m2,
@@ -750,60 +749,6 @@ combined_sel <- rbind(
   coop_ll_srv_f2,
   coop_ll_srv_m2
 )
-
-# Relative Error Time Series
-unopt_re_ts <- ggplot(ts_df, aes(x = Year, y = ((TMB - ADMB) / ADMB), color = Par)) +
-  geom_line(size = 2) +
-  geom_hline(yintercept = 0, lty = 1.3, size = 1.3) +
-  ggthemes::scale_color_hc() +
-  scale_y_continuous(labels = scales::percent) +
-  coord_cartesian(ylim = c(-0.005, 0.005)) +
-  facet_wrap(~Par) +
-  labs(y = "Relative difference (%)") +
-  theme_sablefish() +
-  theme(legend.position = "none")
-
-png(here("output", "Bridging", "unopt_re_ts_v1.png"), width = 1000, height = 800)
-unopt_re_ts
-dev.off()
-
-# Time Series Estimated
-unopt_ts <- ggplot() +
-  geom_line(ts_df, mapping  = aes(x = Year, y = TMB, color = "RTMB"), size = 1.3, lty = 1) +
-  geom_line(ts_df, mapping  = aes(x = Year, y = ADMB, color = "ADMB"), size = 1.3, lty = 2) +
-  facet_wrap(~Par, scales = "free") +
-  labs(x = "Year", color = 'Model', y = "Value") +
-  ggthemes::scale_color_hc() +
-  theme_sablefish()
-
-png(here("output", "Bridging", "unopt_ts_v1.png"), width = 1000, height = 800)
-unopt_ts
-dev.off()
-
-# Selectivity curves
-unopt_sel_re <- ggplot(combined_sel, aes(x = Age , y = (TMB - ADMB) / ADMB)) +
-  geom_line() +
-  geom_hline(yintercept = 0, lty = 1.3, size = 1.3) +
-  ggthemes::scale_color_hc() +
-  facet_wrap(~Type) +
-  labs(y = "Relative difference (%)", color = "Model") +
-  theme_sablefish()
-
-png(here("output", "Bridging", "unopt_sel_re_v1.png"), width = 1300, height = 800)
-unopt_sel_re
-dev.off()
-
-unopt_sel <- ggplot() +
-  geom_line(combined_sel, mapping  = aes(x = Age, y = TMB, color = "RTMB"), size = 1.3, lty = 1) +
-  geom_line(combined_sel, mapping  = aes(x = Age, y = ADMB, color = "ADMB"), size = 1.3, lty = 2) +
-  ggthemes::scale_color_hc() +
-  facet_wrap(~Type) +
-  labs(y = "Selex", color = "Model") +
-  theme_sablefish()
-
-png(here("output", "Bridging", "unopt_sel_v1.png"), width = 1300, height = 800)
-unopt_sel
-dev.off()
 
 
 # Optimized Model v1 ------------------------------------------------------
@@ -901,7 +846,6 @@ RTMB = c(
 
 write.csv(opt_like_df, here("output", "Bridging", "opt_nLL_v1.csv"))
 
-# Check consistency v1 -------------------------------------------------------
 # Get time series
 rec_series <- data.frame(Par = "Recruitment",
                          Year = 1960:2024,
@@ -938,7 +882,7 @@ rec_se_series <- data.frame(Par = "Recruitment (SE)",
                             TMB = sabie_rtmb_model$sd_rep$sd[names(sabie_rtmb_model$sd_rep$value) == "Rec"],
                             ADMB = tem_par$se[str_detect(names(tem_par$se), "pred_rec")])
 
-ts_df <- rbind(ssb_se_series,rec_series, f_series, females_series, males_series, ssb_series, rec_se_series)
+opt_ts_df_v1 <- rbind(ssb_se_series,rec_series, f_series, females_series, males_series, ssb_series, rec_se_series)
 
 # Get selectivities
 dom_ll_fish_f1 <- data.frame(Age = 1:30,
@@ -1021,7 +965,7 @@ coop_ll_srv_m2 <- data.frame(Age = 1:30,
                              ADMB = tem_dat$agesel$srv2sel.m,
                              Type = "Coop LL Survey Male")
 
-combined_sel <- rbind(
+opt_combined_sel_v1 <- rbind(
   dom_ll_fish_m1,
   dom_ll_fish_f2,
   dom_ll_fish_m2,
@@ -1039,59 +983,25 @@ combined_sel <- rbind(
   coop_ll_srv_m2
 )
 
-# Relative Error Time Series
-opt_re_ts <- ggplot(ts_df, aes(x = Year, y = ((TMB - ADMB) / ADMB), color = Par)) +
-  geom_line(size = 2) +
-  geom_hline(yintercept = 0, lty = 1.3, size = 1.3) +
-  ggthemes::scale_color_hc() +
-  scale_y_continuous(labels = scales::percent) +
-  coord_cartesian(ylim = c(-0.05, 0.05)) +
-  facet_wrap(~Par) +
-  labs(y = "Relative difference (%)") +
-  theme_sablefish() +
-  theme(legend.position = "none")
+# Get parameters
+M_df <- data.frame(Par = "M",
+                   TMB = exp(sabie_rtmb_model$sd_rep$par.fixed[names(sabie_rtmb_model$sd_rep$par.fixed) == "ln_M"]),
+                   ADMB = exp(parameters$ln_M))
 
-png(here("output", "Bridging", "opt_re_ts_v1.png"), width = 1000, height = 800)
-opt_re_ts
-dev.off()
+R0_df <- data.frame(Par = "Mean Recruitment",
+                    TMB = sabie_rtmb_model$rep$R0,
+                    ADMB = exp(parameters$ln_global_R0))
 
-# Time Series Estimated
-opt_ts <- ggplot() +
-  geom_line(ts_df, mapping  = aes(x = Year, y = TMB, color = "RTMB"), size = 1.3, lty = 1) +
-  geom_line(ts_df, mapping  = aes(x = Year, y = ADMB, color = "ADMB"), size = 1.3, lty = 2) +
-  facet_wrap(~Par, scales = "free") +
-  labs(x = "Year", color = 'Model', y = "Value") +
-  ggthemes::scale_color_hc() +
-  theme_sablefish()
+srv_q_df <- data.frame(Par = c('srv_domLL_q', 'srv_trwl_q', 'srv_coopLL_q'),
+                       TMB = exp(sabie_rtmb_model$sd_rep$par.fixed[names(sabie_rtmb_model$sd_rep$par.fixed) == "ln_srv_q"]),
+                       ADMB = exp(parameters$ln_srv_q[1,,]))
 
-png(here("output", "Bridging", "opt_ts_v1.png"), width = 1000, height = 800)
-opt_ts
-dev.off()
+fish_q_df <- data.frame(Par = c('fish_domLL_q1', 'fish_domLL_q2', 'fish_domLL_q3'),
+                        TMB = exp(sabie_rtmb_model$sd_rep$par.fixed[names(sabie_rtmb_model$sd_rep$par.fixed) == "ln_fish_q"]),
+                        ADMB = exp(parameters$ln_fish_q[,,1]))
 
-# Selectivity curves
-opt_sel_re <- ggplot(combined_sel, aes(x = Age , y = (TMB - ADMB) / ADMB)) +
-  geom_line() +
-  geom_hline(yintercept = 0, lty = 1.3, size = 1.3) +
-  ggthemes::scale_color_hc() +
-  facet_wrap(~Type) +
-  labs(y = "Relative difference (%)", color = "Model") +
-  theme_sablefish()
+par_df_v1 <- rbind(M_df, R0_df, srv_q_df, fish_q_df)
 
-png(here("output", "Bridging", "opt_sel_re_v1.png"), width = 1300, height = 800)
-opt_sel_re
-dev.off()
-
-opt_sel <- ggplot() +
-  geom_line(combined_sel, mapping  = aes(x = Age, y = TMB, color = "RTMB"), size = 1.3, lty = 1) +
-  geom_line(combined_sel, mapping  = aes(x = Age, y = ADMB, color = "ADMB"), size = 1.3, lty = 2) +
-  ggthemes::scale_color_hc() +
-  facet_wrap(~Type) +
-  labs(y = "Selex", color = "Model") +
-  theme_sablefish()
-
-png(here("output", "Bridging", "opt_sel_v1.png"), width = 1300, height = 800)
-opt_sel
-dev.off()
 
 # Version 2 (Original Model, without dev_vector) ----------------------------------------------
 # Read in data
@@ -1703,7 +1613,6 @@ RTMB = c(
 
 write.csv(unopt_like_df, here("output", "Bridging", "unopt_nLL_v2.csv"))
 
-# Check consistency v2 -------------------------------------------------------
 sabie_rtmb_model$rep = sabie_rtmb_model$report(sabie_rtmb_model$env$last.par.best) # Get unoptimized report
 
 # Get time series
@@ -1732,7 +1641,7 @@ ssb_series <- data.frame(Par = "SSB",
                          TMB = t(sabie_rtmb_model$rep$SSB),
                          ADMB = ssb)
 
-ts_df <- rbind(rec_series, f_series, females_series, males_series, ssb_series)
+unopt_ts_df_v2 <- rbind(rec_series, f_series, females_series, males_series, ssb_series)
 
 # Get selectivities
 dom_ll_fish_f1 <- data.frame(Age = 1:30,
@@ -1815,7 +1724,7 @@ coop_ll_srv_m2 <- data.frame(Age = 1:30,
                              ADMB = tem_dat$agesel$srv2sel.m,
                              Type = "Coop LL Survey Male")
 
-combined_sel <- rbind(
+unopt_combined_sel_v2 <- rbind(
   dom_ll_fish_m1,
   dom_ll_fish_f2,
   dom_ll_fish_m2,
@@ -1832,61 +1741,6 @@ combined_sel <- rbind(
   coop_ll_srv_f2,
   coop_ll_srv_m2
 )
-
-# Relative Error Time Series
-unopt_re_ts <- ggplot(ts_df, aes(x = Year, y = ((TMB - ADMB) / ADMB), color = Par)) +
-  geom_line(size = 2) +
-  geom_hline(yintercept = 0, lty = 1.3, size = 1.3) +
-  ggthemes::scale_color_hc() +
-  scale_y_continuous(labels = scales::percent) +
-  coord_cartesian(ylim = c(-0.005, 0.005)) +
-  facet_wrap(~Par) +
-  labs(y = "Relative difference (%)") +
-  theme_sablefish() +
-  theme(legend.position = "none")
-
-png(here("output", "Bridging", "unopt_re_ts_v2.png"), width = 1000, height = 800)
-unopt_re_ts
-dev.off()
-
-# Time Series Estimated
-unopt_ts <- ggplot() +
-  geom_line(ts_df, mapping  = aes(x = Year, y = TMB, color = "RTMB"), size = 1.3, lty = 1) +
-  geom_line(ts_df, mapping  = aes(x = Year, y = ADMB, color = "ADMB"), size = 1.3, lty = 2) +
-  facet_wrap(~Par, scales = "free") +
-  labs(x = "Year", color = 'Model', y = "Value") +
-  ggthemes::scale_color_hc() +
-  theme_sablefish()
-
-png(here("output", "Bridging", "unopt_ts_v2.png"), width = 1000, height = 800)
-unopt_ts
-dev.off()
-
-# Selectivity curves
-unopt_sel_re <- ggplot(combined_sel, aes(x = Age , y = (TMB - ADMB) / ADMB)) +
-  geom_line() +
-  geom_hline(yintercept = 0, lty = 1.3, size = 1.3) +
-  ggthemes::scale_color_hc() +
-  facet_wrap(~Type) +
-  labs(y = "Relative difference (%)", color = "Model") +
-  theme_sablefish()
-
-png(here("output", "Bridging", "unopt_sel_re_v2.png"), width = 1300, height = 800)
-unopt_sel_re
-dev.off()
-
-unopt_sel <- ggplot() +
-  geom_line(combined_sel, mapping  = aes(x = Age, y = TMB, color = "RTMB"), size = 1.3, lty = 1) +
-  geom_line(combined_sel, mapping  = aes(x = Age, y = ADMB, color = "ADMB"), size = 1.3, lty = 2) +
-  ggthemes::scale_color_hc() +
-  facet_wrap(~Type) +
-  labs(y = "Selex", color = "Model") +
-  theme_sablefish()
-
-png(here("output", "Bridging", "unopt_sel_v2.png"), width = 1300, height = 800)
-unopt_sel
-dev.off()
-
 
 # Optimized Model v2 ------------------------------------------------------
 # Optimize the function
@@ -1983,7 +1837,6 @@ RTMB = c(
 
 write.csv(opt_like_df, here("output", "Bridging", "opt_nLL_v2.csv"))
 
-# Check consistency v2 -------------------------------------------------------
 # Get time series
 rec_series <- data.frame(Par = "Recruitment",
                          Year = 1960:2024,
@@ -2020,7 +1873,7 @@ rec_se_series <- data.frame(Par = "Recruitment (SE)",
                             TMB = sabie_rtmb_model$sd_rep$sd[names(sabie_rtmb_model$sd_rep$value) == "Rec"],
                             ADMB = tem_par$se[str_detect(names(tem_par$se), "pred_rec")])
 
-ts_df <- rbind(ssb_se_series,rec_series, f_series, females_series, males_series, ssb_series, rec_se_series)
+opt_ts_df_v2 <- rbind(ssb_se_series,rec_series, f_series, females_series, males_series, ssb_series, rec_se_series)
 
 # Get selectivities
 dom_ll_fish_f1 <- data.frame(Age = 1:30,
@@ -2103,7 +1956,7 @@ coop_ll_srv_m2 <- data.frame(Age = 1:30,
                              ADMB = tem_dat$agesel$srv2sel.m,
                              Type = "Coop LL Survey Male")
 
-combined_sel <- rbind(
+opt_combined_sel_v2 <- rbind(
   dom_ll_fish_m1,
   dom_ll_fish_f2,
   dom_ll_fish_m2,
@@ -2121,60 +1974,24 @@ combined_sel <- rbind(
   coop_ll_srv_m2
 )
 
-# Relative Error Time Series
-opt_re_ts <- ggplot(ts_df, aes(x = Year, y = ((TMB - ADMB) / ADMB), color = Par)) +
-  geom_line(size = 2) +
-  geom_hline(yintercept = 0, lty = 1.3, size = 1.3) +
-  ggthemes::scale_color_hc() +
-  scale_y_continuous(labels = scales::percent) +
-  coord_cartesian(ylim = c(-0.01, 0.01)) +
-  facet_wrap(~Par) +
-  labs(y = "Relative difference (%)") +
-  theme_sablefish() +
-  theme(legend.position = "none")
+# Get parameters
+M_df <- data.frame(Par = "M",
+                   TMB = exp(sabie_rtmb_model$sd_rep$par.fixed[names(sabie_rtmb_model$sd_rep$par.fixed) == "ln_M"]),
+                   ADMB = exp(parameters$ln_M))
 
-png(here("output", "Bridging", "opt_re_ts_v2.png"), width = 1000, height = 800)
-opt_re_ts
-dev.off()
+R0_df <- data.frame(Par = "Mean Recruitment",
+                    TMB = sabie_rtmb_model$rep$R0,
+                    ADMB = exp(parameters$ln_global_R0))
 
-# Time Series Estimated
-opt_ts <- ggplot() +
-  geom_line(ts_df, mapping  = aes(x = Year, y = TMB, color = "RTMB"), size = 1.3, lty = 1) +
-  geom_line(ts_df, mapping  = aes(x = Year, y = ADMB, color = "ADMB"), size = 1.3, lty = 2) +
-  facet_wrap(~Par, scales = "free") +
-  labs(x = "Year", color = 'Model', y = "Value") +
-  ggthemes::scale_color_hc() +
-  theme_sablefish()
+srv_q_df <- data.frame(Par = c('srv_domLL_q', 'srv_trwl_q', 'srv_coopLL_q'),
+                       TMB = exp(sabie_rtmb_model$sd_rep$par.fixed[names(sabie_rtmb_model$sd_rep$par.fixed) == "ln_srv_q"]),
+                       ADMB = exp(parameters$ln_srv_q[1,,]))
 
-png(here("output", "Bridging", "opt_ts_v2.png"), width = 1000, height = 800)
-opt_ts
-dev.off()
+fish_q_df <- data.frame(Par = c('fish_domLL_q1', 'fish_domLL_q2', 'fish_domLL_q3'),
+                        TMB = exp(sabie_rtmb_model$sd_rep$par.fixed[names(sabie_rtmb_model$sd_rep$par.fixed) == "ln_fish_q"]),
+                        ADMB = exp(parameters$ln_fish_q[,,1]))
 
-# Selectivity curves
-opt_sel_re <- ggplot(combined_sel, aes(x = Age , y = (TMB - ADMB) / ADMB)) +
-  geom_line() +
-  geom_hline(yintercept = 0, lty = 1.3, size = 1.3) +
-  ggthemes::scale_color_hc() +
-  facet_wrap(~Type) +
-  labs(y = "Relative difference (%)", color = "Model") +
-  theme_sablefish()
-
-png(here("output", "Bridging", "opt_sel_re_v2.png"), width = 1300, height = 800)
-opt_sel_re
-dev.off()
-
-opt_sel <- ggplot() +
-  geom_line(combined_sel, mapping  = aes(x = Age, y = TMB, color = "RTMB"), size = 1.3, lty = 1) +
-  geom_line(combined_sel, mapping  = aes(x = Age, y = ADMB, color = "ADMB"), size = 1.3, lty = 2) +
-  ggthemes::scale_color_hc() +
-  facet_wrap(~Type) +
-  labs(y = "Selex", color = "Model") +
-  theme_sablefish()
-
-png(here("output", "Bridging", "opt_sel_v2.png"), width = 1300, height = 800)
-opt_sel
-dev.off()
-
+par_df_v2 <- rbind(M_df, R0_df, srv_q_df, fish_q_df)
 
 # Version 3 (Original Model, without dev_vector and max calls) ----------------------------------------------
 # Read in data
@@ -2786,7 +2603,6 @@ RTMB = c(
 
 write.csv(unopt_like_df, here("output", "Bridging", "unopt_nLL_v3.csv"))
 
-# Check consistency v3 -------------------------------------------------------
 sabie_rtmb_model$rep = sabie_rtmb_model$report(sabie_rtmb_model$env$last.par.best) # Get unoptimized report
 
 # Get time series
@@ -2815,7 +2631,7 @@ ssb_series <- data.frame(Par = "SSB",
                          TMB = t(sabie_rtmb_model$rep$SSB),
                          ADMB = ssb)
 
-ts_df <- rbind(rec_series, f_series, females_series, males_series, ssb_series)
+unopt_ts_df_v3 <- rbind(rec_series, f_series, females_series, males_series, ssb_series)
 
 # Get selectivities
 dom_ll_fish_f1 <- data.frame(Age = 1:30,
@@ -2898,7 +2714,7 @@ coop_ll_srv_m2 <- data.frame(Age = 1:30,
                              ADMB = tem_dat$agesel$srv2sel.m,
                              Type = "Coop LL Survey Male")
 
-combined_sel <- rbind(
+unopt_combined_sel_v3 <- rbind(
   dom_ll_fish_m1,
   dom_ll_fish_f2,
   dom_ll_fish_m2,
@@ -2915,61 +2731,6 @@ combined_sel <- rbind(
   coop_ll_srv_f2,
   coop_ll_srv_m2
 )
-
-# Relative Error Time Series
-unopt_re_ts <- ggplot(ts_df, aes(x = Year, y = ((TMB - ADMB) / ADMB), color = Par)) +
-  geom_line(size = 2) +
-  geom_hline(yintercept = 0, lty = 1.3, size = 1.3) +
-  ggthemes::scale_color_hc() +
-  scale_y_continuous(labels = scales::percent) +
-  # coord_cartesian(ylim = c(-0.005, 0.005)) +
-  facet_wrap(~Par) +
-  labs(y = "Relative difference (%)") +
-  theme_sablefish() +
-  theme(legend.position = "none")
-
-png(here("output", "Bridging", "unopt_re_ts_v3.png"), width = 1000, height = 800)
-unopt_re_ts
-dev.off()
-
-# Time Series Estimated
-unopt_ts <- ggplot() +
-  geom_line(ts_df, mapping  = aes(x = Year, y = TMB, color = "RTMB"), size = 1.3, lty = 1) +
-  geom_line(ts_df, mapping  = aes(x = Year, y = ADMB, color = "ADMB"), size = 1.3, lty = 2) +
-  facet_wrap(~Par, scales = "free") +
-  labs(x = "Year", color = 'Model', y = "Value") +
-  ggthemes::scale_color_hc() +
-  theme_sablefish()
-
-png(here("output", "Bridging", "unopt_ts_v3.png"), width = 1000, height = 800)
-unopt_ts
-dev.off()
-
-# Selectivity curves
-unopt_sel_re <- ggplot(combined_sel, aes(x = Age , y = (TMB - ADMB) / ADMB)) +
-  geom_line() +
-  geom_hline(yintercept = 0, lty = 1.3, size = 1.3) +
-  ggthemes::scale_color_hc() +
-  facet_wrap(~Type) +
-  labs(y = "Relative difference (%)", color = "Model") +
-  theme_sablefish()
-
-png(here("output", "Bridging", "unopt_sel_re_v3.png"), width = 1300, height = 800)
-unopt_sel_re
-dev.off()
-
-unopt_sel <- ggplot() +
-  geom_line(combined_sel, mapping  = aes(x = Age, y = TMB, color = "RTMB"), size = 1.3, lty = 1) +
-  geom_line(combined_sel, mapping  = aes(x = Age, y = ADMB, color = "ADMB"), size = 1.3, lty = 2) +
-  ggthemes::scale_color_hc() +
-  facet_wrap(~Type) +
-  labs(y = "Selex", color = "Model") +
-  theme_sablefish()
-
-png(here("output", "Bridging", "unopt_sel_v3.png"), width = 1300, height = 800)
-unopt_sel
-dev.off()
-
 
 # Optimized Model v3 ------------------------------------------------------
 # Optimize the function
@@ -3066,7 +2827,6 @@ RTMB = c(
 
 write.csv(opt_like_df, here("output", "Bridging", "opt_nLL_v3.csv"))
 
-# Check consistency v3 -------------------------------------------------------
 # Get time series
 rec_series <- data.frame(Par = "Recruitment",
                          Year = 1960:2024,
@@ -3103,7 +2863,7 @@ rec_se_series <- data.frame(Par = "Recruitment (SE)",
                             TMB = sabie_rtmb_model$sd_rep$sd[names(sabie_rtmb_model$sd_rep$value) == "Rec"],
                             ADMB = tem_par$se[str_detect(names(tem_par$se), "pred_rec")])
 
-ts_df <- rbind(ssb_se_series,rec_series, f_series, females_series, males_series, ssb_series, rec_se_series)
+opt_ts_df_v3 <- rbind(ssb_se_series,rec_series, f_series, females_series, males_series, ssb_series, rec_se_series)
 
 # Get selectivities
 dom_ll_fish_f1 <- data.frame(Age = 1:30,
@@ -3186,7 +2946,7 @@ coop_ll_srv_m2 <- data.frame(Age = 1:30,
                              ADMB = tem_dat$agesel$srv2sel.m,
                              Type = "Coop LL Survey Male")
 
-combined_sel <- rbind(
+opt_combined_sel_v3 <- rbind(
   dom_ll_fish_m1,
   dom_ll_fish_f2,
   dom_ll_fish_m2,
@@ -3204,59 +2964,24 @@ combined_sel <- rbind(
   coop_ll_srv_m2
 )
 
-# Relative Error Time Series
-opt_re_ts <- ggplot(ts_df, aes(x = Year, y = ((TMB - ADMB) / ADMB), color = Par)) +
-  geom_line(size = 2) +
-  geom_hline(yintercept = 0, lty = 1.3, size = 1.3) +
-  ggthemes::scale_color_hc() +
-  scale_y_continuous(labels = scales::percent) +
-  # coord_cartesian(ylim = c(-0.05, 0.05)) +
-  facet_wrap(~Par) +
-  labs(y = "Relative difference (%)") +
-  theme_sablefish() +
-  theme(legend.position = "none")
+# Get parameters
+M_df <- data.frame(Par = "M",
+                   TMB = exp(sabie_rtmb_model$sd_rep$par.fixed[names(sabie_rtmb_model$sd_rep$par.fixed) == "ln_M"]),
+                   ADMB = exp(parameters$ln_M))
 
-png(here("output", "Bridging", "opt_re_ts_v3.png"), width = 1000, height = 800)
-opt_re_ts
-dev.off()
+R0_df <- data.frame(Par = "Mean Recruitment",
+                    TMB = sabie_rtmb_model$rep$R0,
+                    ADMB = exp(parameters$ln_global_R0))
 
-# Time Series Estimated
-opt_ts <- ggplot() +
-  geom_line(ts_df, mapping  = aes(x = Year, y = TMB, color = "RTMB"), size = 1.3, lty = 1) +
-  geom_line(ts_df, mapping  = aes(x = Year, y = ADMB, color = "ADMB"), size = 1.3, lty = 2) +
-  facet_wrap(~Par, scales = "free") +
-  labs(x = "Year", color = 'Model', y = "Value") +
-  ggthemes::scale_color_hc() +
-  theme_sablefish()
+srv_q_df <- data.frame(Par = c('srv_domLL_q', 'srv_trwl_q', 'srv_coopLL_q'),
+                       TMB = exp(sabie_rtmb_model$sd_rep$par.fixed[names(sabie_rtmb_model$sd_rep$par.fixed) == "ln_srv_q"]),
+                       ADMB = exp(parameters$ln_srv_q[1,,]))
 
-png(here("output", "Bridging", "opt_ts_v3.png"), width = 1000, height = 800)
-opt_ts
-dev.off()
+fish_q_df <- data.frame(Par = c('fish_domLL_q1', 'fish_domLL_q2', 'fish_domLL_q3'),
+                        TMB = exp(sabie_rtmb_model$sd_rep$par.fixed[names(sabie_rtmb_model$sd_rep$par.fixed) == "ln_fish_q"]),
+                        ADMB = exp(parameters$ln_fish_q[,,1]))
 
-# Selectivity curves
-opt_sel_re <- ggplot(combined_sel, aes(x = Age , y = (TMB - ADMB) / ADMB)) +
-  geom_line() +
-  geom_hline(yintercept = 0, lty = 1.3, size = 1.3) +
-  ggthemes::scale_color_hc() +
-  facet_wrap(~Type) +
-  labs(y = "Relative difference (%)", color = "Model") +
-  theme_sablefish()
-
-png(here("output", "Bridging", "opt_sel_re_v3.png"), width = 1300, height = 800)
-opt_sel_re
-dev.off()
-
-opt_sel <- ggplot() +
-  geom_line(combined_sel, mapping  = aes(x = Age, y = TMB, color = "RTMB"), size = 1.3, lty = 1) +
-  geom_line(combined_sel, mapping  = aes(x = Age, y = ADMB, color = "ADMB"), size = 1.3, lty = 2) +
-  ggthemes::scale_color_hc() +
-  facet_wrap(~Type) +
-  labs(y = "Selex", color = "Model") +
-  theme_sablefish()
-
-png(here("output", "Bridging", "opt_sel_v3.png"), width = 1300, height = 800)
-opt_sel
-dev.off()
+par_df_v3 <- rbind(M_df, R0_df, srv_q_df, fish_q_df)
 
 # Model and coding stuff that needs to be revised
 # Make sure to set M_offset = 0
@@ -3265,3 +2990,144 @@ dev.off()
 # Note that the japanese ll fishery cpue is calculated with just female selectivity (should be both male and female)
 # Selectivity for the coop ll survey is not estimated, a50 is fixed for females and males (and accidentally jittered) and
 # Note that I corrected the ADMB version to have the correct parameterization of the bias ramp 
+
+
+# Unoptimized Comparisons -------------------------------------------------
+# Time series estimates
+unopt_ts_df <- rbind(
+  unopt_ts_df_v1 %>% mutate(Comparison = "ADMB"),
+  unopt_ts_df_v2 %>% mutate(Comparison = "ADMB (without dev_vector)"),
+  unopt_ts_df_v3 %>% mutate(Comparison = "ADMB (without dev_vector and max)")
+) %>% 
+  mutate(Comparison = factor(Comparison,
+                             levels = c('ADMB', "ADMB (without dev_vector)",
+                                        "ADMB (without dev_vector and max)")))
+
+unopt_re_ts <- ggplot(unopt_ts_df, aes(x = Year, y = ((TMB - ADMB) / ADMB), color = Comparison)) +
+  geom_line(size = 2) +
+  geom_hline(yintercept = 0, lty = 2, size = 1.3) +
+  scale_y_continuous(labels = scales::percent) +
+  facet_grid(Par~Comparison, scales = "free_y") +
+  labs(y = "Relative difference (%)") +
+  theme_sablefish()
+
+png(here("output", "Bridging", "unopt_re_ts.png"), width = 1000, height = 1300)
+unopt_re_ts
+dev.off()
+
+# Time Series Estimated
+unopt_ts <- ggplot() +
+  geom_line(opt_ts_df, mapping  = aes(x = Year, y = TMB), size = 1.3, lty = 1) +
+  geom_line(opt_ts_df, mapping  = aes(x = Year, y = ADMB, color = Comparison), size = 1.3, lty = 2) +
+  facet_grid(Par~Comparison, scales = "free_y") +
+  labs(x = "Year", color = 'Model', y = "Value") +
+  theme_sablefish()
+
+png(here("output", "Bridging", "unopt_ts.png"), width = 1000, height = 1300)
+unopt_ts
+dev.off()
+
+
+unopt_sel_df <- rbind(
+  unopt_combined_sel_v1 %>% mutate(Comparison = "ADMB"),
+  unopt_combined_sel_v2 %>% mutate(Comparison = "ADMB (without dev_vector)"),
+  unopt_combined_sel_v3 %>% mutate(Comparison = "ADMB (without dev_vector and max)")
+) %>% 
+  mutate(Comparison = factor(Comparison,
+                             levels = c('ADMB', "ADMB (without dev_vector)",
+                                        "ADMB (without dev_vector and max)")))
+
+# Selectivity curves RE
+unopt_sel_re <- ggplot(unopt_sel_df, aes(x = Age , y = (TMB - ADMB) / ADMB, color = Comparison)) +
+  geom_line(size = 1.3) +
+  geom_hline(yintercept = 0, lty = 2, size = 1.3) +
+  scale_y_continuous(labels = scales::percent) +
+  facet_wrap(~Type) +
+  labs(y = "Relative difference (%)", color = "Model") +
+  theme_sablefish()
+
+png(here("output", "Bridging", "unopt_sel_re.png"), width = 1300, height = 800)
+unopt_sel_re
+dev.off()
+
+
+# Optimized Comparisons ---------------------------------------------------
+
+# Time series estimates
+opt_ts_df <- rbind(
+  opt_ts_df_v1 %>% mutate(Comparison = "ADMB"),
+  opt_ts_df_v2 %>% mutate(Comparison = "ADMB (without dev_vector)"),
+  opt_ts_df_v3 %>% mutate(Comparison = "ADMB (without dev_vector and max)")
+) %>% 
+  mutate(Comparison = factor(Comparison,
+                             levels = c('ADMB', "ADMB (without dev_vector)",
+                                        "ADMB (without dev_vector and max)")))
+
+opt_re_ts <- ggplot(opt_ts_df, aes(x = Year, y = ((TMB - ADMB) / ADMB), color = Comparison)) +
+  geom_line(size = 2) +
+  geom_hline(yintercept = 0, lty = 2, size = 1.3) +
+  scale_y_continuous(labels = scales::percent) +
+  facet_grid(Par~Comparison, scales = "free_y") +
+  labs(y = "Relative difference (%)") +
+  theme_sablefish()
+
+png(here("output", "Bridging", "opt_re_ts.png"), width = 1000, height = 1300)
+opt_re_ts
+dev.off()
+
+# Time Series Estimated
+opt_ts <- ggplot() +
+  geom_line(opt_ts_df, mapping  = aes(x = Year, y = TMB), size = 1.3, lty = 1) +
+  geom_line(opt_ts_df, mapping  = aes(x = Year, y = ADMB, color = Comparison), size = 1.3, lty = 2) +
+  facet_grid(Par~Comparison, scales = "free_y") +
+  labs(x = "Year", color = 'Model', y = "Value") +
+  theme_sablefish()
+
+png(here("output", "Bridging", "opt_ts.png"), width = 1000, height = 1300)
+opt_ts
+dev.off()
+
+opt_sel_df <- rbind(
+  opt_combined_sel_v1 %>% mutate(Comparison = "ADMB"),
+  opt_combined_sel_v2 %>% mutate(Comparison = "ADMB (without dev_vector)"),
+  opt_combined_sel_v3 %>% mutate(Comparison = "ADMB (without dev_vector and max)")
+) %>% 
+  mutate(Comparison = factor(Comparison,
+                             levels = c('ADMB', "ADMB (without dev_vector)",
+                                        "ADMB (without dev_vector and max)")))
+
+# Selectivity curves RE
+opt_sel_re <- ggplot(opt_sel_df, aes(x = Age , y = (TMB - ADMB) / ADMB, color = Comparison)) +
+  geom_line(size = 1.3) +
+  geom_hline(yintercept = 0, lty = 2, size = 1.3) +
+  scale_y_continuous(labels = scales::percent) +
+  facet_wrap(~Type) +
+  labs(y = "Relative difference (%)", color = "Model") +
+  theme_sablefish()
+
+png(here("output", "Bridging", "opt_sel_re.png"), width = 1300, height = 800)
+opt_sel_re
+dev.off()
+
+
+# Estiamted parameters
+par_df <- rbind(
+  par_df_v1 %>% mutate(Comparison = "ADMB"),
+  par_df_v2 %>% mutate(Comparison = "ADMB (without dev_vector)"),
+  par_df_v3 %>% mutate(Comparison = "ADMB (without dev_vector and max)")
+) %>% 
+  mutate(Comparison = factor(Comparison,
+                             levels = c('ADMB', "ADMB (without dev_vector)",
+                                        "ADMB (without dev_vector and max)")))
+
+par_plot <- ggplot(par_df, aes(x = Par, y = (TMB - ADMB) / ADMB, group = Comparison, color = Comparison)) +
+    geom_point(size = 7, position = position_dodge(width = 0.4)) +
+    geom_hline(yintercept = 0, lty = 2, size = 1.3) +
+    scale_y_continuous(labels = scales::percent) +
+    labs(y = "Relative difference (%)", x = "Parameter") +
+    theme_sablefish()
+
+png(here("output", "Bridging", "par_v3.png"), width = 1300, height = 800)
+par_plot
+dev.off()
+
