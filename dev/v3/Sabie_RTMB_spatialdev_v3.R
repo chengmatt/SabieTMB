@@ -256,7 +256,7 @@
     
     # movement rate priors
     data$Use_Movement_Prior = 1 # use mvoement reporting rate prior
-    data$Movement_prior = array(c(1, 1), dim = c(data$n_regions, data$n_regions, length(data$years), length(data$ages), data$n_sexes)) 
+    data$Movement_prior = array(c(50, 50, 0.1, 0.1), dim = c(data$n_regions, data$n_regions, length(data$years), length(data$ages), data$n_sexes)) 
     
     # Prepare Parameters ------------------------------------------------------
     parameters <- list()
@@ -563,3 +563,7 @@
   sabie_rtmb_model$rep$Movement[,,1,1,1]
   movement_matrix[,,1,2,1,1]
 
+# 
+#   [,1]      [,2]
+#   [1,] 0.4900816 0.5099184
+#   [2,] 0.7523358 0.2476642
