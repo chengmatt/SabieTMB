@@ -237,7 +237,7 @@
     data$srv_idx_type <- array(0, dim = c(data$n_regions, data$n_srv_fleets))
     
 
-    # Tagging Stuff -----------------------------------------------------------
+    # Tagging and Movement Stuff -----------------------------------------------------------
     data$UseTagging = 1
     data$tag_release_indicator <- sim_out$Tag_Release_Ind # tag release indicator, with rows = cohorts, first col = release regino, second col = release year
     data$n_tag_cohorts <- nrow(data$tag_release_indicator) # number of tag cohorts
@@ -253,6 +253,10 @@
     data$TagRep_PenType = 1 # symmetric beta prior with upper and lower bounds at 1 and 0
     data$TagRep_mu = 0.2 # penalize mu 
     data$TagRep_sd = 0.03 # sd of tag reporting rate prior
+    
+    # movement rate priors
+    data$Use_Movement_Prior = 1 # use mvoement reporting rate prior
+    data$Movement_prior = array(c(1, 1), dim = c(data$n_regions, data$n_regions, length(data$years), length(data$ages), data$n_sexes)) 
     
     # Prepare Parameters ------------------------------------------------------
     parameters <- list()
@@ -368,6 +372,7 @@
     #                                  rep(7:10, length.out = data$n_regions * length(data$years) * length(7:10))))
 
     mapping$move_pars = factor(rep(1:2, length.out = prod(dim(parameters$move_pars))))
+    data$map_Movement_Pars = array(as.numeric(mapping$move_pars), dim = dim(parameters$move_pars))
     # mapping$move_pars = factor(rep(1:6, length.out = prod(dim(parameters$move_pars))))
     
     # parameters$move_pars[,,1,1,1] <- 0.1
@@ -558,4 +563,3 @@
   sabie_rtmb_model$rep$Movement[,,1,1,1]
   movement_matrix[,,1,2,1,1]
 
-  

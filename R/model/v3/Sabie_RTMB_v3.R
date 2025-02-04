@@ -31,7 +31,8 @@ sabie_RTMB = function(pars) {
   source(here("R", "model", "v3", "Get_Selex_v3.R")) # selectivity options
   source(here("R", "model", "v3", "Get_Comp_Likelihoods_v3.R")) # selectivity options
   source(here("R", "model", "ddirmult.R")) # dirichlet multinomial
-  source(here("R", "model", "dbeta_symmetric.R")) # dbeta
+  source(here("R", "model", "ddirichlet.R")) # dirichlet 
+  source(here("R", "model", "dbeta_symmetric.R")) # symmetric
   
   RTMB::getAll(pars, data) # load in starting values and data
   
@@ -106,6 +107,7 @@ sabie_RTMB = function(pars) {
   bias_ramp = rep(0, n_yrs) # bias ramp from Methot and Taylor 2011
   M_Pen = 0 # Penalty/Prior for natural mortality
   sel_Pen = 0 # Penalty for selectivity deviations
+  Movement_Pen = 0 # Penalty for movement rates
   TagRep_Pen = 0 # penalty for tag reporting rate
   jnLL = 0 # Joint negative log likelihood
   
@@ -710,9 +712,18 @@ sabie_RTMB = function(pars) {
 
 
   ### Movement Rates (Penalty) ------------------------------------------------
+  if(Use_Movement_Prior == 1) {
+    unique_movement_pars = sort(unique(as.vector(map_Movement_Pars))) # Figure out unique movement parameters estimated
+    for(i in 1:length(unique_movement_pars)) {
+      par_idx = which(map_Movement_Pars == unique_movement_pars[i], arr.ind = TRUE)[1,] # figure out where unique movement parameter first occurs
+      r_from = par_idx[1] # from region
+      y = par_idx[3] # year index
+      a = par_idx[4] # age index
+      s = par_idx[5] # sex index
+      Movement_Pen = Movement_Pen - ddirichlet(x = Movement[r_from,,y,a,s], alpha = Movement_prior[r_from,,y,a,s], log = TRUE) # dirichlet prior
+    } # end i loop
+  } # end if using movement prior
 
-  
-  
 
   ### Tag Reporting Rate (Penalty) --------------------------------------------
   if(Use_TagRep_Prior == 1) {
@@ -746,6 +757,7 @@ sabie_RTMB = function(pars) {
     (Wt_Rec * sum(Rec_nLL)) + # Recruitment Penalty
     (Wt_Rec * sum(Init_Rec_nLL)) + #  Initial Age Penalty
     sel_Pen + #  selectivity penalty
+    Movement_Pen + # movement penalty
     TagRep_Pen # tag reporting rate penalty
   
   # Report Section ----------------------------------------------------------
@@ -795,6 +807,7 @@ sabie_RTMB = function(pars) {
   RTMB::REPORT(Init_Rec_nLL)
   RTMB::REPORT(Rec_nLL)
   RTMB::REPORT(Tag_nLL)
+  RTMB::REPORT(Movement_Pen)
   RTMB::REPORT(TagRep_Pen)
   RTMB::REPORT(jnLL)
   

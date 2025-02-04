@@ -371,6 +371,11 @@ data$TagRep_PenType = NA # symmetric beta prior with upper and lower bounds at 1
 data$TagRep_mu = NA # penalize mu 
 data$TagRep_sd = NA # sd of tag reporting rate prior
 
+# movement rate priors
+data$Use_Movement_Prior = 0 # use mvoement reporting rate prior
+data$Movement_PenType = NA # symmetric beta
+data$Movement_sd = NA # sd of movement rate parameters
+
 # Prepare Parameters ------------------------------------------------------
 parameters <- list()
 parameters$dummy <- 1
@@ -1363,6 +1368,12 @@ data$TagRep_PenType = NA # symmetric beta prior with upper and lower bounds at 1
 data$TagRep_mu = NA # penalize mu 
 data$TagRep_sd = NA # sd of tag reporting rate prior
 
+# movement rate priors
+data$Use_Movement_Prior = 0 # use mvoement reporting rate prior
+data$Movement_PenType = NA # symmetric beta
+data$Movement_sd = NA # sd of movement rate parameters
+
+
 # Prepare Parameters ------------------------------------------------------
 parameters <- list()
 parameters$dummy <- 1
@@ -2353,6 +2364,11 @@ data$TagRep_PenType = NA # symmetric beta prior with upper and lower bounds at 1
 data$TagRep_mu = NA # penalize mu 
 data$TagRep_sd = NA # sd of tag reporting rate prior
 
+# movement rate priors
+data$Use_Movement_Prior = 0 # use mvoement reporting rate prior
+data$Movement_prior = array(NA, dim = c(data$n_regions, data$n_regions, length(data$years), length(data$ages), data$n_sexes)) 
+
+
 # Prepare Parameters ------------------------------------------------------
 parameters <- list()
 parameters$dummy <- 1
@@ -3130,4 +3146,3 @@ par_plot <- ggplot(par_df, aes(x = Par, y = (TMB - ADMB) / ADMB, group = Compari
 png(here("output", "Bridging", "par_v3.png"), width = 1300, height = 800)
 par_plot
 dev.off()
-
