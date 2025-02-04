@@ -362,13 +362,32 @@ data$Tagged_Fish <- NA
 data$Obs_Tag_Recap <-NA
 data$Tag_LikeType <- 0 # poisson likelihood
 data$mixing_period <- 0 # when to start mixing period after first release year
-data$t_tagging <-0 # discounting for tagging 
+data$t_tagging <- 0 # discounting for tagging 
 
 # tag reporting rate priors
 data$Use_TagRep_Prior = 0 # use tag reporting rate prior
 data$TagRep_PenType = NA # symmetric beta prior with upper and lower bounds at 1 and 0
 data$TagRep_mu = NA # penalize mu 
 data$TagRep_sd = NA # sd of tag reporting rate prior
+
+# movement
+data$Use_Movement_Prior = 0 # use mvoement reporting rate prior
+data$Movement_prior = NA
+
+# Recruitment Stuff -------------------------------------------------------
+data$rec_model = 0 # mean recruitment
+data$rec_lag = NA # recruitment ssb lag
+data$Use_h_prior = 0
+data$h_mu <- NA
+data$h_sd <- NA
+
+# Sablefish ADMB matching -------------------------------------------------
+data$sablefish_ADMB = 1 
+data$FishAge_comp_agg_type = c(0, NA)
+data$FishLen_comp_agg_type = c(1, 1)
+data$SrvAge_comp_agg_type = c(1, NA, 1)
+data$SrvLen_comp_agg_type = c(0, 0, 0)
+
 
 # Prepare Parameters ------------------------------------------------------
 parameters <- list()
@@ -468,6 +487,7 @@ parameters$ln_RecDevs <- array(c(tem_par$coefficients[str_detect(names(tem_par$c
                                dim = c(data$n_regions, length(data$years) - 1))
 parameters$ln_sigmaR_early <- log(0.4) # early sigma R
 parameters$ln_sigmaR_late <- tem_par$coefficients[names(tem_par$coefficients) == "log_sigr"]  # late sigma R
+parameters$h <- 10
 
 # Tagging Stuff -----------------------------------------------------------
 parameters$ln_Init_Tag_Mort <- log(1e-10) # initial tag induced mortality
@@ -527,8 +547,12 @@ mapping$move_pars <- factor(rep(NA, length(parameters$move_pars)))
 mapping$ln_Init_Tag_Mort <- factor(NA)
 mapping$ln_Tag_Shed <- factor(NA)
 mapping$Tag_Reporting_Pars <- factor(rep(NA, length.out = length(parameters$Tag_Reporting_Pars)))
-data$map_Tag_Reporting_Pars = array(as.numeric(mapping$Tag_Reporting_Pars), dim = dim(parameters$Tag_Reporting_Pars))
 mapping$ln_tag_theta <- factor(NA)
+mapping$h = factor(rep(NA, length(parameters$h)))
+
+data$map_Movement_Pars = array(as.numeric(mapping$move_pars), dim = dim(parameters$move_pars))
+data$map_Tag_Reporting_Pars = array(as.numeric(mapping$Tag_Reporting_Pars), dim = dim(parameters$Tag_Reporting_Pars))
+data$map_h_pars = as.vector(mapping$h)
 
 data$srv_q_blocks = data$srv_q_blocks + 1
 data$fish_q_blocks = data$fish_q_blocks + 1
@@ -540,94 +564,7 @@ data$sigmaR_switch = data$sigmaR_switch + 1
 # make AD model function
 options(digits = 7)
 
-source(here("R", "model", "v3", "Sabie_RTMB_v3.R"))
-sabie_rtmb_model <- RTMB::MakeADFun(sabie_RTMB, parameters = parameters, map = mapping)
-
-# Uptomizied --------------------------------------------------------------
-
-unopt_rep = sabie_rtmb_model$report(sabie_rtmb_model$env$last.par.best) # Get un optimized report
-
-# Some of these are slightly off because:
-# 1) The comp data normalizaiton is a bit different and inconsistent in ADMB - this is corrected in this version 
-# this is particularly for survey age comps and fishery length comps
-# 2) The lack of max call does not allow the nLL to match exactly - the selex form changes slightly when a max call function is used 
-
-# Changing these get's them to match pretty much 1:1 up to about 4-5 decimal places
-
-# Compare likelihoods
-unopt_like_df = data.frame(dat_type = c("jnLL", 'Fixed Gear Fishery Age',
-                                        "Fixed Gear Fishery Length (F)",
-                                        "Fixed Gear Fishery Length (M)",
-                                        "Trawl Gear Fishery Length (F)",
-                                        "Trawl Gear Fishery Length (M)",
-                                        "Domestic Survey LL Age",
-                                        "Domestic Survey LL Length (F)",
-                                        "Domestic Survey LL Length (M)",
-                                        "Domestic Trawl Survey Length (F)",
-                                        "Domestic Trawl Survey Length (M)",
-                                        "Japanese LL Survey Length (F)",
-                                        "Japanese LL Survey Length (M)",
-                                        "Catch",
-                                        "Domestic LL Survey Index",
-                                        "Japanese LL Survey Index",
-                                        "Trawl Survey Index",
-                                        "Domestic LL Fishery Index",
-                                        "Japanese LL Fishery Index",
-                                        "FMort Penalty",
-                                        "M Prior",
-                                        "Rec Penalty"
-),
-ADMB = c(
-  tem_dat$likecomp[names(tem_dat$likecomp) == "obj.fun"],
-  tem_dat$likecomp[names(tem_dat$likecomp) == "L.fish1age"],
-  tem_dat$likecomp[names(tem_dat$likecomp) == "L.fish1sizef"],
-  tem_dat$likecomp[names(tem_dat$likecomp) == "L.fish1sizem"],
-  tem_dat$likecomp[names(tem_dat$likecomp) == "L.fish3sizef"],
-  tem_dat$likecomp[names(tem_dat$likecomp) == "L.fish3sizem"],
-  tem_dat$likecomp[names(tem_dat$likecomp) == "L.surv1age"],
-  tem_dat$likecomp[names(tem_dat$likecomp) == "L.surv1sizef"],
-  tem_dat$likecomp[names(tem_dat$likecomp) == "L.surv1sizem"],
-  tem_dat$likecomp[names(tem_dat$likecomp) == "L.surv7sizef"],
-  tem_dat$likecomp[names(tem_dat$likecomp) == "L.surv7sizem"],
-  tem_dat$likecomp[names(tem_dat$likecomp) == "L.surv2sizef"],
-  tem_dat$likecomp[names(tem_dat$likecomp) == "L.surv2sizem"],
-  tem_dat$likecomp[names(tem_dat$likecomp) == "Catch"],
-  tem_dat$likecomp[names(tem_dat$likecomp) == "L.surv3"],
-  tem_dat$likecomp[names(tem_dat$likecomp) == "L.surv4"],
-  tem_dat$likecomp[names(tem_dat$likecomp) == "L.surv7"],
-  tem_dat$likecomp[names(tem_dat$likecomp) == "L.surv5"],
-  tem_dat$likecomp[names(tem_dat$likecomp) == "L.surv6"],
-  tem_dat$likecomp[names(tem_dat$likecomp) == "F.reg"],
-  tem_dat$likecomp[names(tem_dat$likecomp) == "M.prior"],
-  tem_dat$likecomp[names(tem_dat$likecomp) == "Rec.Pen"]
-),
-RTMB = c(
-  unopt_rep$jnLL,
-  sum(unopt_rep$FishAgeComps_nLL),
-  sum(unopt_rep$FishLenComps_nLL[,,1,1]),
-  sum(unopt_rep$FishLenComps_nLL[,,2,1]),
-  sum(unopt_rep$FishLenComps_nLL[,,1,2]),
-  sum(unopt_rep$FishLenComps_nLL[,,2,2]),
-  sum(unopt_rep$SrvAgeComps_nLL[,,1,1]),
-  sum(unopt_rep$SrvLenComps_nLL[,,1,1]),
-  sum(unopt_rep$SrvLenComps_nLL[,,2,1]),
-  sum(unopt_rep$SrvLenComps_nLL[,,1,2]),
-  sum(unopt_rep$SrvLenComps_nLL[,,2,2]),
-  sum(unopt_rep$SrvLenComps_nLL[,,1,3]),
-  sum(unopt_rep$SrvLenComps_nLL[,,2,3]),
-  sum(unopt_rep$Catch_nLL) * data$Wt_Catch,
-  sum(unopt_rep$SrvIdx_nLL[1,,1]) * data$Wt_SrvIdx,
-  sum(unopt_rep$SrvIdx_nLL[1,,3]) * data$Wt_SrvIdx,
-  sum(unopt_rep$SrvIdx_nLL[1,,2]) * data$Wt_SrvIdx,
-  sum(unopt_rep$FishIdx_nLL[,36:63,1]) * data$Wt_FishIdx,
-  sum(unopt_rep$FishIdx_nLL[1,-c(36:63),1]) * data$Wt_FishIdx,
-  sum(unopt_rep$Fmort_Pen) * data$Wt_F,
-  unopt_rep$M_Pen,
-  sum(unopt_rep$Init_Rec_nLL) * data$Wt_Rec +
-    sum(unopt_rep$Rec_nLL) * data$Wt_Rec
-)) %>% 
-  mutate(ADMB = round(ADMB, 4), RTMB = round(RTMB, 4), diff = ADMB - RTMB,
-         rel_dff = (ADMB - RTMB) / RTMB * 100)
+sabie_rtmb_model <- RTMB::MakeADFun(cmb(sabie_RTMB, data), parameters = parameters, map = mapping)
 
 # # Now, optimize the function
 sabie_optim <- stats::nlminb(sabie_rtmb_model$par, sabie_rtmb_model$fn, sabie_rtmb_model$gr,
@@ -789,7 +726,7 @@ combined_sel <- rbind(
 # Plots -------------------------------------------------------------------
 
 # Relative Error Time Series
-ggplot(ts_df, aes(x = Year, y = ((TMB - ADMB) / ADMB) * 100, color = Par)) +
+ggplot(ts_df, aes(x = Year, y = ((TMB - ADMB) / ADMB), color = Par)) +
   geom_line(size = 2) +
   geom_hline(yintercept = 0, lty = 1.3, size = 1.3) +
   ggthemes::scale_color_hc() +

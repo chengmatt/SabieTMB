@@ -249,14 +249,21 @@
     data$t_tagging <- 0.5 # discounting for tagging 
     
     # tag reporting rate priors
-    data$Use_TagRep_Prior = 1 # use tag reporting rate prior
-    data$TagRep_PenType = 1 # symmetric beta prior with upper and lower bounds at 1 and 0
+    data$Use_TagRep_Prior = 0 # use tag reporting rate prior
+    data$TagRep_PriorType = 0 # symmetric beta prior with upper and lower bounds at 1 and 0
     data$TagRep_mu = 0.2 # penalize mu 
-    data$TagRep_sd = 0.03 # sd of tag reporting rate prior
+    data$TagRep_sd = 5 # sd of tag reporting rate prior
     
     # movement rate priors
-    data$Use_Movement_Prior = 1 # use mvoement reporting rate prior
-    data$Movement_prior = array(c(50, 50, 0.1, 0.1), dim = c(data$n_regions, data$n_regions, length(data$years), length(data$ages), data$n_sexes)) 
+    data$Use_Movement_Prior = 0 # use mvoement reporting rate prior
+    data$Movement_prior = array(c(500, 500, 5, 5), dim = c(data$n_regions, data$n_regions, length(data$years), length(data$ages), data$n_sexes)) 
+    
+    # Recruitment -------------------------------------------------------------
+    data$rec_model = 0 # mean recruitment
+    data$rec_lag = 0 # recruitment ssb lag
+    data$Use_h_prior = 0
+    data$h_mu <- c(0.92, 0.92)
+    data$h_sd <- c(0.05, 0.05)
     
     # Prepare Parameters ------------------------------------------------------
     parameters <- list()
@@ -309,6 +316,7 @@
     # Recruitment -------------------------------------------------------------
     parameters$ln_global_R0 <- log(1e7 + 5e6) # mean recruitment
     parameters$R0_prop <- array(c(0.3, 0.5, 0.3), dim = c(data$n_regions - 1))
+    parameters$h <- c(10, 10)
     parameters$ln_InitDevs <- array(0, dim = c(data$n_regions, length(data$ages) - 2))
     parameters$ln_RecDevs <- array(0, dim = c(data$n_regions, length(data$years)))
     parameters$ln_sigmaR_early <- log(0.5) # early sigma R
@@ -422,6 +430,9 @@
     # map_initdevs[3,] = map_initdevs[1,]
     # map_initdevs[4,] = map_initdevs[1,]
     mapping$ln_InitDevs = factor(map_initdevs)
+    # mapping$h = factor(c(1:2))
+    mapping$h = factor(rep(NA, length(parameters$h)))
+    data$map_h_Pars = as.numeric(mapping$h)
 
     # mapping$ln_RecDevs = factor(rep(NA, length(parameters$ln_RecDevs)))
     # mapping$ln_InitDevs = factor(rep(NA, length(parameters$ln_InitDevs)))
@@ -440,7 +451,7 @@
     }
     
     # make AD model function
-    sabie_rtmb_model <- RTMB::MakeADFun(sabie_RTMB, parameters = parameters, map = mapping)
+    sabie_rtmb_model <- RTMB::MakeADFun(cmb(sabie_RTMB, data), parameters = parameters, map = mapping)
     
     # Now, optimize the function
     sabie_optim <- stats::nlminb(sabie_rtmb_model$par, sabie_rtmb_model$fn, sabie_rtmb_model$gr,
@@ -458,8 +469,8 @@
     sabie_rtmb_model$optim <- sabie_optim # Save optimized model results
     sabie_rtmb_model$sd_rep <- RTMB::sdreport(sabie_rtmb_model) # Get sd report
     sabie_rtmb_model$rep <- sabie_rtmb_model$report(sabie_rtmb_model$env$last.par.best) # Get report
+    sabie_rtmb_model$rep$h_trans
     
-
     r0_mat[sim,] <- sabie_rtmb_model$rep$R0
     tagrep[sim] <- mean(sabie_rtmb_model$rep$Tag_Reporting)
     PD = sabie_rtmb_model$sd_rep$pdHess
@@ -562,8 +573,3 @@
 
   sabie_rtmb_model$rep$Movement[,,1,1,1]
   movement_matrix[,,1,2,1,1]
-
-# 
-#   [,1]      [,2]
-#   [1,] 0.4900816 0.5099184
-#   [2,] 0.7523358 0.2476642

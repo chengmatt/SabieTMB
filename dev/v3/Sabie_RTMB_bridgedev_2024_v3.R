@@ -90,6 +90,11 @@ if(data$likelihoods == 1) {
 }
 
 # Biological Processes
+data$rec_model = 0 # mean recruitment
+data$rec_lag = NA # recruitment ssb lag
+data$Use_h_prior = 0
+data$h_mu <- NA
+data$h_sd <- NA
 
 # Natural Mortality
 data$Use_M_prior <- 1 # use natural mortality prior
@@ -367,13 +372,12 @@ data$t_tagging <-0 # discounting for tagging
 
 # tag reporting rate priors
 data$Use_TagRep_Prior = 0 # use tag reporting rate prior
-data$TagRep_PenType = NA # symmetric beta prior with upper and lower bounds at 1 and 0
+data$TagRep_PriorType = NA # symmetric beta prior with upper and lower bounds at 1 and 0
 data$TagRep_mu = NA # penalize mu 
 data$TagRep_sd = NA # sd of tag reporting rate prior
 
 # movement rate priors
 data$Use_Movement_Prior = 0 # use mvoement reporting rate prior
-data$Movement_PenType = NA # symmetric beta
 data$Movement_sd = NA # sd of movement rate parameters
 
 # Prepare Parameters ------------------------------------------------------
@@ -533,8 +537,11 @@ mapping$move_pars <- factor(rep(NA, length(parameters$move_pars)))
 mapping$ln_Init_Tag_Mort <- factor(NA)
 mapping$ln_Tag_Shed <- factor(NA)
 mapping$Tag_Reporting_Pars <- factor(rep(NA, length.out = length(parameters$Tag_Reporting_Pars)))
-data$map_Tag_Reporting_Pars = array(as.numeric(mapping$Tag_Reporting_Pars), dim = dim(parameters$Tag_Reporting_Pars))
 mapping$ln_tag_theta <- factor(NA)
+
+data$map_Movement_Pars = array(as.numeric(mapping$move_pars), dim = dim(parameters$move_pars))
+data$map_Tag_Reporting_Pars = array(as.numeric(mapping$Tag_Reporting_Pars), dim = dim(parameters$Tag_Reporting_Pars))
+data$map_h_pars = as.vector(mapping$h)
 
 data$srv_q_blocks = data$srv_q_blocks + 1
 data$fish_q_blocks = data$fish_q_blocks + 1
@@ -544,7 +551,7 @@ data$bias_year = data$bias_year + 1
 data$sigmaR_switch = data$sigmaR_switch + 1
 
 # make AD model function
-sabie_rtmb_model <- RTMB::MakeADFun(sabie_RTMB, parameters = parameters, map = mapping)
+sabie_rtmb_model <- RTMB::MakeADFun(cmb(sabie_RTMB, data), parameters = parameters, map = mapping)
 
 # Unoptimized Model v1 --------------------------------------------------------------
 sabie_rtmb_model$rep <- sabie_rtmb_model$report(sabie_rtmb_model$env$last.par.best) # Get unoptimized report
@@ -617,7 +624,7 @@ RTMB = c(
   sum(sabie_rtmb_model$rep$FishIdx_nLL[,36:63,1]) * data$Wt_FishIdx,
   sum(sabie_rtmb_model$rep$FishIdx_nLL[1,-c(36:63),1]) * data$Wt_FishIdx,
   sum(sabie_rtmb_model$rep$Fmort_Pen) * data$Wt_F,
-  sabie_rtmb_model$rep$M_Pen,
+  sabie_rtmb_model$rep$M_Prior,
   sum(sabie_rtmb_model$rep$Init_Rec_nLL) * data$Wt_Rec + sum(sabie_rtmb_model$rep$Rec_nLL) * data$Wt_Rec
 )) %>% 
   mutate(ADMB = round(ADMB, 4), 
@@ -842,7 +849,7 @@ RTMB = c(
   sum(sabie_rtmb_model$rep$FishIdx_nLL[,36:63,1]) * data$Wt_FishIdx,
   sum(sabie_rtmb_model$rep$FishIdx_nLL[1,-c(36:63),1]) * data$Wt_FishIdx,
   sum(sabie_rtmb_model$rep$Fmort_Pen) * data$Wt_F,
-  sabie_rtmb_model$rep$M_Pen,
+  sabie_rtmb_model$rep$M_Prior,
   sum(sabie_rtmb_model$rep$Init_Rec_nLL) * data$Wt_Rec + sum(sabie_rtmb_model$rep$Rec_nLL) * data$Wt_Rec
 )) %>% 
   mutate(ADMB = round(ADMB, 4), 
@@ -1087,6 +1094,11 @@ if(data$likelihoods == 1) {
 }
 
 # Biological Processes
+data$rec_model = 0 # mean recruitment
+data$rec_lag = NA # recruitment ssb lag
+data$Use_h_prior = 0
+data$h_mu <- NA
+data$h_sd <- NA
 
 # Natural Mortality
 data$Use_M_prior <- 1 # use natural mortality prior
@@ -1364,13 +1376,12 @@ data$t_tagging <-0 # discounting for tagging
 
 # tag reporting rate priors
 data$Use_TagRep_Prior = 0 # use tag reporting rate prior
-data$TagRep_PenType = NA # symmetric beta prior with upper and lower bounds at 1 and 0
+data$TagRep_PriorType = NA # symmetric beta prior with upper and lower bounds at 1 and 0
 data$TagRep_mu = NA # penalize mu 
 data$TagRep_sd = NA # sd of tag reporting rate prior
 
 # movement rate priors
 data$Use_Movement_Prior = 0 # use mvoement reporting rate prior
-data$Movement_PenType = NA # symmetric beta
 data$Movement_sd = NA # sd of movement rate parameters
 
 
@@ -1531,8 +1542,11 @@ mapping$move_pars <- factor(rep(NA, length(parameters$move_pars)))
 mapping$ln_Init_Tag_Mort <- factor(NA)
 mapping$ln_Tag_Shed <- factor(NA)
 mapping$Tag_Reporting_Pars <- factor(rep(NA, length.out = length(parameters$Tag_Reporting_Pars)))
-data$map_Tag_Reporting_Pars = array(as.numeric(mapping$Tag_Reporting_Pars), dim = dim(parameters$Tag_Reporting_Pars))
 mapping$ln_tag_theta <- factor(NA)
+
+data$map_Movement_Pars = array(as.numeric(mapping$move_pars), dim = dim(parameters$move_pars))
+data$map_Tag_Reporting_Pars = array(as.numeric(mapping$Tag_Reporting_Pars), dim = dim(parameters$Tag_Reporting_Pars))
+data$map_h_pars = as.vector(mapping$h)
 
 data$srv_q_blocks = data$srv_q_blocks + 1
 data$fish_q_blocks = data$fish_q_blocks + 1
@@ -1542,7 +1556,7 @@ data$bias_year = data$bias_year + 1
 data$sigmaR_switch = data$sigmaR_switch + 1
 
 # make AD model function
-sabie_rtmb_model <- RTMB::MakeADFun(sabie_RTMB, parameters = parameters, map = mapping)
+sabie_rtmb_model <- RTMB::MakeADFun(cmb(sabie_RTMB, data), parameters = parameters, map = mapping)
 
 # Unoptimized Model v2 --------------------------------------------------------------
 sabie_rtmb_model$rep <- sabie_rtmb_model$report(sabie_rtmb_model$env$last.par.best) # Get unoptimized report
@@ -1615,7 +1629,7 @@ RTMB = c(
   sum(sabie_rtmb_model$rep$FishIdx_nLL[,36:63,1]) * data$Wt_FishIdx,
   sum(sabie_rtmb_model$rep$FishIdx_nLL[1,-c(36:63),1]) * data$Wt_FishIdx,
   sum(sabie_rtmb_model$rep$Fmort_Pen) * data$Wt_F,
-  sabie_rtmb_model$rep$M_Pen,
+  sabie_rtmb_model$rep$M_Prior,
   sum(sabie_rtmb_model$rep$Init_Rec_nLL) * data$Wt_Rec + sum(sabie_rtmb_model$rep$Rec_nLL) * data$Wt_Rec
 )) %>% 
   mutate(ADMB = round(ADMB, 4), 
@@ -1839,7 +1853,7 @@ RTMB = c(
   sum(sabie_rtmb_model$rep$FishIdx_nLL[,36:63,1]) * data$Wt_FishIdx,
   sum(sabie_rtmb_model$rep$FishIdx_nLL[1,-c(36:63),1]) * data$Wt_FishIdx,
   sum(sabie_rtmb_model$rep$Fmort_Pen) * data$Wt_F,
-  sabie_rtmb_model$rep$M_Pen,
+  sabie_rtmb_model$rep$M_Prior,
   sum(sabie_rtmb_model$rep$Init_Rec_nLL) * data$Wt_Rec + sum(sabie_rtmb_model$rep$Rec_nLL) * data$Wt_Rec
 )) %>% 
   mutate(ADMB = round(ADMB, 4), 
@@ -2083,6 +2097,11 @@ if(data$likelihoods == 1) {
 }
 
 # Biological Processes
+data$rec_model = 0 # mean recruitment
+data$rec_lag = NA # recruitment ssb lag
+data$Use_h_prior = 0
+data$h_mu <- NA
+data$h_sd <- NA
 
 # Natural Mortality
 data$Use_M_prior <- 1 # use natural mortality prior
@@ -2360,14 +2379,13 @@ data$t_tagging <-0 # discounting for tagging
 
 # tag reporting rate priors
 data$Use_TagRep_Prior = 0 # use tag reporting rate prior
-data$TagRep_PenType = NA # symmetric beta prior with upper and lower bounds at 1 and 0
+data$TagRep_PriorType = NA # symmetric beta prior with upper and lower bounds at 1 and 0
 data$TagRep_mu = NA # penalize mu 
 data$TagRep_sd = NA # sd of tag reporting rate prior
 
 # movement rate priors
 data$Use_Movement_Prior = 0 # use mvoement reporting rate prior
-data$Movement_prior = array(NA, dim = c(data$n_regions, data$n_regions, length(data$years), length(data$ages), data$n_sexes)) 
-
+data$Movement_sd = NA # sd of movement rate parameters
 
 # Prepare Parameters ------------------------------------------------------
 parameters <- list()
@@ -2526,8 +2544,14 @@ mapping$move_pars <- factor(rep(NA, length(parameters$move_pars)))
 mapping$ln_Init_Tag_Mort <- factor(NA)
 mapping$ln_Tag_Shed <- factor(NA)
 mapping$Tag_Reporting_Pars <- factor(rep(NA, length.out = length(parameters$Tag_Reporting_Pars)))
-data$map_Tag_Reporting_Pars = array(as.numeric(mapping$Tag_Reporting_Pars), dim = dim(parameters$Tag_Reporting_Pars))
 mapping$ln_tag_theta <- factor(NA)
+
+data$map_Movement_Pars = array(as.numeric(mapping$move_pars), dim = dim(parameters$move_pars))
+data$map_h_pars = as.vector(mapping$h)
+
+data$map_Movement_Pars = array(as.numeric(mapping$move_pars), dim = dim(parameters$move_pars))
+data$map_Tag_Reporting_Pars = array(as.numeric(mapping$Tag_Reporting_Pars), dim = dim(parameters$Tag_Reporting_Pars))
+data$map_h_pars = as.vector(mapping$h)
 
 data$srv_q_blocks = data$srv_q_blocks + 1
 data$fish_q_blocks = data$fish_q_blocks + 1
@@ -2537,7 +2561,7 @@ data$bias_year = data$bias_year + 1
 data$sigmaR_switch = data$sigmaR_switch + 1
 
 # make AD model function
-sabie_rtmb_model <- RTMB::MakeADFun(sabie_RTMB, parameters = parameters, map = mapping)
+sabie_rtmb_model <- RTMB::MakeADFun(cmb(sabie_RTMB, data), parameters = parameters, map = mapping)
 
 # Unoptimized Model v3 --------------------------------------------------------------
 sabie_rtmb_model$rep <- sabie_rtmb_model$report(sabie_rtmb_model$env$last.par.best) # Get unoptimized report
@@ -2610,7 +2634,7 @@ RTMB = c(
   sum(sabie_rtmb_model$rep$FishIdx_nLL[,36:63,1]) * data$Wt_FishIdx,
   sum(sabie_rtmb_model$rep$FishIdx_nLL[1,-c(36:63),1]) * data$Wt_FishIdx,
   sum(sabie_rtmb_model$rep$Fmort_Pen) * data$Wt_F,
-  sabie_rtmb_model$rep$M_Pen,
+  sabie_rtmb_model$rep$M_Prior,
   sum(sabie_rtmb_model$rep$Init_Rec_nLL) * data$Wt_Rec + sum(sabie_rtmb_model$rep$Rec_nLL) * data$Wt_Rec
 )) %>% 
   mutate(ADMB = round(ADMB, 4), 
@@ -2834,7 +2858,7 @@ RTMB = c(
   sum(sabie_rtmb_model$rep$FishIdx_nLL[,36:63,1]) * data$Wt_FishIdx,
   sum(sabie_rtmb_model$rep$FishIdx_nLL[1,-c(36:63),1]) * data$Wt_FishIdx,
   sum(sabie_rtmb_model$rep$Fmort_Pen) * data$Wt_F,
-  sabie_rtmb_model$rep$M_Pen,
+  sabie_rtmb_model$rep$M_Prior,
   sum(sabie_rtmb_model$rep$Init_Rec_nLL) * data$Wt_Rec + sum(sabie_rtmb_model$rep$Rec_nLL) * data$Wt_Rec
 )) %>% 
   mutate(ADMB = round(ADMB, 4), 
@@ -3033,8 +3057,8 @@ dev.off()
 
 # Time Series Estimated
 unopt_ts <- ggplot() +
-  geom_line(opt_ts_df, mapping  = aes(x = Year, y = TMB), size = 1.3, lty = 1) +
-  geom_line(opt_ts_df, mapping  = aes(x = Year, y = ADMB, color = Comparison), size = 1.3, lty = 2) +
+  geom_line(unopt_ts_df, mapping  = aes(x = Year, y = TMB), size = 1.3, lty = 1) +
+  geom_line(unopt_ts_df, mapping  = aes(x = Year, y = ADMB, color = Comparison), size = 1.3, lty = 2) +
   facet_grid(Par~Comparison, scales = "free_y") +
   labs(x = "Year", color = 'Model', y = "Value") +
   theme_sablefish()
@@ -3146,3 +3170,4 @@ par_plot <- ggplot(par_df, aes(x = Par, y = (TMB - ADMB) / ADMB, group = Compari
 png(here("output", "Bridging", "par_v3.png"), width = 1300, height = 800)
 par_plot
 dev.off()
+

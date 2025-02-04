@@ -1,5 +1,3 @@
-
-
 #' Title GGPLOT theme for sablefish
 #'
 #' @return
@@ -57,3 +55,5 @@ get_Constant_CorrMat <- function(n, rho) {
   } # end j
   return(corrMatrix)
 }
+
+cmb <- function(f, d) function(p) f(p, d)

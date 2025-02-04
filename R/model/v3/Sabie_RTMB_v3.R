@@ -16,22 +16,24 @@
 # Coded in spatial dimensions
 # Parameters (mean recruitment, recruitment devs, initial age devs, 
 # selectivity, composition likelihood parameters, catchability, 
-# mean fishing mortality, fishing mortlaity deviates) can be estimated spatially
+# mean fishing mortality, fishing mortality deviates) can be estimated spatially
 # Incorporated options to allow for estimation of movement parameters across
 # years, ages, and sexes
 # Tag integrated model incorporated using a Brownie Tag Attrition Model
 # Tag Reporting Rates, Tag Shedding, and Tag Induced Mortality are parameters that can be estimated
-# Beta priors for movement rates, tag reporting rates
+# Beta priors for tag reporting rates, dirichlet priors for movement rates
 
 
 
-sabie_RTMB = function(pars) {
+sabie_RTMB = function(pars, data) {
   
   require(RTMB); require(here)
   source(here("R", "model", "v3", "Get_Selex_v3.R")) # selectivity options
+  source(here("R", "model", "v3", "Get_Det_Recruitment.R")) # recruitment options
   source(here("R", "model", "v3", "Get_Comp_Likelihoods_v3.R")) # selectivity options
   source(here("R", "model", "ddirmult.R")) # dirichlet multinomial
   source(here("R", "model", "ddirichlet.R")) # dirichlet 
+  source(here("R", "model", "get_beta_scaled_pars.R")) # scaled
   source(here("R", "model", "dbeta_symmetric.R")) # symmetric
   
   RTMB::getAll(pars, data) # load in starting values and data
@@ -105,10 +107,11 @@ sabie_RTMB = function(pars) {
   Rec_nLL = array(0, dim = c(n_regions, n_yrs)) # Recruitment penalty
   Init_Rec_nLL = array(0, dim = c(n_regions, n_ages - 2)) # Initial Recruitment penalty
   bias_ramp = rep(0, n_yrs) # bias ramp from Methot and Taylor 2011
-  M_Pen = 0 # Penalty/Prior for natural mortality
   sel_Pen = 0 # Penalty for selectivity deviations
-  Movement_Pen = 0 # Penalty for movement rates
-  TagRep_Pen = 0 # penalty for tag reporting rate
+  M_Prior = 0 # Penalty/Prior for natural mortality
+  h_Prior = 0 # Prior for steepness
+  Movement_Prior = 0 # Penalty for movement rates
+  TagRep_Prior = 0 # penalty for tag reporting rate
   jnLL = 0 # Joint negative log likelihood
   
   # Model Process Equations -------------------------------------------------
@@ -197,13 +200,18 @@ sabie_RTMB = function(pars) {
   } # y loop
   
   
-  ## Recruitment: R0 and Bias Ramp (Methot and Taylor) -------------------------------
+  ## Recruitment Transformations and Bias Ramp (Methot and Taylor) -------------------------------
+  # Mean or virgin recruitment
   if(n_regions > 1) {
     R0_trans = c(0, R0_prop) # set up vector for transformation
     R0_trans = exp(R0_trans) / sum(exp(R0_trans)) # do multinomial logit
     R0 = exp(ln_global_R0) * R0_trans # Multiply a global scaling parameter by estimated proportions
   } else R0 = exp(ln_global_R0)
   
+  # Steepness
+  h_trans = 0.2 + (1 - 0.2) * plogis(h) # bound steepness between 0.2 and 1
+  
+  # Bias ramp set up
   for(y in 1:n_yrs) {
     if(do_rec_bias_ramp == 0) bias_ramp[y] = 1 # don't do bias ramp correction
     if(do_rec_bias_ramp == 1) {
@@ -213,7 +221,6 @@ sabie_RTMB = function(pars) {
       if(y >= bias_year[3] && y < bias_year[4]) bias_ramp[y] = 1 * (1 - ((y - bias_year[3]) / (bias_year[4] - bias_year[3]))) #descending limb
     } # if we want to do bias ramp
   } # end y loop
-  
   
   ## Initial Age Structure ---------------------------------------------------
   if(init_age_strc == 0) { # start initial age structure with iterative approach
@@ -257,31 +264,42 @@ sabie_RTMB = function(pars) {
       for(s in 1:n_sexes) {
         NAA[r,1,init_age_idx + 1,s] = R0[r] * exp(ln_InitDevs[r,init_age_idx] -
                                                     (init_age_idx * (natmort[r,1, init_age_idx + 1, s] +
-                                                                       (init_F * fish_sel[r,1, init_age_idx + 1, s, 1])))) * sexratio[s] # not plus group
+                                                    (init_F * fish_sel[r,1, init_age_idx + 1, s, 1])))) * sexratio[s] # not plus group
         # Plus group calculations
-        NAA[r,1,n_ages,s] = R0[r] *  exp( - ((n_ages - 1) * (natmort[r,1, n_ages, s] + (init_F * fish_sel[r,1, n_ages, s, 1]))) ) /
+        NAA[r,1,n_ages,s] = R0[r] * exp( - ((n_ages - 1) * (natmort[r,1, n_ages, s] + (init_F * fish_sel[r,1, n_ages, s, 1]))) ) /
           (1 - exp(-(natmort[r,1, n_ages, s] + (init_F * fish_sel[r,1, n_ages, s, 1])))) * sexratio[s]
         
       } # end s loop
     } # end r loop
   } # end if
   
-  ## Annual Recruitment ------------------------------------------------------
+  ## Get total biomass and SSB first
   for(r in 1:n_regions) {
     for(y in 1:n_yrs) {
-      for(s in 1:n_sexes) {
-        if(y < sigmaR_switch) NAA[r,y,1,s] = R0[r] * exp(ln_RecDevs[r,y] - (sigmaR2_early/2 * bias_ramp[y])) * sexratio[s] # early period recruitment
-        if(y >= sigmaR_switch && y < n_yrs) NAA[r,y,1,s] = R0[r] * exp(ln_RecDevs[r,y] - (sigmaR2_late/2 * bias_ramp[y])) * sexratio[s] # late period recruitment
-        if(y == n_yrs) NAA[r,y,1,s] = R0[r] * sexratio[s] # mean recruitment in terminal year
-      } # end s loop
-      Rec[r,y] = sum(NAA[r,y,1,]) # get annual recruitment container here
+      Total_Biom[r,y] = sum(as.vector(NAA[r,y,,]) * as.vector(WAA[r,y,,])) # Total Biomass
+      SSB[r,y] = sum(as.vector(NAA[r,y,,1]) * as.vector(WAA[r,y,,1]) * MatAA[r,y,,1]) # Spawning Stock Biomass 
+      if(n_sexes == 1) SSB[r,y] = SSB[r,y] * 0.5 # If single sex model, multiply SSB calculations by 0.5 
     } # end y loop
   } # end r loop
   
-  
   ## Population Projection ---------------------------------------------------
   for(y in 1:n_yrs) {
-    
+    ### Annual Recruitment ------------------------------------------------------
+    for(r in 1:n_regions) {
+      # Get Deterministic Recruitment
+      tmp_Det_Rec = Get_Det_Recruitment(recruitment_model = rec_model, R0 = R0[r], h = h_trans[r], n_ages = n_ages,
+                                        WAA = WAA[r,y,,1], MatAA = MatAA[r,y,,1], natmort = natmort[r,y,,1],
+                                        SSB_vals = SSB[r,], y = y, rec_lag = rec_lag)
+      
+      for(s in 1:n_sexes) {
+        if(y < sigmaR_switch) NAA[r,y,1,s] = tmp_Det_Rec * exp(ln_RecDevs[r,y] - (sigmaR2_early/2 * bias_ramp[y])) * sexratio[s] # early period recruitment
+        if(y >= sigmaR_switch && y < n_yrs) NAA[r,y,1,s] = tmp_Det_Rec * exp(ln_RecDevs[r,y] - (sigmaR2_late/2 * bias_ramp[y])) * sexratio[s] # late period recruitment
+        if(y == n_yrs) NAA[r,y,1,s] = tmp_Det_Rec * sexratio[s] # mean recruitment in terminal year
+      } # end s loop
+      Rec[r,y] = sum(NAA[r,y,1,]) # get annual recruitment container here
+    } # end r loop
+
+    ### Movement ----------------------------------------------------------------
     # Recruits don't move
     if(do_recruits_move == 0) {
       # Apply movement after ageing processes - start movement at age 2
@@ -291,6 +309,7 @@ sabie_RTMB = function(pars) {
     # Recruits move here
     if(do_recruits_move == 1) for(a in 1:n_ages) for(s in 1:n_sexes) NAA[,y,a,s] = t(NAA[,y,a,s]) %*% Movement[,,y,a,s]
     
+    ### Mortality and Ageing ------------------------------------------------------
     for(r in 1:n_regions) {
       for(s in 1:n_sexes) {
         for(a in 1:n_ages) {
@@ -304,19 +323,15 @@ sabie_RTMB = function(pars) {
           } # end else (calculations for plus group)
         } # end a loop
       } # end s loop
+      
+    ### Compute Biomass Quantities ----------------------------------------------
+    Total_Biom[r,y] = sum(as.vector(NAA[r,y,,]) * as.vector(WAA[r,y,,])) # Total Biomass
+    SSB[r,y] = sum(as.vector(NAA[r,y,,1]) * as.vector(WAA[r,y,,1]) * MatAA[r,y,,1]) # Spawning Stock Biomass 
+    if(n_sexes == 1) SSB[r,y] = SSB[r,y] * 0.5 # If single sex model, multiply SSB calculations by 0.5 
+      
     } # end r loop
   } # end y loop
-  
-  # Get total biomass and SSB here
-  for(r in 1:n_regions) {
-    for(y in 1:n_yrs) {
-      Total_Biom[r,y] = sum(as.vector(NAA[r,y,,]) * as.vector(WAA[r,y,,])) # Total Biomass
-      SSB[r,y] = sum(as.vector(NAA[r,y,,1]) * as.vector(WAA[r,y,,1]) * MatAA[r,y,,1]) # Spawning Stock Biomass 
-      if(n_sexes == 1) SSB[r,y] = SSB[r,y] * 0.5 # If single sex model, multiply SSB calculations by 0.5 
-    } # end y loop
-  } # end r loop
-  
-  
+
   ## Fishery Observation Model -----------------------------------------------
   for(r in 1:n_regions) {
     for(y in 1:n_yrs) {
@@ -343,7 +358,6 @@ sabie_RTMB = function(pars) {
       } # end f loop
     } # end y loop
   } # end r loop
-  
   
   ## Survey Observation Model ------------------------------------------------
   for(r in 1:n_regions) {
@@ -644,12 +658,6 @@ sabie_RTMB = function(pars) {
     } # y loop
   } # f loop
   
-  ### Natural Mortality (Prior) -----------------------------------------------
-  if(Use_M_prior == 1) {
-    if(likelihoods == 0) M_Pen = (ln_M - log(M_prior[1]))^2 / (2 * (M_prior[2])^2) # ADMB likelihood
-    if(likelihoods == 1) M_Pen = -1 * dnorm(ln_M, log(M_prior[1]), M_prior[2], TRUE) # TMB likelihood
-  } # end if
-  
   ### Selectivity (Penalty) ---------------------------------------------------
   for(f in 1:n_fish_fleets) {
     for(r in 1:n_regions) {
@@ -701,17 +709,32 @@ sabie_RTMB = function(pars) {
         Rec_nLL[r,y] = -dnorm(ln_RecDevs[r,y], 0, exp(ln_sigmaR_early), TRUE)
       } # first y loop
       # Note that this penalizes the terminal year rec devs, which is estimated in this case
-      for(y in sigmaR_switch:(n_yrs)) {
+      for(y in sigmaR_switch:n_yrs) {
         Rec_nLL[r,y] = -dnorm(ln_RecDevs[r,y], 0, exp(ln_sigmaR_late), TRUE)
       } # end second y loop
-    }
+    } # end r loop
   } 
   
 
-  ### Mean Recruitment or R0 (Penalty) ----------------------------------------
+  ### Natural Mortality (Prior) -----------------------------------------------
+  if(Use_M_prior == 1) {
+    if(likelihoods == 0) M_Prior = (ln_M - log(M_prior[1]))^2 / (2 * (M_prior[2])^2) # ADMB likelihood
+    if(likelihoods == 1) M_Prior = -1 * dnorm(ln_M, log(M_prior[1]), M_prior[2], TRUE) # TMB likelihood
+  } # end if using natural mortality prior
+  
+  ### Steepness (Prior) -----------------------------------------------
+  if(Use_h_prior == 1) {
+    unique_h_pars = sort(unique(as.vector(map_h_Pars))) # Figure out unique steepness parameters estimated
+    for(i in 1:length(unique_h_pars)) {
+      r = which(map_h_Pars == unique_h_pars[i]) # region index
+      tmp_h_beta_pars = get_beta_scaled_pars(low = 0.2, high = 1, mu = h_mu[r], sigma = h_sd[r]) # get alpha and beta parameters
+      tmp_h_trans = (h_trans[r] - 0.2) / (1 - 0.2) # transform random variable
+      h_Prior = h_Prior - dbeta(x = tmp_h_trans, shape1 = tmp_h_beta_pars[1], shape2 = tmp_h_beta_pars[2], log = TRUE) # penalize
+    } # end i loop
+  } # end if using natural mortality prior
+  
 
-
-  ### Movement Rates (Penalty) ------------------------------------------------
+  ### Movement Rates (Prior) ------------------------------------------------
   if(Use_Movement_Prior == 1) {
     unique_movement_pars = sort(unique(as.vector(map_Movement_Pars))) # Figure out unique movement parameters estimated
     for(i in 1:length(unique_movement_pars)) {
@@ -720,25 +743,25 @@ sabie_RTMB = function(pars) {
       y = par_idx[3] # year index
       a = par_idx[4] # age index
       s = par_idx[5] # sex index
-      Movement_Pen = Movement_Pen - ddirichlet(x = Movement[r_from,,y,a,s], alpha = Movement_prior[r_from,,y,a,s], log = TRUE) # dirichlet prior
+      Movement_Prior = Movement_Prior - ddirichlet(x = Movement[r_from,,y,a,s], alpha = Movement_prior[r_from,,y,a,s], log = TRUE) # dirichlet prior
     } # end i loop
   } # end if using movement prior
 
 
-  ### Tag Reporting Rate (Penalty) --------------------------------------------
+  ### Tag Reporting Rate (Prior) --------------------------------------------
   if(Use_TagRep_Prior == 1) {
     unique_tagrep_pars = sort(unique(as.vector(map_Tag_Reporting_Pars))) # Figure out unique tag reporting parameters estimated
     for(i in 1:length(unique_tagrep_pars)) {
       par_idx = which(map_Tag_Reporting_Pars == unique_tagrep_pars[i], arr.ind = TRUE)[1,] # figure out where unique tagrep parameter first occurs
       r = par_idx[1] # get region index
       y = par_idx[2] # get year index
-      if(TagRep_PenType == 0) {
-        TagRep_Pen = TagRep_Pen - dbeta_symmetric(p_val = Tag_Reporting[r,y], p_ub = 1,  p_lb = 0, p_prsd = TagRep_sd) # penalize
+      if(TagRep_PriorType == 0) {
+        TagRep_Prior = TagRep_Prior - dbeta_symmetric(p_val = Tag_Reporting[r,y], p_ub = 1,  p_lb = 0, p_prsd = TagRep_sd, log = TRUE) # penalize
       } # end if symmetric beta
-      if(TagRep_PenType == 1) {
+      if(TagRep_PriorType == 1) {
         a = TagRep_mu / (TagRep_sd * TagRep_sd) # alpha parameter
         b = (1 - TagRep_mu) / (TagRep_sd * TagRep_sd) # beta parameter
-        TagRep_Pen = TagRep_Pen - dbeta(x = Tag_Reporting[r,y], shape1 = a, shape2 = b, log = TRUE) # penalize
+        TagRep_Prior = TagRep_Prior - dbeta(x = Tag_Reporting[r,y], shape1 = a, shape2 = b, log = TRUE) # penalize
       } # end if for full beta
     } # end i loop
   } # if use tag reporting prior
@@ -753,16 +776,18 @@ sabie_RTMB = function(pars) {
     sum(SrvLenComps_nLL) + # Survey Length likelihood
     sum(Tag_nLL) + # Tagging likelihood
     (Wt_F * sum(Fmort_Pen)) + # Fishery Mortality Penalty
-    M_Pen + # Natural Mortality Prior (Penalty)
     (Wt_Rec * sum(Rec_nLL)) + # Recruitment Penalty
     (Wt_Rec * sum(Init_Rec_nLL)) + #  Initial Age Penalty
     sel_Pen + #  selectivity penalty
-    Movement_Pen + # movement penalty
-    TagRep_Pen # tag reporting rate penalty
+    M_Prior + # Natural Mortality Prior 
+    h_Prior + # Steepness Prior
+    Movement_Prior + # movement Prior
+    TagRep_Prior # tag reporting rate Prior
   
   # Report Section ----------------------------------------------------------
   # Biological Processes
   RTMB::REPORT(R0)
+  RTMB::REPORT(h_trans)
   RTMB::REPORT(Init_NAA)
   RTMB::REPORT(NAA)
   RTMB::REPORT(ZAA)
@@ -801,14 +826,15 @@ sabie_RTMB = function(pars) {
   RTMB::REPORT(SrvAgeComps_nLL)
   RTMB::REPORT(FishLenComps_nLL)
   RTMB::REPORT(SrvLenComps_nLL)
-  RTMB::REPORT(M_Pen)
+  RTMB::REPORT(M_Prior)
   RTMB::REPORT(Fmort_Pen)
   RTMB::REPORT(Rec_nLL)
   RTMB::REPORT(Init_Rec_nLL)
   RTMB::REPORT(Rec_nLL)
   RTMB::REPORT(Tag_nLL)
-  RTMB::REPORT(Movement_Pen)
-  RTMB::REPORT(TagRep_Pen)
+  RTMB::REPORT(h_Prior)
+  RTMB::REPORT(Movement_Prior)
+  RTMB::REPORT(TagRep_Prior)
   RTMB::REPORT(jnLL)
   
   # Effective Sample Sizes
