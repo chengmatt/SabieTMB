@@ -52,9 +52,9 @@ data$Fixed_Movement[,,,7:15,] <- spatial_rep$movement_matrix[,,,2] # age block 2
 data$Fixed_Movement[,,,16:30,] <- spatial_rep$movement_matrix[,,,3] # age block 3
 
 # Set up movement blocks
-data$move_age_blocks <- list(c(1:6), c(7:15), c(16:30))
-# data$move_age_blocks <- list(1:30)
-data$move_sex_blocks <- list(c(1:2))
+data$move_age_tag_pool <- list(c(1:6), c(7:15), c(16:30))
+# data$move_age_tag_pool <- list(1:30)
+data$move_sex_tag_pool <- list(c(1:2))
 
 # Likelihood and data weighting stuff
 data$likelihoods <- 1
@@ -160,7 +160,7 @@ for(y in 1:length(data$years)) {
     if(spatial_data$fixed_catchatlgth_indicator[r,y] == 1) {
       data$ObsFishLenComps[r,y,,1,1] <- spatial_data$obs_fixed_catchatlgth[-(1:length(data$ages)),r,y] / sum(spatial_data$obs_fixed_catchatlgth[,r,y]) # females
       data$ObsFishLenComps[r,y,,2,1] <- spatial_data$obs_fixed_catchatlgth[1:length(data$ages),r,y] / sum(spatial_data$obs_fixed_catchatlgth[,r,y]) # males
-    } # end if
+    } # end ifM
     
     # trawl gear
     if(spatial_data$trwl_catchatlgth_indicator[r,y] == 1) {
@@ -710,7 +710,7 @@ data$sigmaR_switch <- length(1960:1975) # when to switch to late sigmaR
 # map_Movement_Pars[,,1:length(data$years),16:30,2] <- 101:120 # age block 16-30 for all years and males
 # mapping$move_pars <- factor(map_Movement_Pars)
 # data$map_Movement_Pars <- array(as.numeric(mapping$move_pars), dim = dim(parameters$move_pars))
-# data$move_sex_blocks <- list(1,2)
+# data$move_sex_tag_pool <- list(1,2)
 # Doesn't converge, and gradients are a bit high ~ 0.01 (negbin parameter can't be estiamted)
 
 # Run Model ---------------------------------------------------------------
@@ -730,13 +730,15 @@ sabie_optim <- stats::nlminb(sabie_rtmb_model$par, sabie_rtmb_model$fn, sabie_rt
 
 # newton steps
 try_improve <- tryCatch(expr =
-                          for(i in 1:3) {
+                          for(i in 1:5) {
                             g = as.numeric(sabie_rtmb_model$gr(sabie_optim$par))
                             h = optimHess(sabie_optim$par, fn = sabie_rtmb_model$fn, gr = sabie_rtmb_model$gr)
                             sabie_optim$par = sabie_optim$par - solve(h,g)
                             sabie_optim$objective = sabie_rtmb_model$fn(sabie_optim$par)
                           }
                         , error = function(e){e}, warning = function(w){w})
+
+max(sabie_rtmb_model$gr())
 
 sabie_rtmb_model$optim <- sabie_optim # Save optimized model results
 sabie_rtmb_model$sd_rep <- RTMB::sdreport(sabie_rtmb_model) # Get sd report
@@ -762,7 +764,7 @@ sabie_rtmb_model$rep$srv_q
 sabie_rtmb_model$optim$par[names(sabie_rtmb_model$optim$par) == 'ln_tag_theta']
 sum(sabie_rtmb_model$rep$R0)
 
-sqrt(diag(sabie_rtmb_model$sd_rep$cov.fixed))[1092]
+plot(sabie_rtmb_model$rep$Init_NAA[5,-1,1])
 
 # Plots -------------------------------------------------------------------
 
@@ -786,6 +788,15 @@ ssb_vals %>%
   geom_ribbon(alpha = 0.3, color = NA) +
   ylim(0,NA)
 
+reshape2::melt(sabie_rtmb_model$rep$Movement) %>% 
+  filter(Var3 == 1, Var4 %in% c(1, 13, 20)) %>% 
+  ggplot(aes(x = Var2, y = Var1, fill = value, label = round(value, 3))) +
+  geom_tile(alpha = 0.3) +
+  geom_text() +
+  facet_wrap(~Var4) +
+  scale_fill_viridis_c()
+  
+  
 reshape2::melt(sabie_rtmb_model$rep$SSB) %>% 
   ggplot(aes(x = Var2, y = value, color = factor(Var1))) +
   geom_line(lwd = 1) +
@@ -831,15 +842,15 @@ reshape2::melt(sabie_rtmb_model$rep$Fmort) %>%
 
 reshape2::melt(sabie_rtmb_model$rep$fish_sel) %>% 
   rename(R = Var1, Y = Var2, A = Var3, S = Var4, Fl = Var5) %>% 
-  filter(Y == 1) %>% 
-  ggplot(aes(x = A, y = value, color = factor(R))) +
+  filter(Y == 60) %>% 
+  ggplot(aes(x = A, y = value)) +
   geom_line() +
   facet_grid(S~Fl, scales = "free_y")
 
 reshape2::melt(sabie_rtmb_model$rep$srv_sel) %>% 
   rename(R = Var1, Y = Var2, A = Var3, S = Var4, Fl = Var5) %>% 
   filter(Y == 50) %>% 
-  ggplot(aes(x = A, y = value, color = factor(R))) +
+  ggplot(aes(x = A, y = value)) +
   geom_line() +
   facet_grid(S~Fl, scales = "free_y")
 

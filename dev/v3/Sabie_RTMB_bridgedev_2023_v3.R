@@ -126,6 +126,9 @@ data$SizeAgeTrans[1,36:length(data$years),,,2] <- aperm(replicate(length(36:leng
 # movement stuff
 data$use_fixed_movement = 1
 data$Fixed_Movement = array(1, dim = c(data$n_regions, data$n_regions, length(data$years), length(data$ages), data$n_sexes))
+# Set up movement blocks
+data$move_age_tag_pool <- NA
+data$move_sex_tag_pool <- NA
 
 ## Observations  -----------------------------------------------------------
 ### Fishery Observations ----------------------------------------------------

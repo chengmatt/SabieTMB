@@ -39,29 +39,28 @@ sabie_RTMB = function(pars, data) {
   n_ages = length(ages) # number of ages
   n_yrs = length(years) # number of years
   n_lens = length(lens) # number of lengths
-  n_est_rec_devs = dim(ln_RecDevs)[2] # number of recruitment deviates estimated
-  
+
   # Recruitment stuff
+  n_est_rec_devs = dim(ln_RecDevs)[2] # number of recruitment deviates estimated
   Rec = array(0, dim = c(n_regions, n_yrs)) # Recruitment
   R0 = rep(0, n_regions) # R0 or mean recruitment
   
   # Population Dynamics 
   init_iter = n_ages * 5 # Number of times to iterate to equilibrium when movement occurs
-  # Set up initial age structure
-  Init_NAA = array(0, dim = c(n_regions, n_ages, n_sexes))
-  Init_NAA_next_year = Init_NAA
+  Init_NAA = array(0, dim = c(n_regions, n_ages, n_sexes)) # initial age structure
+  Init_NAA_next_year = Init_NAA # initial age structure
   NAA = array(data = 0, dim = c(n_regions, n_yrs + 1, n_ages, n_sexes)) # Numbers at age
   ZAA = array(data = 0, dim = c(n_regions, n_yrs, n_ages, n_sexes)) # Total mortality at age
   SAA = array(data = 0, dim = c(n_regions, n_yrs, n_ages, n_sexes)) # Survival at age
   SAA_mid = array(data = 0, dim = c(n_regions, n_yrs, n_ages, n_sexes)) # Survival at age (midpoint of the year)
-  natmort = array(data = 0, dim = c(n_regions, n_yrs, n_ages, n_sexes)) # natural mortaltity at age
+  natmort = array(data = 0, dim = c(n_regions, n_yrs, n_ages, n_sexes)) # natural mortality at age
   Total_Biom = array(0, dim = c(n_regions, n_yrs)) # Total biomass
   SSB = array(0, dim = c(n_regions, n_yrs)) # Spawning stock biomass
   
   # Movement Stuff
   Movement = array(data = 0, dim = c(n_regions, n_regions, n_yrs, n_ages, n_sexes)) # movement "matrix"
-  n_move_age_blocks = length(move_age_blocks) # number of age blocks
-  n_move_sex_blocks = length(move_sex_blocks) # number of sex blocks
+  n_move_age_tag_pool = length(move_age_tag_pool) # number of ages to pool for tagging data
+  n_move_sex_tag_pool = length(move_sex_tag_pool) # number of sexes to pool for tagging data
   
   # Tagging Stuff
   Tags_Avail = array(data = 0, dim = c(max_tag_liberty + 1, n_tag_cohorts, n_regions, n_ages, n_sexes)) # Tags availiable for recapture
@@ -600,24 +599,24 @@ sabie_RTMB = function(pars, data) {
       
       for(ry in mixing_period:min(max_tag_liberty, n_yrs - ty + 1)) { # loop through recapture years
         for(r in 1:n_regions) {
-          for(a in 1:n_move_age_blocks) {
-            for(s in 1:n_move_sex_blocks) {
+          for(a in 1:n_move_age_tag_pool) {
+            for(s in 1:n_move_sex_tag_pool) {
               
-              move_age_blocks_idx = move_age_blocks[[a]] # extract movement age block indices
-              move_sex_blocks_idx = move_sex_blocks[[s]] # extract movement sex block indices
+              move_age_pool_idx = move_age_tag_pool[[a]] # extract movement age pool indices
+              move_sex_pool_idx = move_sex_tag_pool[[s]] # extract movement sex pool indices
               
               # Poisson likelihood
               if(Tag_LikeType == 0) {
-                Tag_nLL[ry,tc,r,1,1] = Tag_nLL[ry,tc,r,1,1] + -dpois_noint(sum(Obs_Tag_Recap[ry,tc,r,move_age_blocks_idx,move_sex_blocks_idx] + 1e-10),
-                                                                           sum(Pred_Tag_Recap[ry,tc,r,move_age_blocks_idx,move_sex_blocks_idx] + 1e-10),
+                Tag_nLL[ry,tc,r,1,1] = Tag_nLL[ry,tc,r,1,1] + -dpois_noint(sum(Obs_Tag_Recap[ry,tc,r,move_age_pool_idx,move_sex_pool_idx] + 1e-10),
+                                                                           sum(Pred_Tag_Recap[ry,tc,r,move_age_pool_idx,move_sex_pool_idx] + 1e-10),
                                                                            give_log = TRUE)
               } # end if poisson likelihood
 
               # Negative binomial likelihood
               if(Tag_LikeType == 1) {
-                log_mu = log(sum(Pred_Tag_Recap[ry,tc,r,move_age_blocks_idx,move_sex_blocks_idx] + 1e-10)) # log mu
+                log_mu = log(sum(Pred_Tag_Recap[ry,tc,r,move_age_pool_idx,move_sex_pool_idx] + 1e-10)) # log mu
                 log_var_minus_mu = 2 * log_mu - ln_tag_theta # log var minus mu
-                Tag_nLL[ry,tc,r,1,1] = Tag_nLL[ry,tc,r,1,1] + -dnbinom_robust_noint(x = sum(Obs_Tag_Recap[ry,tc,r,move_age_blocks_idx,move_sex_blocks_idx] + 1e-10),
+                Tag_nLL[ry,tc,r,1,1] = Tag_nLL[ry,tc,r,1,1] + -dnbinom_robust_noint(x = sum(Obs_Tag_Recap[ry,tc,r,move_age_pool_idx,move_sex_pool_idx] + 1e-10),
                                                                                     log_mu = log_mu, log_var_minus_mu = log_var_minus_mu, give_log = TRUE)
               } # end if for negative binomial likelihood
               
