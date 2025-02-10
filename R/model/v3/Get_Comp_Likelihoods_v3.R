@@ -37,16 +37,17 @@ Get_Comp_Likelihoods = function(Exp,
   
   # Read in functions
   require(here)
-  source(here("R", "model", "ddirmult.R")) # dirichlet multinomial
-  source(here("R", "model", "dlogistnormal.R")) # logistic normal
+  source(here("R", "model", "v3", "Distributions.R")) # distribution options
+  
+  # use = data$UseFishLenComps[,32,1]
+  # Obs = data$ObsFishLenComps[1, 32, , ,2]
+  # Exp = sabie_rtmb_model$rep$CAL[1, 32, , ,2] / sum(sabie_rtmb_model$rep$CAL[1, 32, , ,2])
+  # ISS = data$ISS_FishLenComps[,32,,1]
   
   comp_nLL = array(0, dim = c(n_regions, n_sexes)) # initialize nLL here
   const = 0.001 # small constant
   # Filter expectation and observations to regions that have observations
   n_regions_obs_use = sum(use == 1) # get number of regions that have observations
-
-  # Obs = data$ObsFishAgeComps[,41,,,1]
-  # Exp = sabie_rtmb_model$rep$CAA[,41,,,1]
   
   # Making sure things are correctly formatted (and regions are not dropped)
   Obs = array(Obs, dim = c(n_regions, n_bins, n_sexes)) 
@@ -91,7 +92,7 @@ Get_Comp_Likelihoods = function(Exp,
       Sigma = diag(length(tmp_Obs)-1) * (exp(ln_theta[1,1])^2 / ISS[1,1])
       comp_nLL[1,1] = -1 * dlogistnormal(obs = tmp_Obs, pred = tmp_Exp, Sigma = Sigma, TRUE) # Logistic Normal likelihood
     } # end if logistic normal
-
+ 
   } # end if aggregated comps across sexes and regions
   
   # 'Split' comps by sex and region (no implicit sex ratio information)
@@ -194,4 +195,3 @@ Get_Comp_Likelihoods = function(Exp,
   
   return(comp_nLL) # return negative log likelihood
 } # end function
-

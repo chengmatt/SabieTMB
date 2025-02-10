@@ -31,10 +31,7 @@ sabie_RTMB = function(pars, data) {
   source(here("R", "model", "v3", "Get_Selex_v3.R")) # selectivity options
   source(here("R", "model", "v3", "Get_Det_Recruitment.R")) # recruitment options
   source(here("R", "model", "v3", "Get_Comp_Likelihoods_v3.R")) # selectivity options
-  source(here("R", "model", "ddirmult.R")) # dirichlet multinomial
-  source(here("R", "model", "ddirichlet.R")) # dirichlet 
-  source(here("R", "model", "get_beta_scaled_pars.R")) # scaled
-  source(here("R", "model", "dbeta_symmetric.R")) # symmetric
+  source(here("R", "model", "v3", "Distributions.R")) # distribution options
   
   RTMB::getAll(pars, data) # load in starting values and data
   
@@ -42,14 +39,17 @@ sabie_RTMB = function(pars, data) {
   n_ages = length(ages) # number of ages
   n_yrs = length(years) # number of years
   n_lens = length(lens) # number of lengths
+  n_est_rec_devs = dim(ln_RecDevs)[2] # number of recruitment deviates estimated
   
   # Recruitment stuff
   Rec = array(0, dim = c(n_regions, n_yrs)) # Recruitment
   R0 = rep(0, n_regions) # R0 or mean recruitment
-  sigmaR2_early = exp(ln_sigmaR_early)^2 # recruitment variability for early period
-  sigmaR2_late = exp(ln_sigmaR_late)^2 # recruitment variability for late period
   
   # Population Dynamics 
+  init_iter = n_ages * 5 # Number of times to iterate to equilibrium when movement occurs
+  # Set up initial age structure
+  Init_NAA = array(0, dim = c(n_regions, n_ages, n_sexes))
+  Init_NAA_next_year = Init_NAA
   NAA = array(data = 0, dim = c(n_regions, n_yrs + 1, n_ages, n_sexes)) # Numbers at age
   ZAA = array(data = 0, dim = c(n_regions, n_yrs, n_ages, n_sexes)) # Total mortality at age
   SAA = array(data = 0, dim = c(n_regions, n_yrs, n_ages, n_sexes)) # Survival at age
@@ -59,11 +59,9 @@ sabie_RTMB = function(pars, data) {
   SSB = array(0, dim = c(n_regions, n_yrs)) # Spawning stock biomass
   
   # Movement Stuff
-  init_iter = n_ages * 5 # Number of times to iterate to equilibrium when movement occurs
-  # Set up initial age structure
-  Init_NAA = array(0, dim = c(n_regions, n_ages, n_sexes))
-  Init_NAA_next_year = Init_NAA
   Movement = array(data = 0, dim = c(n_regions, n_regions, n_yrs, n_ages, n_sexes)) # movement "matrix"
+  n_move_age_blocks = length(move_age_blocks) # number of age blocks
+  n_move_sex_blocks = length(move_sex_blocks) # number of sex blocks
   
   # Tagging Stuff
   Tags_Avail = array(data = 0, dim = c(max_tag_liberty + 1, n_tag_cohorts, n_regions, n_ages, n_sexes)) # Tags availiable for recapture
@@ -115,6 +113,7 @@ sabie_RTMB = function(pars, data) {
   jnLL = 0 # Joint negative log likelihood
   
   # Model Process Equations -------------------------------------------------
+  ## Movement Parameters (Set up) --------------------------------------------
   ## Movement Parameters (Set up) --------------------------------------------
   for(r in 1:n_regions) {
     for(y in 1:n_yrs) {
@@ -180,8 +179,9 @@ sabie_RTMB = function(pars, data) {
               Fmort[r,y,f] = 0 # Set F to zero when no catch data
               FAA[r,y,a,s,f] = 0
             } else {
-              if(Catch_Type[y,f] == 0 && est_all_regional_F == 0) Fmort[r,y,f] = exp(ln_F_mean_AggCatch[f] + ln_F_devs_AggCatch[y,f]) # If catch is aggregated across regions
-              else Fmort[r,y,f] = exp(ln_F_mean[r,f] + ln_F_devs[r,y,f]) # Fully selected F
+              if(Catch_Type[y,f] == 0 && est_all_regional_F == 0) {
+                Fmort[r,y,f] = exp(ln_F_mean_AggCatch[f] + ln_F_devs_AggCatch[y,f]) # If catch is aggregated across regions
+              } else Fmort[r,y,f] = exp(ln_F_mean[r,f] + ln_F_devs[r,y,f]) # Fully selected F
               # Fmort[r,y,f] = Fmort_dat[r,y,f]
               FAA[r,y,a,s,f] = Fmort[r,y,f] * fish_sel[r,y,a,s,f] # Fishing mortality at age
             }
@@ -210,6 +210,10 @@ sabie_RTMB = function(pars, data) {
   
   # Steepness
   h_trans = 0.2 + (1 - 0.2) * plogis(h) # bound steepness between 0.2 and 1
+  
+  # Recruitment SD
+  sigmaR2_early = exp(ln_sigmaR_early)^2 # recruitment variability for early period
+  sigmaR2_late = exp(ln_sigmaR_late)^2 # recruitment variability for late period
   
   # Bias ramp set up
   for(y in 1:n_yrs) {
@@ -240,10 +244,12 @@ sabie_RTMB = function(pars, data) {
         # recruits move
         if(do_recruits_move == 1) for(a in 1:n_ages) Init_NAA[,a,s] = t(Init_NAA[,a,s]) %*% Movement[,,1,a,s] # movement
         # ageing and mortality
-        Init_NAA_next_year[,2:n_ages,s] = Init_NAA[,1:(n_ages-1),s] * exp(-(natmort[,1,1:(n_ages-1),s] + (init_F * fish_sel[,1,1:(n_ages-1),s,1])))
+        Init_NAA_next_year[,2:n_ages,s] = Init_NAA[,1:(n_ages-1),s] * exp(-(natmort[,1,1:(n_ages-1),s] + 
+                                          (init_F * fish_sel[,1,1:(n_ages-1),s,1])))
         # accumulate plus group
-        Init_NAA_next_year[,n_ages,s] = (Init_NAA_next_year[,n_ages,s] * exp(-(natmort[,1,n_ages,s] + (init_F * fish_sel[,1,n_ages,s,1])))) +
-          (Init_NAA[,n_ages,s] * exp(-(natmort[,1,n_ages,s] + (init_F * fish_sel[,1,n_ages,s,1]))))
+        Init_NAA_next_year[,n_ages,s] = (Init_NAA_next_year[,n_ages,s] * 
+                                         exp(-(natmort[,1,n_ages,s] + (init_F * fish_sel[,1,n_ages,s,1])))) +
+                                        (Init_NAA[,n_ages,s] * exp(-(natmort[,1,n_ages,s] + (init_F * fish_sel[,1,n_ages,s,1]))))
         Init_NAA = Init_NAA_next_year # iterate to next cycle
       } # end s loop
     } # end i loop
@@ -267,20 +273,12 @@ sabie_RTMB = function(pars, data) {
                                                     (init_F * fish_sel[r,1, init_age_idx + 1, s, 1])))) * sexratio[s] # not plus group
         # Plus group calculations
         NAA[r,1,n_ages,s] = R0[r] * exp( - ((n_ages - 1) * (natmort[r,1, n_ages, s] + (init_F * fish_sel[r,1, n_ages, s, 1]))) ) /
-          (1 - exp(-(natmort[r,1, n_ages, s] + (init_F * fish_sel[r,1, n_ages, s, 1])))) * sexratio[s]
+                            (1 - exp(-(natmort[r,1, n_ages, s] + (init_F * fish_sel[r,1, n_ages, s, 1])))) * sexratio[s]
         
       } # end s loop
     } # end r loop
   } # end if
   
-  ## Get total biomass and SSB first
-  for(r in 1:n_regions) {
-    for(y in 1:n_yrs) {
-      Total_Biom[r,y] = sum(as.vector(NAA[r,y,,]) * as.vector(WAA[r,y,,])) # Total Biomass
-      SSB[r,y] = sum(as.vector(NAA[r,y,,1]) * as.vector(WAA[r,y,,1]) * MatAA[r,y,,1]) # Spawning Stock Biomass 
-      if(n_sexes == 1) SSB[r,y] = SSB[r,y] * 0.5 # If single sex model, multiply SSB calculations by 0.5 
-    } # end y loop
-  } # end r loop
   
   ## Population Projection ---------------------------------------------------
   for(y in 1:n_yrs) {
@@ -290,11 +288,12 @@ sabie_RTMB = function(pars, data) {
       tmp_Det_Rec = Get_Det_Recruitment(recruitment_model = rec_model, R0 = R0[r], h = h_trans[r], n_ages = n_ages,
                                         WAA = WAA[r,y,,1], MatAA = MatAA[r,y,,1], natmort = natmort[r,y,,1],
                                         SSB_vals = SSB[r,], y = y, rec_lag = rec_lag)
-      
+
       for(s in 1:n_sexes) {
         if(y < sigmaR_switch) NAA[r,y,1,s] = tmp_Det_Rec * exp(ln_RecDevs[r,y] - (sigmaR2_early/2 * bias_ramp[y])) * sexratio[s] # early period recruitment
-        if(y >= sigmaR_switch && y < n_yrs) NAA[r,y,1,s] = tmp_Det_Rec * exp(ln_RecDevs[r,y] - (sigmaR2_late/2 * bias_ramp[y])) * sexratio[s] # late period recruitment
-        if(y == n_yrs) NAA[r,y,1,s] = tmp_Det_Rec * sexratio[s] # mean recruitment in terminal year
+        if(y >= sigmaR_switch && y <= n_est_rec_devs) NAA[r,y,1,s] = tmp_Det_Rec * exp(ln_RecDevs[r,y] - (sigmaR2_late/2 * bias_ramp[y])) * sexratio[s] # late period recruitment
+        # Dealing with terminal year recruitment
+        if(y > n_est_rec_devs) NAA[r,y,1,s] = tmp_Det_Rec * sexratio[s] # mean recruitment in terminal year (not estimate last year rec dev)
       } # end s loop
       Rec[r,y] = sum(NAA[r,y,1,]) # get annual recruitment container here
     } # end r loop
@@ -308,13 +307,13 @@ sabie_RTMB = function(pars, data) {
     } # end if recruits don't move
     # Recruits move here
     if(do_recruits_move == 1) for(a in 1:n_ages) for(s in 1:n_sexes) NAA[,y,a,s] = t(NAA[,y,a,s]) %*% Movement[,,y,a,s]
-    
+
     ### Mortality and Ageing ------------------------------------------------------
     for(r in 1:n_regions) {
       for(s in 1:n_sexes) {
         for(a in 1:n_ages) {
           # Project ages and years forward and then apply movement
-          if(a < n_ages) { 
+          if(a < n_ages) {
             # Exponential mortality for individuals not in plus group (recruits experience mortality)
             NAA[r,y+1,a+1,s] = NAA[r,y,a,s] * exp(-ZAA[r,y,a,s])
           } else {
@@ -384,43 +383,53 @@ sabie_RTMB = function(pars, data) {
   
   ## Tagging Observation Model -----------------------------------------------
   if(UseTagging == 1) {
+    
+    # Transform tagging parameters here
+    Tag_Reporting = plogis(Tag_Reporting_Pars) # Inverse logit transform tag reporting rate parameters
+    Tag_Shed = exp(ln_Tag_Shed) # Transform shedding rates
+    Init_Tag_Mort = exp(ln_Init_Tag_Mort) # Transform initial mortality
+    
+    # Extract out indexing for tag cohorts
+    tr_vec = tag_release_indicator[,1] # tag release region vector
+    ty_vec = tag_release_indicator[,2] # tag release year vector
+    
+    # Decrement tags by initial tagging mortality
+    Tagged_Fish = Tagged_Fish * exp(-Init_Tag_Mort) # Tag induced mortality in the first recapture year
+    
     for(tc in 1:n_tag_cohorts) {
-      tr = tag_release_indicator[tc,1] # extract tag release region
-      ty = tag_release_indicator[tc,2] # extract tag release year
+      tr = tr_vec[tc] # extract tag release region
+      ty = ty_vec[tc] # extract tag release year
       
       for(ry in 1:min(max_tag_liberty, n_yrs - ty + 1)) {
         # Set up variables for tagging dynamics
         y = ty + ry - 1 # Get index for actual year in the model (instead of tag year)
-        # get fishing mortality estimates (assumes uniform selex) 
-        if(n_fish_fleets == 1) tmp_F = Fmort[,y,] # only a single fishing fleet
-        if(n_fish_fleets > 1) tmp_F = rowSums(Fmort[,y,]) # multiple fleets
+        tmp_F = array(Fmort[,y,1] * fish_sel[,y,,,1], dim = c(n_regions, 1, n_ages, n_sexes)) # get fishing mortality, assumes dominant fleet
         
-        # Get total mortality and tag shedding (discount if not tagging start of the year for the first recapture year)
-        if(ry == 1 && t_tagging != 0) tmp_Z = (natmort[,y,,,drop = FALSE] + tmp_F + exp(ln_Tag_Shed)) * t_tagging # discounting if ry == 1
-        else tmp_Z = (natmort[,y,,,drop = FALSE] + tmp_F + exp(ln_Tag_Shed))
+        # Get total mortality (survival) and tag shedding (discount if not tagging start of the year for the first recapture year)
+        if(ry == 1 && t_tagging != 0) tmp_S = exp(-(natmort[,y,,,drop = FALSE] + tmp_F + Tag_Shed) * t_tagging) # discounting if ry == 1
+        else tmp_S = exp(-(natmort[,y,,,drop = FALSE] + tmp_F + Tag_Shed))
         
         # Run tagging dynamics
-        if(ry == 1) Tags_Avail[1,tc,tr,,] = Tagged_Fish[tc,,] * exp(-exp(ln_Init_Tag_Mort)) # Tag induced mortality in the first recapture year
+        if(ry == 1) Tags_Avail[1,tc,tr,,] = Tagged_Fish[tc,,] # Input tag releases to the first year
         
         # Move tagged fish around after mortality and ageing (movement only occurs after first release year if tagging occurs mid year - beginning of the year process)
-        if(t_tagging != 0) if(ry > 1) for(a in 1:n_ages) for(s in 1:n_sexes) Tags_Avail[ry,tc,,a,s] = t(Tags_Avail[ry,tc,,a,s]) %*% Movement[,,y,a,s]
-        else for(a in 1:n_ages) for(s in 1:n_sexes) Tags_Avail[ry,tc,,a,s] = t(Tags_Avail[ry,tc,,a,s]) %*% Movement[,,y,a,s]
+        if(t_tagging != 0 && ry == 1) {} else if(do_recruits_move == 0) for(a in 2:n_ages) for(s in 1:n_sexes) Tags_Avail[ry,tc,,a,s] = t(Tags_Avail[ry,tc,,a,s]) %*% Movement[,,y,a,s] # recruits dont move
+        if(t_tagging != 0 && ry == 1) {} else if(do_recruits_move == 1) for(a in 1:n_ages) for(s in 1:n_sexes) Tags_Avail[ry,tc,,a,s] = t(Tags_Avail[ry,tc,,a,s]) %*% Movement[,,y,a,s] # recruits move
         
         # Mortality and ageing of tagged fish
         for(a in 1:n_ages) {
           for(s in 1:n_sexes) {
-            if(a < n_ages) Tags_Avail[ry+1,tc,,a+1,s] = Tags_Avail[ry,tc,,a,s] * exp(-tmp_Z[,1,a,s]) # if not plus group
-            else Tags_Avail[ry+1,tc,,n_ages,s] = Tags_Avail[ry+1,tc,,n_ages,s] + (Tags_Avail[ry,tc,,n_ages,s] * exp(-tmp_Z[,1,n_ages,s])) # accumulate plus group
+            if(a < n_ages) Tags_Avail[ry+1,tc,,a+1,s] = Tags_Avail[ry,tc,,a,s] * tmp_S[,1,a,s] # if not plus group
+            else Tags_Avail[ry+1,tc,,n_ages,s] = Tags_Avail[ry+1,tc,,n_ages,s] + (Tags_Avail[ry,tc,,n_ages,s] * tmp_S[,1,n_ages,s]) # accumulate plus group
           } # end s loop
         } # end a loop
         
         # Get predicted recaptures (Baranov's)
-        Tag_Reporting[,y] = plogis(Tag_Reporting_Pars[,y]) # Inverse logit transform tag reporting rate parameters
-        Pred_Tag_Recap[ry,tc,,,] = Tag_Reporting[,y] * (tmp_F / tmp_Z[,1,,]) * Tags_Avail[ry,tc,,,] * (1 - exp(-tmp_Z[,1,,])) 
+        Pred_Tag_Recap[ry,tc,,,] = Tag_Reporting[,y] * (tmp_F[,1,,] / -log(tmp_S[,1,,])) * Tags_Avail[ry,tc,,,] * (1 - tmp_S[,1,,])
         
       } # end ry loop
     } # end tc loop
-  } # end if for using tagging data 
+  } # end if for using tagging data
   
   
   # Likelihood Equations -------------------------------------------------------------
@@ -536,7 +545,7 @@ sabie_RTMB = function(pars, data) {
           if(likelihoods == 1) {
             SrvIdx_nLL[r,y,sf] = UseSrvIdx[r,y,sf] -1 * dnorm(log(ObsSrvIdx[r,y,sf] + 1e-10),
                                                               log(PredSrvIdx[r,y,sf] + 1e-10),
-                                                              (ObsSrvIdx_SE[r,y,sf] / ObsSrvIdx[r,y,sf]) , TRUE)
+                                                              ObsSrvIdx_SE[r,y,sf] , TRUE)
           } # TMB likelihoods
         } # if no NAs for survey index
         
@@ -586,25 +595,30 @@ sabie_RTMB = function(pars, data) {
     for(tc in 1:n_tag_cohorts) {
       
       # set up tagging cohort indexing 
-      tr = tag_release_indicator[tc,1] # extract tag release region
-      ty = tag_release_indicator[tc,2] # extract tag release year
+      tr = tr_vec[tc] # extract tag release region 
+      ty = ty_vec[tc] # extract tag release year
       
       for(ry in mixing_period:min(max_tag_liberty, n_yrs - ty + 1)) { # loop through recapture years
         for(r in 1:n_regions) {
-          for(a in 1:n_ages) {
-            for(s in 1:n_sexes) {
+          for(a in 1:n_move_age_blocks) {
+            for(s in 1:n_move_sex_blocks) {
+              
+              move_age_blocks_idx = move_age_blocks[[a]] # extract movement age block indices
+              move_sex_blocks_idx = move_sex_blocks[[s]] # extract movement sex block indices
               
               # Poisson likelihood
-              if(Tag_LikeType == 0) Tag_nLL[ry,tc,r,a,s] = -dpois(Obs_Tag_Recap[ry,tc,r,a,s] + 1e-10, 
-                                                                  Pred_Tag_Recap[ry,tc,r,a,s] + 1e-10, log = TRUE) 
-              
+              if(Tag_LikeType == 0) {
+                Tag_nLL[ry,tc,r,1,1] = Tag_nLL[ry,tc,r,1,1] + -dpois_noint(sum(Obs_Tag_Recap[ry,tc,r,move_age_blocks_idx,move_sex_blocks_idx] + 1e-10),
+                                                                           sum(Pred_Tag_Recap[ry,tc,r,move_age_blocks_idx,move_sex_blocks_idx] + 1e-10),
+                                                                           give_log = TRUE)
+              } # end if poisson likelihood
+
               # Negative binomial likelihood
               if(Tag_LikeType == 1) {
-                # set up robust negative binomial
-                log_mu = log(Pred_Tag_Recap[ry,tc,r,a,s] + 1e-10) # log mean
-                log_var_minus_mu = 2 * log_mu - ln_tag_theta # log_var_minus_mu
-                Tag_nLL[ry,tc,r,a,s] = -dnbinom_robust(Obs_Tag_Recap[ry,tc,r,a,s] + 1e-10, log_mu = log_mu, 
-                                                       log_var_minus_mu = log_var_minus_mu, log = TRUE) 
+                log_mu = log(sum(Pred_Tag_Recap[ry,tc,r,move_age_blocks_idx,move_sex_blocks_idx] + 1e-10)) # log mu
+                log_var_minus_mu = 2 * log_mu - ln_tag_theta # log var minus mu
+                Tag_nLL[ry,tc,r,1,1] = Tag_nLL[ry,tc,r,1,1] + -dnbinom_robust_noint(x = sum(Obs_Tag_Recap[ry,tc,r,move_age_blocks_idx,move_sex_blocks_idx] + 1e-10),
+                                                                                    log_mu = log_mu, log_var_minus_mu = log_var_minus_mu, give_log = TRUE)
               } # end if for negative binomial likelihood
               
             } # end s loop
@@ -638,25 +652,27 @@ sabie_RTMB = function(pars, data) {
   
   ## Priors and Penalties ----------------------------------------------------
   ### Fishing Mortality (Penalty) ---------------------------------------------
-  for(f in 1:n_fish_fleets) {
-    for(y in 1:n_yrs) {
-      for(r in 1:n_regions) {
-        
-        if(UseCatch[r,y,f] == 1) {
-          if(likelihoods == 0) {
-            if(Catch_Type[y,f] == 0 && est_all_regional_F == 0) Fmort_Pen[1,y,f] = ln_F_devs_AggCatch[y,f]^2 # Use aggregated catch
-            else Fmort_Pen[r,y,f] = ln_F_devs[r,y,f]^2 # SSQ ADMB
-          } # ADMB likelihoods
+  if(Use_F_pen == 1) {
+    for(f in 1:n_fish_fleets) {
+      for(y in 1:n_yrs) {
+        for(r in 1:n_regions) {
           
-          if(likelihoods == 1) {
-            if(Catch_Type[y,f] == 0 && est_all_regional_F == 0) Fmort_Pen[1,y,f] = -dnorm(ln_F_devs_AggCatch[y,f], 0, 5, TRUE) # Use aggregated catch
-            else Fmort_Pen[r,y,f] = -dnorm(ln_F_devs[r,y,f], 0, 5, TRUE) # TMB likelihood
-          } # TMB likelihoods
-          
-        } # end if have catch
-      } # end r loop
-    } # y loop
-  } # f loop
+          if(UseCatch[r,y,f] == 1) {
+            if(likelihoods == 0) {
+              if(Catch_Type[y,f] == 0 && est_all_regional_F == 0) Fmort_Pen[1,y,f] = ln_F_devs_AggCatch[y,f]^2 # Use aggregated catch
+              else Fmort_Pen[r,y,f] = ln_F_devs[r,y,f]^2 # SSQ ADMB
+            } # ADMB likelihoods
+            
+            if(likelihoods == 1) {
+              if(Catch_Type[y,f] == 0 && est_all_regional_F == 0) Fmort_Pen[1,y,f] = -dnorm(ln_F_devs_AggCatch[y,f], 0, 10, TRUE) # Use aggregated catch
+              else Fmort_Pen[r,y,f] = -dnorm(ln_F_devs[r,y,f], 0, 10, TRUE) # TMB likelihood
+            } # TMB likelihoods
+            
+          } # end if have catch
+        } # end r loop
+      } # y loop
+    } # f loop
+  } #  if using fishing mortality penalty
   
   ### Selectivity (Penalty) ---------------------------------------------------
   for(f in 1:n_fish_fleets) {
@@ -691,10 +707,10 @@ sabie_RTMB = function(pars, data) {
   if(likelihoods == 0) {
     for(r in 1:n_regions) {
       Init_Rec_nLL[r,] = (ln_InitDevs[r,] / exp(ln_sigmaR_early))^2 # initial age structure penalty
-      for(y in 1:(sigmaR_switch-1)) {
+      if(sigmaR_switch > 1) for(y in 1:(sigmaR_switch-1)) {
         Rec_nLL[r,y] = (ln_RecDevs[r,y]/exp(ln_sigmaR_early))^2 + bias_ramp[y]*ln_sigmaR_early # early period
       } # end first y loop
-      for(y in (sigmaR_switch:(n_yrs-1))) {
+      for(y in (sigmaR_switch:n_est_rec_devs)) {
         Rec_nLL[r,y] = (ln_RecDevs[r,y]/exp(ln_sigmaR_late))^2 + bias_ramp[y]*ln_sigmaR_late # late period
       } # end second y loop
     } # end r loop
@@ -705,17 +721,16 @@ sabie_RTMB = function(pars, data) {
   if(likelihoods == 1) {
     for(r in 1:n_regions) {
       Init_Rec_nLL[r,] = -dnorm(ln_InitDevs[r,], 0, exp(ln_sigmaR_early), TRUE) # initial age structure penalty
-      for(y in 1:(sigmaR_switch-1)) {
+      if(sigmaR_switch > 1) for(y in 1:(sigmaR_switch-1)) {
         Rec_nLL[r,y] = -dnorm(ln_RecDevs[r,y], 0, exp(ln_sigmaR_early), TRUE)
       } # first y loop
       # Note that this penalizes the terminal year rec devs, which is estimated in this case
-      for(y in sigmaR_switch:n_yrs) {
+      for(y in sigmaR_switch:n_est_rec_devs) {
         Rec_nLL[r,y] = -dnorm(ln_RecDevs[r,y], 0, exp(ln_sigmaR_late), TRUE)
       } # end second y loop
     } # end r loop
   } 
   
-
   ### Natural Mortality (Prior) -----------------------------------------------
   if(Use_M_prior == 1) {
     if(likelihoods == 0) M_Prior = (ln_M - log(M_prior[1]))^2 / (2 * (M_prior[2])^2) # ADMB likelihood
@@ -731,7 +746,7 @@ sabie_RTMB = function(pars, data) {
       tmp_h_trans = (h_trans[r] - 0.2) / (1 - 0.2) # transform random variable
       h_Prior = h_Prior - dbeta(x = tmp_h_trans, shape1 = tmp_h_beta_pars[1], shape2 = tmp_h_beta_pars[2], log = TRUE) # penalize
     } # end i loop
-  } # end if using natural mortality prior
+  } # end if using steepness prior
   
 
   ### Movement Rates (Prior) ------------------------------------------------
@@ -756,7 +771,7 @@ sabie_RTMB = function(pars, data) {
       r = par_idx[1] # get region index
       y = par_idx[2] # get year index
       if(TagRep_PriorType == 0) {
-        TagRep_Prior = TagRep_Prior - dbeta_symmetric(p_val = Tag_Reporting[r,y], p_ub = 1,  p_lb = 0, p_prsd = TagRep_sd, log = TRUE) # penalize
+        TagRep_Prior = TagRep_Prior - dbeta_symmetric(p_val = Tag_Reporting[r,y], p_ub = 1, p_lb = 0, p_prsd = TagRep_sd, log = TRUE) # penalize
       } # end if symmetric beta
       if(TagRep_PriorType == 1) {
         a = TagRep_mu / (TagRep_sd * TagRep_sd) # alpha parameter
@@ -857,3 +872,4 @@ sabie_RTMB = function(pars, data) {
 
   return(jnLL)
 } # end function
+

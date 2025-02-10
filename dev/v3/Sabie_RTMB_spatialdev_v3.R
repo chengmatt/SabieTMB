@@ -98,7 +98,7 @@
     
     ## Observations  -----------------------------------------------------------
     ### Fishery Observations ----------------------------------------------------
-    
+    data$Use_F_pen <- 1
     # Catches
     if(catch_type == 0) {
       data$ObsCatch <- array(0, dim = c(data$n_regions, length(data$years), data$n_fish_fleets))
@@ -173,7 +173,7 @@
     ### Survey Observations -----------------------------------------------------
     # Survey Indices
     data$ObsSrvIdx <- array(aperm(sim_out$Obs_SrvIdx[,,,sim,drop = FALSE], perm = c(2,1,3,4)), dim = c(data$n_regions, length(data$years), data$n_srv_fleets))
-    data$ObsSrvIdx_SE <- (data$ObsSrvIdx * 0.3)
+    data$ObsSrvIdx_SE <- 0.3
     data$UseSrvIdx <- array(1, dim = c(data$n_regions, length(data$years), data$n_srv_fleets))
     colnames(data$ObsSrvIdx) <- data$years # define row years
     colnames(data$ObsSrvIdx_SE) <- data$years # define row years
@@ -260,9 +260,9 @@
     
     # Recruitment -------------------------------------------------------------
     data$rec_model = 0 # mean recruitment
-    data$rec_lag = 0 # recruitment ssb lag
+    data$rec_lag = 1 # recruitment ssb lag
     data$Use_h_prior = 0
-    data$h_mu <- c(0.92, 0.92)
+    data$h_mu <- c(0.85, 0.85)
     data$h_sd <- c(0.05, 0.05)
     
     # Prepare Parameters ------------------------------------------------------

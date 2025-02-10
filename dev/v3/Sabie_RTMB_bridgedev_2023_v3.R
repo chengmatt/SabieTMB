@@ -131,6 +131,7 @@ data$Fixed_Movement = array(1, dim = c(data$n_regions, data$n_regions, length(da
 ### Fishery Observations ----------------------------------------------------
 
 # Catches
+data$Use_F_pen <- 1
 data$Catch_Type <- array(1, dim = c(length(data$years), data$n_fish_fleets))
 data$ObsCatch <- array(NA, c(data$n_regions, length(1:length(data$years)), data$n_fish_fleets))
 data$ObsCatch[1,,1] <- as.numeric(strsplit(tem_admb_dat[46], split = " ")[[1]])[1:length(data$years)] # fixed gear catches

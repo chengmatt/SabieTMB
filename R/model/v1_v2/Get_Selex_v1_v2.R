@@ -33,12 +33,20 @@ Get_Selex = function(Selex_Model, ln_Pars, Age) {
     selex = 1 / Age^power
   }
   
-  
   if(Selex_Model == 3) { # logistic selectivity (a50 and a95)
     # Extract out and exponentiate the parameters here
     a50 = exp(ln_Pars[1]); # a50
     a95 = exp(ln_Pars[2]); # slope
     selex = 1 / (1+19^((a50-Age)/a95))
+  }
+  
+  if(Selex_Model == 4) { # gamma dome-shaped selectivity 
+    # Extract out and exponentiate the parameters here
+    amax = exp(ln_Pars[1]) # age at max selex
+    delta = exp(ln_Pars[2]) # slope parameter
+    # Now, calculate/derive power parameter + selex values
+    p = 0.5 * (sqrt( amax^2 + (4 * delta^2)) - amax)
+    selex = (Age / amax)^(amax/p) * exp( (amax - Age) / p ) 
   }
   
   return(selex)

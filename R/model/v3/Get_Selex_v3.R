@@ -33,12 +33,18 @@ Get_Selex = function(Selex_Model, ln_Pars, Age) {
     selex = 1 / Age^power
   }
   
-  
   if(Selex_Model == 3) { # logistic selectivity (a50 and a95)
     # Extract out and exponentiate the parameters here
     a50 = exp(ln_Pars[1]); # a50
     a95 = exp(ln_Pars[2]); # slope
     selex = 1 / (1+19^((a50-Age)/a95))
+  }
+  
+  if(Selex_Model == 4) { # Normal distribution
+    mu = exp(ln_Pars[1]); # mu
+    sigR = exp(ln_Pars[2]); # sigR
+    selex = 1.0 / (1.0 + exp(-5 * (Age - mu)))
+    selex = selex * exp(log(0.5) * ((Age - mu) / sigR)^2) + (1.0 - selex) * exp(log(0.5)  * ((Age- mu) / sigR)^2)
   }
   
   return(selex)

@@ -58,7 +58,6 @@ data$n_srv_fleets <- 3 # number of survey fleets (0 == domestic ll survey, 1 == 
 data$fit_lengths <- 0
 
 # Recruitment stuff
-data$init_iter <- 100 # Number of iterations to get equilibrium age structure w/ movement
 data$init_F_prop <- 0.1 # initial F proportion for initializing population
 data$do_rec_bias_ramp <- 1 # do bias ramp (slot 0 == don't do bias ramp, 1 == do bias ramp)
 # breakpoints for bias ramp (0 == no bias ramp - 1960 - 1980, 1 == ascending limb of bias ramp - 1980 - 1990,
@@ -132,6 +131,7 @@ data$Fixed_Movement = array(1, dim = c(data$n_regions, data$n_regions, length(da
 ### Fishery Observations ----------------------------------------------------
 
 # Catches
+data$Use_F_pen <- 1
 data$Catch_Type <- array(1, dim = c(length(data$years), data$n_fish_fleets))
 data$ObsCatch <- array(NA, c(data$n_regions, length(1:length(data$years)), data$n_fish_fleets))
 data$ObsCatch[1,,1] <- as.numeric(strsplit(tem_admb_dat[46], split = " ")[[1]])[1:length(data$years)] # fixed gear catches
@@ -1136,6 +1136,7 @@ data$Fixed_Movement = array(1, dim = c(data$n_regions, data$n_regions, length(da
 ### Fishery Observations ----------------------------------------------------
 
 # Catches
+data$Use_F_pen <- 1
 data$Catch_Type <- array(1, dim = c(length(data$years), data$n_fish_fleets))
 data$ObsCatch <- array(NA, c(data$n_regions, length(1:length(data$years)), data$n_fish_fleets))
 data$ObsCatch[1,,1] <- as.numeric(strsplit(tem_admb_dat[46], split = " ")[[1]])[1:length(data$years)] # fixed gear catches
@@ -2139,6 +2140,7 @@ data$Fixed_Movement = array(1, dim = c(data$n_regions, data$n_regions, length(da
 ### Fishery Observations ----------------------------------------------------
 
 # Catches
+data$Use_F_pen <- 1
 data$Catch_Type <- array(1, dim = c(length(data$years), data$n_fish_fleets))
 data$ObsCatch <- array(NA, c(data$n_regions, length(1:length(data$years)), data$n_fish_fleets))
 data$ObsCatch[1,,1] <- as.numeric(strsplit(tem_admb_dat[46], split = " ")[[1]])[1:length(data$years)] # fixed gear catches
