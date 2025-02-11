@@ -16,7 +16,7 @@ Get_3d_precision <- function(n_ages,n_yrs, pcorr_age, pcorr_year, pcorr_cohort, 
     
     require(Matrix)
 
-    index = expand.grid(seq_len(n_a), seq_len(n_t)) # create index combinations to loop through
+    index = expand.grid(seq_len(n_ages), seq_len(n_yrs)) # create index combinations to loop through
     i = j = x = NULL # initialize posiiton to fill in precision matrix
     var_value = exp(ln_var_value) # transform to normal space
     
@@ -31,7 +31,7 @@ Get_3d_precision <- function(n_ages,n_yrs, pcorr_age, pcorr_year, pcorr_cohort, 
       if(year > 1){
         i = c(i, n)
         j = c(j, which(index[,1]==age & index[,2]==(year-1)) )
-        x = c(x, pcorr_age) # age correaltion indexing
+        x = c(x, pcorr_age) # age correlation indexing
       }
       if( age>1 & year>1 ){
         i = c(i, n)
@@ -41,11 +41,19 @@ Get_3d_precision <- function(n_ages,n_yrs, pcorr_age, pcorr_year, pcorr_cohort, 
     } # end n loop
     
     # Assemble SAR precision (should be sparse matrices)
-    B = sparseMatrix(i=i, j=j, x=x, dims=rep(n_a*n_t,2))
-    I = sparseMatrix(i=seq_len(n_a*n_t), j=seq_len(n_a*n_t), x=rep(1,n_a*n_t))
+    B = sparseMatrix(i = i, 
+                     j = j, 
+                     x = x, 
+                     dims = rep(n_ages*n_yrs,2))
+    
+    # Identity matrix
+    I = sparseMatrix(i = seq_len(n_ages*n_yrs),
+                     j = seq_len(n_ages*n_yrs),
+                     x = rep(1,n_ages*n_yrs))
 
     # Solve Omega recursively for stationary variance (accumulator function)
     if(Var_Type == 0) {
+      L = solve(I-B) # solve to get accumulator function for stationary variance
       d = rep(NA, nrow(index))
       for(n in 1:nrow(index) ){
         if(n==1){
@@ -59,7 +67,11 @@ Get_3d_precision <- function(n_ages,n_yrs, pcorr_age, pcorr_year, pcorr_cohort, 
     
     if(Var_Type == 1) d = var_value # conditional variance (non-stationary variance)
     
-    Omega_inv = sparseMatrix( i=seq_len(n_a*n_t), j=seq_len(n_a*n_t), x=1/d, dims=rep(n_a*n_t,2) ) # get inverse of omega
+    Omega_inv = sparseMatrix(i = seq_len(n_ages*n_yrs), 
+                             j = seq_len(n_ages*n_yrs),
+                             x = 1/d, 
+                             dims = rep(n_ages*n_yrs,2)) # get inverse of omega
+    
     Q = (I-t(B)) %*% Omega_inv %*% (I-B) # solve for precision
     
     return(Q)

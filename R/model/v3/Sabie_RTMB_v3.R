@@ -30,6 +30,7 @@ sabie_RTMB = function(pars, data) {
   require(RTMB); require(here)
   source(here("R", "model", "v3", "Get_Selex_v3.R")) # selectivity options
   source(here("R", "model", "v3", "Get_Det_Recruitment.R")) # recruitment options
+  source(here("R", "model", "v3", "Get_3d_precision.R")) # constructor algorithim for 3d precision matrix
   source(here("R", "model", "v3", "Get_Comp_Likelihoods_v3.R")) # selectivity options
   source(here("R", "model", "v3", "Distributions.R")) # distribution options
   
@@ -134,21 +135,18 @@ sabie_RTMB = function(pars, data) {
         fish_sel_blk_idx = fish_sel_blocks[r,y,f] # Get fishery selectivity block index
         for(s in 1:n_sexes) {
           
-          # if selectivity is either a time block or constant
-          if(cont_tv_fish_sel[r,f] == 0) tmp_fish_sel_vec = ln_fish_fixed_sel_pars[r,,fish_sel_blk_idx,s,f] # extract temporary selectivity parameters
+          # Extract out fixed-effect selectivity parameters
+          tmp_fish_sel_vec = ln_fish_fixed_sel_pars[r,,fish_sel_blk_idx,s,f] 
           
-          
-          # if selectivity is iid or random walk time varying
-          if(cont_tv_fish_sel[r,f] %in% c(1,2)) {
-            tmp_fish_sel_vec = c(ln_fish_fixed_sel_pars[r,1,fish_sel_blk_idx,s,f] + ln_fishsel_dev1[r,y,s,f],
-                                 ln_fish_fixed_sel_pars[r,2,fish_sel_blk_idx,s,f] + ln_fishsel_dev2[r,y,s,f])
-          } # end iid or random walk selectivity
-          
-          
-          
-          fish_sel[r,y,,s,f] = Get_Selex(Selex_Model = fish_sel_model[r,y,f],
-                                         ln_Pars = tmp_fish_sel_vec,
-                                         Age = ages) # Calculate selectivity
+          # Calculate selectivity
+          fish_sel[r,y,,s,f] = Get_Selex(Selex_Model = fish_sel_model[r,y,f], # selectivity model
+                                         TimeVary_Model = cont_tv_fish_sel[r,f], # time varying model
+                                         ln_Pars = tmp_fish_sel_vec, # fixed effect selectivity parameters
+                                         ln_seldevs = ln_fishsel_devs[[f]], # list object to incorporate different dimensions of deviations
+                                         Region = r, # region index
+                                         Year = y, # year index
+                                         Age = ages, # age vector
+                                         Sex = s) # sex index 
 
         } # end s loop
       } # end f loop
@@ -680,32 +678,14 @@ sabie_RTMB = function(pars, data) {
   
   ### Selectivity (Penalty) ---------------------------------------------------
   for(f in 1:n_fish_fleets) {
-    for(r in 1:n_regions) {
-      # iid selectivity
-      if(cont_tv_fish_sel[r,f] == 1) {
-        for(s in 1:n_sexes) {
-          for(y in 1:n_yrs) {
-            sel_Pen = sel_Pen + -dnorm(ln_fishsel_dev1[r,y,s,f], 0, exp(ln_fishsel_dev1_sd[r,s,f]), TRUE)
-            sel_Pen = sel_Pen + -dnorm(ln_fishsel_dev2[r,y,s,f], 0, exp(ln_fishsel_dev2_sd[r,s,f]), TRUE)
-          } # end y loop
-        } # end s loop
-      } # end if for iid selectivity
-      
-      # random walk selectivity
-      if(cont_tv_fish_sel[r,f] == 2) {
-        for(s in 1:n_sexes) {
-          sel_Pen = sel_Pen + -dnorm(ln_fishsel_dev1[r,1,s,f], 0, 50, TRUE) # initialize first value w/ large prior (prior sd is just arbitrarily large)
-          sel_Pen = sel_Pen + -dnorm(ln_fishsel_dev2[r,1,s,f], 0, 50, TRUE) # initialize first value w/ large prior (prior sd is just arbitrarily large)
-          for(y in 2:n_yrs) {
-            sel_Pen = sel_Pen + -dnorm(ln_fishsel_dev1[r,y,s,f], ln_fishsel_dev1[r,y-1,s,f], exp(ln_fishsel_dev1_sd[r,s,f]), TRUE)
-            sel_Pen = sel_Pen + -dnorm(ln_fishsel_dev2[r,y,s,f], ln_fishsel_dev2[r,y-1,s,f], exp(ln_fishsel_dev2_sd[r,s,f]), TRUE)
-          } # end y loop
-        } # end s loop
-      } # end if for random walk selectivity
-      
-    } # end r loop
+    sel_pen = sel_pen + - Get_PE_loglik(PE_model = cont_tv_fish_sel[r,f], # process error model
+                                        PE_pars = fishsel_pe_pars[[f]], # process error parameters for a given fleet in list (correlaiton and sigmas) 
+                                        ln_devs = ln_fishsel_devs[[f]], # extract out process error dviations for a gien fleet in list (allows for different dimnesioning)
+                                        n_regions = n_regions, # number of regions 
+                                        n_yrs = n_yrs, # number of years 
+                                        n_ages = n_ages, # number of ages 
+                                        n_sexes = n_sexes) # number of sexes
   } # end f loop
-  
   
   ### Recruitment (Penalty) ----------------------------------------------------
   if(likelihoods == 0) {

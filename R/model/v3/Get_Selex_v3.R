@@ -3,6 +3,11 @@
 #' @param Selex_Model integer for selectivity model
 #' @param ln_Pars log selectivity parameters
 #' @param Age vector of Ages
+#' @param TimeVary_Model Time-varying selectivity model == 0, constant or blocked, == 1 iid, == 2 random walk, == 3 3dar1 marginal, == 4 3dar1 conditional
+#' @param ln_seldevs selectivity deviations (either in array or matrix and needs to match the time_vary model specification)
+#' @param Year Year index value
+#' @param Region Region index value
+#' @param Sex Sex index value
 #'
 #' @return
 #' @export
@@ -10,44 +15,68 @@
 #' @examples
 #' 
 #' 
-#' # Notes: Just add in devs to pars here
-Get_Selex = function(Selex_Model, ln_Pars, Age) {
+Get_Selex = function(Selex_Model, TimeVary_Model, ln_Pars, ln_seldevs, Region, Year, Age, Sex) {
   selex = rep(0, length(Age)) # Temporary container vector
   
   if(Selex_Model == 0) { # logistic selectivity (a50 and slope)
     # Extract out and exponentiate the parameters here
     a50 = exp(ln_Pars[1]); # a50
     k = exp(ln_Pars[2]); # slope
-    selex = 1 / (1 + exp(-k * (Age - a50))) 
+    if(TimeVary_Model %in% c(1,2)) {
+      a50 = a50 * exp(ln_seldevs[Region, Year, 1, Sex]) # a50 parameter varying
+      k = k * exp(ln_seldevs[Region, Year, 2, Sex]) # slope parameter varying
+    } # end if iid or random walk
+    
+    selex = 1 / (1 + exp(-k * (Age - a50))) # return parmetric form
+    
+    # 3dar1 model (sel devs dimensioned as region, age, year, sex because of how the constructor algorithim is set up)
+    if(TimeVary_Model %in% c(3,4)) selex = selex * exp(ln_seldevs[Region,,Year,Sex]) # varies semi-parametriclly
   }
   
   if(Selex_Model == 1) { # gamma dome-shaped selectivity 
     # Extract out and exponentiate the parameters here
     amax = exp(ln_Pars[1]) # age at max selex
     delta = exp(ln_Pars[2]) # slope parameter
+    if(TimeVary_Model %in% c(1,2)) {
+      amax = amax * exp(ln_seldevs[Region, Year, 1, Sex]) # amax parameter varying
+      delta = delta * exp(ln_seldevs[Region, Year, 2, Sex]) # delta parameter varying
+    } # end if iid or random walk
     # Now, calculate/derive power parameter + selex values
     p = 0.5 * (sqrt( amax^2 + (4 * delta^2)) - amax)
-    selex = (Age / amax)^(amax/p) * exp( (amax - Age) / p ) 
+    
+    selex = (Age / amax)^(amax/p) * exp( (amax - Age) / p ) # return parametric form
+    
+    # 3dar1 model (sel devs dimensioned as region, age, year, sex because of how the constructor algorithim is set up)
+    if(TimeVary_Model %in% c(3,4)) selex = selex * exp(ln_seldevs[Region,,Year,Sex]) # varies semi-parametriclly
   }
   
   if(Selex_Model == 2) { # power function selectivity
     # Extract out and exponentiate the parameters here
     power = exp(ln_Pars[1]); # power parameter
-    selex = 1 / Age^power
+    if(TimeVary_Model %in% c(1,2)) {
+      power = power * exp(ln_seldevs[Region, Year, 1, Sex]) # power parameter varying
+    } # end if iid or random walk
+    
+    selex = 1 / Age^power # return parametric form
+    
+    # 3dar1 model (sel devs dimensioned as region, age, year, sex because of how the constructor algorithim is set up)
+    if(TimeVary_Model %in% c(3,4)) selex = selex * exp(ln_seldevs[Region,,Year,Sex]) # varies semi-parametriclly
   }
   
   if(Selex_Model == 3) { # logistic selectivity (a50 and a95)
     # Extract out and exponentiate the parameters here
     a50 = exp(ln_Pars[1]); # a50
-    a95 = exp(ln_Pars[2]); # slope
-    selex = 1 / (1+19^((a50-Age)/a95))
-  }
-  
-  if(Selex_Model == 4) { # Normal distribution
-    mu = exp(ln_Pars[1]); # mu
-    sigR = exp(ln_Pars[2]); # sigR
-    selex = 1.0 / (1.0 + exp(-5 * (Age - mu)))
-    selex = selex * exp(log(0.5) * ((Age - mu) / sigR)^2) + (1.0 - selex) * exp(log(0.5)  * ((Age- mu) / sigR)^2)
+    a95 = exp(ln_Pars[2]); # a95
+    
+    if(TimeVary_Model %in% c(1,2)) {
+      a50 = a50 * exp(ln_seldevs[Region, Year, 1, Sex]) # a50 parameter varying
+      a95 = a95 * exp(ln_seldevs[Region, Year, 2, Sex]) # a95 parameter varying
+    } # end if iid or random walk
+    
+    selex = 1 / (1+19^((a50-Age)/a95)) # 19 b/c 0.95 / (1 - 0.95) return parametric form
+    
+    # 3dar1 model (sel devs dimensioned as region, age, year, sex because of how the constructor algorithim is set up)
+    if(TimeVary_Model %in% c(3,4)) selex = selex * exp(ln_seldevs[Region,,Year,Sex]) # varies semi-parametriclly
   }
   
   return(selex)
