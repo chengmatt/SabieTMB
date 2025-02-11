@@ -8,6 +8,9 @@
 #' @export
 #'
 #' @examples
+#' 
+#' 
+#' # Notes: Just add in devs to pars here
 Get_Selex = function(Selex_Model, ln_Pars, Age) {
   selex = rep(0, length(Age)) # Temporary container vector
   
@@ -49,3 +52,4 @@ Get_Selex = function(Selex_Model, ln_Pars, Age) {
   
   return(selex)
 } # end function
+

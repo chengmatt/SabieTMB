@@ -113,7 +113,6 @@ sabie_RTMB = function(pars, data) {
   
   # Model Process Equations -------------------------------------------------
   ## Movement Parameters (Set up) --------------------------------------------
-  ## Movement Parameters (Set up) --------------------------------------------
   for(r in 1:n_regions) {
     for(y in 1:n_yrs) {
       for(a in 1:n_ages) {
@@ -134,13 +133,19 @@ sabie_RTMB = function(pars, data) {
       for(f in 1:n_fish_fleets) {
         fish_sel_blk_idx = fish_sel_blocks[r,y,f] # Get fishery selectivity block index
         for(s in 1:n_sexes) {
+          
           # if selectivity is either a time block or constant
           if(cont_tv_fish_sel[r,f] == 0) tmp_fish_sel_vec = ln_fish_fixed_sel_pars[r,,fish_sel_blk_idx,s,f] # extract temporary selectivity parameters
+          
+          
           # if selectivity is iid or random walk time varying
           if(cont_tv_fish_sel[r,f] %in% c(1,2)) {
             tmp_fish_sel_vec = c(ln_fish_fixed_sel_pars[r,1,fish_sel_blk_idx,s,f] + ln_fishsel_dev1[r,y,s,f],
                                  ln_fish_fixed_sel_pars[r,2,fish_sel_blk_idx,s,f] + ln_fishsel_dev2[r,y,s,f])
           } # end iid or random walk selectivity
+          
+          
+          
           fish_sel[r,y,,s,f] = Get_Selex(Selex_Model = fish_sel_model[r,y,f],
                                          ln_Pars = tmp_fish_sel_vec,
                                          Age = ages) # Calculate selectivity
