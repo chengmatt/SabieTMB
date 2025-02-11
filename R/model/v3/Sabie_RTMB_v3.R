@@ -142,7 +142,7 @@ sabie_RTMB = function(pars, data) {
           fish_sel[r,y,,s,f] = Get_Selex(Selex_Model = fish_sel_model[r,y,f], # selectivity model
                                          TimeVary_Model = cont_tv_fish_sel[r,f], # time varying model
                                          ln_Pars = tmp_fish_sel_vec, # fixed effect selectivity parameters
-                                         ln_seldevs = ln_fishsel_devs[[f]], # list object to incorporate different dimensions of deviations
+                                         ln_seldevs = ln_fishsel_devs[,,,,f, drop = FALSE], # list object to incorporate different dimensions of deviations
                                          Region = r, # region index
                                          Year = y, # year index
                                          Age = ages, # age vector
@@ -161,8 +161,14 @@ sabie_RTMB = function(pars, data) {
         for(s in 1:n_sexes) {
           tmp_srv_sel_vec = ln_srv_fixed_sel_pars[r,,srv_sel_blk_idx,s,sf] # extract temporary selectivity parameters
           srv_sel[r,y,,s,sf] = Get_Selex(Selex_Model = srv_sel_model[r,y,sf],
+                                         TimeVary_Model = 0, # no deviations allowed for survey (for now)
+                                         ln_seldevs = NA, # no selex devs
                                          ln_Pars = tmp_srv_sel_vec,
-                                         Age = ages) # Calculate selectivity
+                                         Region = r, # region index
+                                         Year = y, # year index
+                                         Age = ages, # age vector
+                                         Sex = s) # sex index
+          
         } # end s loop
       } # end sf loop
     } # end y loop
@@ -677,10 +683,12 @@ sabie_RTMB = function(pars, data) {
   } #  if using fishing mortality penalty
   
   ### Selectivity (Penalty) ---------------------------------------------------
+  
+  # Need to add something to do with when to (or not to) apply likelihood
   for(f in 1:n_fish_fleets) {
-    sel_pen = sel_pen + - Get_PE_loglik(PE_model = cont_tv_fish_sel[r,f], # process error model
-                                        PE_pars = fishsel_pe_pars[[f]], # process error parameters for a given fleet in list (correlaiton and sigmas) 
-                                        ln_devs = ln_fishsel_devs[[f]], # extract out process error dviations for a gien fleet in list (allows for different dimnesioning)
+    sel_Pen = sel_Pen + - Get_PE_loglik(PE_model = cont_tv_fish_sel[r,f], # process error model
+                                        PE_pars = fishsel_pe_pars[,,,f, drop = FALSE], # process error parameters for a given fleet in list (correlaiton and sigmas) 
+                                        ln_devs = ln_fishsel_devs[,,,,f, drop = FALSE], # extract out process error dviations for a gien fleet in list (allows for different dimnesioning)
                                         n_regions = n_regions, # number of regions 
                                         n_yrs = n_yrs, # number of years 
                                         n_ages = n_ages, # number of ages 

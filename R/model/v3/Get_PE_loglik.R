@@ -22,12 +22,19 @@ Get_PE_loglik <- function(PE_model, PE_pars, ln_devs, n_regions, n_yrs, n_ages, 
   ll = 0 # initialize likelihood
   
   if(PE_model == 1) {
+    
+    
+    # Flag need to make this accommodate pars ... (the dim par doesnt work because no longer list ... )
+    # Other thing we need to accommodate is to turn off penalization if sharing parameters ...
+    # Anything else? 
+    
+    
     n_pars = dim(ln_devs)[3] # get number of parameters in functional form
     for(i in 1:n_pars) {
       for(r in 1:n_regions) {
         for(y in 1:n_yrs) {
           for(s in 1:n_sexes) {
-            ll = ll + dnorm(ln_devs[r,y,i,s], 0, exp(PE_pars[r,i,s]), TRUE)
+            ll = ll + dnorm(ln_devs[r,y,i,s,1], 0, exp(PE_pars[r,i,s,1]), TRUE)
           } # end s loop
         } # end y loop
       } # end r loop
@@ -41,9 +48,9 @@ Get_PE_loglik <- function(PE_model, PE_pars, ln_devs, n_regions, n_yrs, n_ages, 
         for(y in 1:n_yrs) {
           for(s in 1:n_sexes) {
             if(y == 1) {  # if y == 1, initialize with large sigma on dnorm 
-              ll = ll + dnorm(ln_devs[r,1,i,s], 0, 50, TRUE)
+              ll = ll + dnorm(ln_devs[r,1,i,s,1], 0, 50, TRUE)
             } else {
-              ll = ll + dnorm(ln_devs[r,y,i,s], ln_devs[r,y-1,i,s], exp(PE_pars[r,i,s]), TRUE)
+              ll = ll + dnorm(ln_devs[r,y,i,s,1], ln_devs[r,y-1,i,s,1], exp(PE_pars[r,i,s,1]), TRUE)
             } # end else
           } # end s loop
         } # end y loop
@@ -61,13 +68,15 @@ Get_PE_loglik <- function(PE_model, PE_pars, ln_devs, n_regions, n_yrs, n_ages, 
         # Construct precision matrix for 3d gmrf
         Q = Get_3d_precision(n_ages = n_ages, # number of ages
                              n_yrs = n_yrs,  # number of years
-                             pcorr_age = PE_pars[r,1,s], # unconstrained partial correaltion by age
-                             pcorr_year = PE_pars[r,2,s], # unconstrained partial correaltion by year
-                             pcorr_cohort = PE_pars[r,3,s], # unconstrained partial correaltion by cohort
-                             ln_var_value = PE_pars[r,4,s], # log variance
+                             pcorr_age = PE_pars[r,1,s,1], # unconstrained partial correaltion by age
+                             pcorr_year = PE_pars[r,2,s,1], # unconstrained partial correaltion by year
+                             pcorr_cohort = PE_pars[r,3,s,1], # unconstrained partial correaltion by cohort
+                             ln_var_value = PE_pars[r,4,s,1], # log variance
                              Var_Type = Var_Type) # variance type, == 0 (marginal), == 1 (conditional)
+        
         # note that log deviations are dimensioned by region, age, year, sex because of precision constructor is set up
-        ll = ll + RTMB::dgmrf(x = ln_devs[r,,,s], mu = 0, Q = Q, log = TRUE) 
+        ll = ll + RTMB::dgmrf(x = ln_devs[r,,,s,1], mu = 0, Q = Q, log = TRUE) 
+        
       } # end s loop
     } # end r loop
     
@@ -88,4 +97,4 @@ Get_PE_loglik <- function(PE_model, PE_pars, ln_devs, n_regions, n_yrs, n_ages, 
 # 
 # Get_PE_loglik(PE_model = 3, PE_pars = PE_pars, ln_devs = ln_devs, n_regions, n_yrs, n_ages, n_sexes)
 # 
-# rmvnorm(1, 0, as.matrix(solve(Q)))
+# rmvnorm(1, rep(0, n_ages * n_yrs), as.matrix(solve(Q)))

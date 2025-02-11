@@ -319,6 +319,8 @@ data$SrvAgeComps_Type <- array(0, dim = c(length(data$years),data$n_srv_fleets))
 ### Fishery Stuff -----------------------------------------------------
 # Selectivity
 data$cont_tv_fish_sel <- array(0, dim = c(data$n_regions, data$n_fish_fleets)) # no timevarying selex continously
+data$cont_tv_fish_sel[1,1] <- 1 # iid for testing
+
 # Time Block Specification
 data$fish_sel_blocks <- array(NA, dim = c(data$n_regions, length(1:length(data$years)), data$n_fish_fleets))
 data$fish_sel_blocks[1,1:35,1] <- 0 # block one fishery ll selex
@@ -407,10 +409,18 @@ parameters$ln_F_devs[1,,1] <- devs_ll_fish[1:length(data$years)] # longline fish
 parameters$ln_F_devs[1,,2] <- c(rep(0, 3), devs_ll_trwl ) # trwl fishery Fs
 
 # Set up continuous fishery selectivity stuff
-parameters$ln_fishsel_dev1 <- array(0, dim = c(data$n_regions, length(data$years), data$n_sexes, data$n_fish_fleets))
-parameters$ln_fishsel_dev2 <- array(0, dim = c(data$n_regions, length(data$years), data$n_sexes, data$n_fish_fleets))
-parameters$ln_fishsel_dev1_sd <- array(0.1, dim = c(data$n_regions, data$n_sexes, data$n_fish_fleets))
-parameters$ln_fishsel_dev2_sd <- array(0.1, dim = c(data$n_regions, data$n_sexes, data$n_fish_fleets))
+
+# Deprecated
+# parameters$ln_fishsel_dev1 <- array(0, dim = c(data$n_regions, length(data$years), data$n_sexes, data$n_fish_fleets))
+# parameters$ln_fishsel_dev2 <- array(0, dim = c(data$n_regions, length(data$years), data$n_sexes, data$n_fish_fleets))
+# parameters$ln_fishsel_dev1_sd <- array(0.1, dim = c(data$n_regions, data$n_sexes, data$n_fish_fleets))
+# parameters$ln_fishsel_dev2_sd <- array(0.1, dim = c(data$n_regions, data$n_sexes, data$n_fish_fleets))
+
+# process error parameters (sigmas and corrs) (using 4 as the max number of pars that can deviate, and then just map off if not using)
+parameters$fishsel_pe_pars <- array(log(0.05), dim = c(data$n_regions, 4, data$n_sexes, data$n_fish_fleets))
+
+# process error deviations (using ages as the max number of pars that can deviate, and then just map off if not using)
+parameters$ln_fishsel_devs <- array(0, dim = c(data$n_regions, length(data$years), length(data$ages), data$n_sexes, data$n_fish_fleets))
 
 # Fixed Gear Fishery three time blocks
 max_fish_blks <- 3 # maximum number of fishery blocks for any fleet
@@ -531,12 +541,28 @@ mapping$ln_srv_fixed_sel_pars <- factor(c(1:3, 2, 4:6, 5,
 # Fixing sigmas for fishery catch and Fdevs here
 mapping$ln_sigmaC <- factor(rep(NA, length(parameters$ln_sigmaC)))
 
-
 # Fixing continuous time-varying selecitvity stuff
-mapping$ln_fishsel_dev1 <- factor(rep(NA, length(parameters$ln_fishsel_dev1)))
-mapping$ln_fishsel_dev2 <- factor(rep(NA, length(parameters$ln_fishsel_dev2)))
-mapping$ln_fishsel_dev1_sd <- factor(rep(NA, length(parameters$ln_fishsel_dev1_sd)))
-mapping$ln_fishsel_dev2_sd <- factor(rep(NA, length(parameters$ln_fishsel_dev2_sd)))
+# mapping$ln_fishsel_dev1 <- factor(rep(NA, length(parameters$ln_fishsel_dev1)))
+# mapping$ln_fishsel_dev2 <- factor(rep(NA, length(parameters$ln_fishsel_dev2)))
+# mapping$ln_fishsel_dev1_sd <- factor(rep(NA, length(parameters$ln_fishsel_dev1_sd)))
+# mapping$ln_fishsel_dev2_sd <- factor(rep(NA, length(parameters$ln_fishsel_dev2_sd)))
+
+# process error parameters (sigmas)
+map_fishsel_pe_pars <- parameters$fishsel_pe_pars
+map_fishsel_pe_pars[1,,,2] <- NA # trawl not used
+map_fishsel_pe_pars[1,1,,1] <- 1 # first parameter share sex
+map_fishsel_pe_pars[1,1,,1] <- 1 # first parameter share sex
+map_fishsel_pe_pars[1,2,,1] <- 1 # second parameter share sex
+map_fishsel_pe_pars[1,2,,1] <- 1 # second parameter share sex
+map_fishsel_pe_pars[1,3:4,,1] <- NA # last 2 pars not used
+mapping$fishsel_pe_pars = factor(map_fishsel_pe_pars)
+
+# process error deviations (using ages as the max number of pars that can deviate, and then just map off if not using)
+map_ln_fishel_devs <- parameters$ln_fishsel_devs
+map_ln_fishel_devs[1,,1,1:2,1] <- 1:length(data$years) # share proc dev across sex
+map_ln_fishel_devs[1,,2,1:2,1] <- (length(data$years) + 1):(length(data$years) + length(data$years) ) # share proc dev across sex 
+map_ln_fishel_devs[1,,-c(1,2),,2] <- NA
+
 
 # Fixing dirichlet mutlinomial stuff
 mapping$ln_FishAge_theta <- factor(rep(NA, length(parameters$ln_FishAge_theta)))

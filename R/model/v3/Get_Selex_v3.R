@@ -23,14 +23,14 @@ Get_Selex = function(Selex_Model, TimeVary_Model, ln_Pars, ln_seldevs, Region, Y
     a50 = exp(ln_Pars[1]); # a50
     k = exp(ln_Pars[2]); # slope
     if(TimeVary_Model %in% c(1,2)) {
-      a50 = a50 * exp(ln_seldevs[Region, Year, 1, Sex]) # a50 parameter varying
-      k = k * exp(ln_seldevs[Region, Year, 2, Sex]) # slope parameter varying
+      a50 = a50 * exp(ln_seldevs[Region, Year, 1, Sex, 1]) # a50 parameter varying
+      k = k * exp(ln_seldevs[Region, Year, 2, Sex, 1]) # slope parameter varying
     } # end if iid or random walk
     
     selex = 1 / (1 + exp(-k * (Age - a50))) # return parmetric form
     
     # 3dar1 model (sel devs dimensioned as region, age, year, sex because of how the constructor algorithim is set up)
-    if(TimeVary_Model %in% c(3,4)) selex = selex * exp(ln_seldevs[Region,,Year,Sex]) # varies semi-parametriclly
+    if(TimeVary_Model %in% c(3,4)) selex = selex * exp(ln_seldevs[Region,,Year,Sex, 1]) # varies semi-parametriclly
   }
   
   if(Selex_Model == 1) { # gamma dome-shaped selectivity 
@@ -38,8 +38,8 @@ Get_Selex = function(Selex_Model, TimeVary_Model, ln_Pars, ln_seldevs, Region, Y
     amax = exp(ln_Pars[1]) # age at max selex
     delta = exp(ln_Pars[2]) # slope parameter
     if(TimeVary_Model %in% c(1,2)) {
-      amax = amax * exp(ln_seldevs[Region, Year, 1, Sex]) # amax parameter varying
-      delta = delta * exp(ln_seldevs[Region, Year, 2, Sex]) # delta parameter varying
+      amax = amax * exp(ln_seldevs[Region, Year, 1, Sex, 1]) # amax parameter varying
+      delta = delta * exp(ln_seldevs[Region, Year, 2, Sex, 1]) # delta parameter varying
     } # end if iid or random walk
     # Now, calculate/derive power parameter + selex values
     p = 0.5 * (sqrt( amax^2 + (4 * delta^2)) - amax)
@@ -47,20 +47,20 @@ Get_Selex = function(Selex_Model, TimeVary_Model, ln_Pars, ln_seldevs, Region, Y
     selex = (Age / amax)^(amax/p) * exp( (amax - Age) / p ) # return parametric form
     
     # 3dar1 model (sel devs dimensioned as region, age, year, sex because of how the constructor algorithim is set up)
-    if(TimeVary_Model %in% c(3,4)) selex = selex * exp(ln_seldevs[Region,,Year,Sex]) # varies semi-parametriclly
+    if(TimeVary_Model %in% c(3,4)) selex = selex * exp(ln_seldevs[Region,,Year,Sex, 1]) # varies semi-parametriclly
   }
   
   if(Selex_Model == 2) { # power function selectivity
     # Extract out and exponentiate the parameters here
     power = exp(ln_Pars[1]); # power parameter
     if(TimeVary_Model %in% c(1,2)) {
-      power = power * exp(ln_seldevs[Region, Year, 1, Sex]) # power parameter varying
+      power = power * exp(ln_seldevs[Region, Year, 1, Sex, 1]) # power parameter varying
     } # end if iid or random walk
     
     selex = 1 / Age^power # return parametric form
     
     # 3dar1 model (sel devs dimensioned as region, age, year, sex because of how the constructor algorithim is set up)
-    if(TimeVary_Model %in% c(3,4)) selex = selex * exp(ln_seldevs[Region,,Year,Sex]) # varies semi-parametriclly
+    if(TimeVary_Model %in% c(3,4)) selex = selex * exp(ln_seldevs[Region,,Year,Sex, 1]) # varies semi-parametriclly
   }
   
   if(Selex_Model == 3) { # logistic selectivity (a50 and a95)
@@ -69,14 +69,14 @@ Get_Selex = function(Selex_Model, TimeVary_Model, ln_Pars, ln_seldevs, Region, Y
     a95 = exp(ln_Pars[2]); # a95
     
     if(TimeVary_Model %in% c(1,2)) {
-      a50 = a50 * exp(ln_seldevs[Region, Year, 1, Sex]) # a50 parameter varying
-      a95 = a95 * exp(ln_seldevs[Region, Year, 2, Sex]) # a95 parameter varying
+      a50 = a50 * exp(ln_seldevs[Region, Year, 1, Sex, 1]) # a50 parameter varying
+      a95 = a95 * exp(ln_seldevs[Region, Year, 2, Sex, 1]) # a95 parameter varying
     } # end if iid or random walk
     
     selex = 1 / (1+19^((a50-Age)/a95)) # 19 b/c 0.95 / (1 - 0.95) return parametric form
     
     # 3dar1 model (sel devs dimensioned as region, age, year, sex because of how the constructor algorithim is set up)
-    if(TimeVary_Model %in% c(3,4)) selex = selex * exp(ln_seldevs[Region,,Year,Sex]) # varies semi-parametriclly
+    if(TimeVary_Model %in% c(3,4)) selex = selex * exp(ln_seldevs[Region,,Year,Sex, 1]) # varies semi-parametriclly
   }
   
   return(selex)
