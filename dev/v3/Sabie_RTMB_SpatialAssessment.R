@@ -87,7 +87,7 @@ for(r in 1:data$n_regions) {
 data$AgeingError <- as.matrix(ageing_dat$age_error) # ageing error matrix
 
 # Size Transition Matrix
-data$fit_lengths <- 0
+data$fit_lengths <- 1
 data$SizeAgeTrans <- NA
 data$SizeAgeTrans <- array(0, dim = c(data$n_regions, length(data$years), length(data$lens), length(data$ages), data$n_sexes)) # size age transition matrix
 for(y in 1:length(data$years)) {

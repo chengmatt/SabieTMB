@@ -55,7 +55,7 @@ data$years <- as.numeric(years) # years
 data$n_sexes <- 2 # number of sexes
 data$n_fish_fleets <- 2 # number of fishery fleets (0 == fixed gear, 1 == trawl gear)
 data$n_srv_fleets <- 3 # number of survey fleets (0 == domestic ll survey, 1 == domestic trawl survey, 2 == coop jp ll survey)
-data$fit_lengths <- 0
+data$fit_lengths <- 1
 
 # Recruitment stuff
 data$init_F_prop <- 0.1 # initial F proportion for initializing population
@@ -1062,7 +1062,7 @@ data$years <- as.numeric(years) # years
 data$n_sexes <- 2 # number of sexes
 data$n_fish_fleets <- 2 # number of fishery fleets (0 == fixed gear, 1 == trawl gear)
 data$n_srv_fleets <- 3 # number of survey fleets (0 == domestic ll survey, 1 == domestic trawl survey, 2 == coop jp ll survey)
-data$fit_lengths <- 0
+data$fit_lengths <- 1
 
 # Recruitment stuff
 data$init_iter <- 100 # Number of iterations to get equilibrium age structure w/ movement
@@ -2069,7 +2069,7 @@ data$years <- as.numeric(years) # years
 data$n_sexes <- 2 # number of sexes
 data$n_fish_fleets <- 2 # number of fishery fleets (0 == fixed gear, 1 == trawl gear)
 data$n_srv_fleets <- 3 # number of survey fleets (0 == domestic ll survey, 1 == domestic trawl survey, 2 == coop jp ll survey)
-data$fit_lengths <- 0
+data$fit_lengths <- 1
 
 # Recruitment stuff
 data$init_iter <- 100 # Number of iterations to get equilibrium age structure w/ movement

@@ -93,7 +93,7 @@
     data$AgeingError <- diag(1, length(data$ages)) # ageing error matrix
     
     # Size Transition Matrix (Growth)
-    data$fit_lengths <- 1
+    data$fit_lengths <- 0
     data$SizeAgeTrans <- NA
     
     ## Observations  -----------------------------------------------------------

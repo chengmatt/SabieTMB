@@ -340,8 +340,8 @@ sabie_RTMB = function(pars, data) {
         
         for(s in 1:n_sexes) {
           CAA[r,y,,s,f] = FAA[r,y,,s,f] / ZAA[r,y,,s] * NAA[r,y,,s] * (1 - exp(-ZAA[r,y,,s])) # Catch at age (Baranov's)
-          if(fit_lengths == 0 && sablefish_ADMB == 1) CAL[r,y,,s,f] = SizeAgeTrans[r,y,,,s] %*% (CAA[r,y,,s,f] / sum(CAA[r,y,,s,f])) # Catch at length (Sablefish bridging specific)
-          else if(fit_lengths == 0) CAL[r,y,,s,f] = SizeAgeTrans[r,y,,,s] %*% CAA[r,y,,s,f] # Catch at length
+          if(fit_lengths == 1 && sablefish_ADMB == 1) CAL[r,y,,s,f] = SizeAgeTrans[r,y,,,s] %*% (CAA[r,y,,s,f] / sum(CAA[r,y,,s,f])) # Catch at length (Sablefish bridging specific)
+          else if(fit_lengths == 1) CAL[r,y,,s,f] = SizeAgeTrans[r,y,,,s] %*% CAA[r,y,,s,f] # Catch at length
         } # end s loop
         
         PredCatch[r,y,f] = sum(CAA[r,y,,,f] * WAA[r,y,,]) # get total catch
@@ -368,7 +368,7 @@ sabie_RTMB = function(pars, data) {
         for(s in 1:n_sexes) {
           if(sablefish_ADMB == 1) SrvIAA[r,y,,s,sf] = NAA[r,y,,s] * srv_sel[r,y,,s,sf] # Survey index at age (sablefish specific)
           else SrvIAA[r,y,,s,sf] = NAA[r,y,,s] * srv_sel[r,y,,s,sf] * SAA_mid[r,y,,s] # Survey index at age
-          if(fit_lengths == 0) SrvIAL[r,y,,s,sf] = SizeAgeTrans[r,y,,,s] %*% SrvIAA[r,y,,s,sf] # Survey index at length
+          if(fit_lengths == 1) SrvIAL[r,y,,s,sf] = SizeAgeTrans[r,y,,,s] %*% SrvIAA[r,y,,s,sf] # Survey index at length
         } # end s loop
         
         # Get predicted survey index
@@ -513,7 +513,7 @@ sabie_RTMB = function(pars, data) {
       } # if we have fishery age comps
       
       # Fishery Length Compositions
-      if(sum(UseFishLenComps[,y,f]) >= 1 && fit_lengths == 0) {
+      if(sum(UseFishLenComps[,y,f]) >= 1 && fit_lengths == 1) {
         FishLenComps_nLL[,y,,f] = Get_Comp_Likelihoods(
           # Expected and Observed values
           Exp = CAL[,y,,,f], Obs = ObsFishLenComps[,y,,,f], 
@@ -572,7 +572,7 @@ sabie_RTMB = function(pars, data) {
       } # if we have survey age comps
       
       # Survey Length Compositions
-      if(sum(UseSrvLenComps[,y,sf]) >= 1 && fit_lengths == 0) {
+      if(sum(UseSrvLenComps[,y,sf]) >= 1 && fit_lengths == 1) {
         SrvLenComps_nLL[,y,,sf] = Get_Comp_Likelihoods(
           # Expected and Observed values
           Exp = SrvIAL[,y,,,sf], Obs = ObsSrvLenComps[,y,,,sf], 
@@ -802,7 +802,6 @@ sabie_RTMB = function(pars, data) {
   # Biological Processes
   RTMB::REPORT(R0)
   RTMB::REPORT(h_trans)
-  RTMB::REPORT(Init_NAA)
   RTMB::REPORT(NAA)
   RTMB::REPORT(ZAA)
   RTMB::REPORT(natmort)
@@ -828,9 +827,11 @@ sabie_RTMB = function(pars, data) {
   RTMB::REPORT(SrvIAL)
   
   # Tagging Processes
-  RTMB::REPORT(Pred_Tag_Recap)
-  RTMB::REPORT(Tags_Avail)
-  RTMB::REPORT(Tag_Reporting)
+  if(UseTagging == 1) {
+    RTMB::REPORT(Pred_Tag_Recap)
+    RTMB::REPORT(Tags_Avail)
+    RTMB::REPORT(Tag_Reporting)
+  }
   
   # Likelihoods
   RTMB::REPORT(Catch_nLL)
@@ -861,6 +862,7 @@ sabie_RTMB = function(pars, data) {
   RTMB::REPORT(Total_Biom)
   RTMB::REPORT(SSB)
   RTMB::REPORT(Rec)
+  
   # Report these in log space because can't be < 0
   RTMB::ADREPORT(log(Total_Biom))
   RTMB::ADREPORT(log(SSB))
