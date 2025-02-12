@@ -11,7 +11,7 @@ source(here("R", "functions", "Francis_Reweight.R"))
 source(here("R", "model", "v3", "Sabie_RTMB_v3.R"))
 source(here("R", "functions", "Utility_Functions.R"))
 
-options(digits = 20)
+options(digits = 3)
 
 # Read in data
 tem_dat <- dget(here("dev", '2023 Base (23.5)_final model', 'tem.rdat'))
@@ -319,7 +319,6 @@ data$SrvAgeComps_Type <- array(0, dim = c(length(data$years),data$n_srv_fleets))
 ### Fishery Stuff -----------------------------------------------------
 # Selectivity
 data$cont_tv_fish_sel <- array(0, dim = c(data$n_regions, data$n_fish_fleets)) # no timevarying selex continously
-data$cont_tv_fish_sel[1,1] <- 1 # iid for testing
 
 # Time Block Specification
 data$fish_sel_blocks <- array(NA, dim = c(data$n_regions, length(1:length(data$years)), data$n_fish_fleets))
@@ -409,13 +408,6 @@ parameters$ln_F_devs[1,,1] <- devs_ll_fish[1:length(data$years)] # longline fish
 parameters$ln_F_devs[1,,2] <- c(rep(0, 3), devs_ll_trwl ) # trwl fishery Fs
 
 # Set up continuous fishery selectivity stuff
-
-# Deprecated
-# parameters$ln_fishsel_dev1 <- array(0, dim = c(data$n_regions, length(data$years), data$n_sexes, data$n_fish_fleets))
-# parameters$ln_fishsel_dev2 <- array(0, dim = c(data$n_regions, length(data$years), data$n_sexes, data$n_fish_fleets))
-# parameters$ln_fishsel_dev1_sd <- array(0.1, dim = c(data$n_regions, data$n_sexes, data$n_fish_fleets))
-# parameters$ln_fishsel_dev2_sd <- array(0.1, dim = c(data$n_regions, data$n_sexes, data$n_fish_fleets))
-
 # process error parameters (sigmas and corrs) (using 4 as the max number of pars that can deviate, and then just map off if not using)
 parameters$fishsel_pe_pars <- array(log(0.05), dim = c(data$n_regions, 4, data$n_sexes, data$n_fish_fleets))
 
@@ -541,28 +533,35 @@ mapping$ln_srv_fixed_sel_pars <- factor(c(1:3, 2, 4:6, 5,
 # Fixing sigmas for fishery catch and Fdevs here
 mapping$ln_sigmaC <- factor(rep(NA, length(parameters$ln_sigmaC)))
 
-# Fixing continuous time-varying selecitvity stuff
-# mapping$ln_fishsel_dev1 <- factor(rep(NA, length(parameters$ln_fishsel_dev1)))
-# mapping$ln_fishsel_dev2 <- factor(rep(NA, length(parameters$ln_fishsel_dev2)))
-# mapping$ln_fishsel_dev1_sd <- factor(rep(NA, length(parameters$ln_fishsel_dev1_sd)))
-# mapping$ln_fishsel_dev2_sd <- factor(rep(NA, length(parameters$ln_fishsel_dev2_sd)))
-
 # process error parameters (sigmas)
+parameters$fishsel_pe_pars <- array(log(0.05), dim = c(data$n_regions, 4, data$n_sexes, data$n_fish_fleets))
+
+# process error deviations (using ages as the max number of pars that can deviate, and then just map off if not using)
+parameters$ln_fishsel_devs <- array(0, dim = c(data$n_regions, length(data$years), length(data$ages), data$n_sexes, data$n_fish_fleets))
+
+
+data$cont_tv_fish_sel[] = c(4,0) # iid for testing
+# parameters$fishsel_pe_pars[] <- log(0.5)
+parameters$fishsel_pe_pars[,,1:2, 1] <- c(0.2, 0.2, 0.4, log(0.3)) # fix these for 3dar1 testing
 map_fishsel_pe_pars <- parameters$fishsel_pe_pars
 map_fishsel_pe_pars[1,,,2] <- NA # trawl not used
-map_fishsel_pe_pars[1,1,,1] <- 1 # first parameter share sex
-map_fishsel_pe_pars[1,1,,1] <- 1 # first parameter share sex
-map_fishsel_pe_pars[1,2,,1] <- 1 # second parameter share sex
-map_fishsel_pe_pars[1,2,,1] <- 1 # second parameter share sex
+map_fishsel_pe_pars[1,1,,1] <- NA # first parameter share sex
+map_fishsel_pe_pars[1,1,,1] <- NA # first parameter share sex
+map_fishsel_pe_pars[1,2,,1] <- NA # second parameter share sex
+map_fishsel_pe_pars[1,2,,1] <- NA # second parameter share sex
 map_fishsel_pe_pars[1,3:4,,1] <- NA # last 2 pars not used
 mapping$fishsel_pe_pars = factor(map_fishsel_pe_pars)
 
 # process error deviations (using ages as the max number of pars that can deviate, and then just map off if not using)
 map_ln_fishel_devs <- parameters$ln_fishsel_devs
-map_ln_fishel_devs[1,,1,1:2,1] <- 1:length(data$years) # share proc dev across sex
-map_ln_fishel_devs[1,,2,1:2,1] <- (length(data$years) + 1):(length(data$years) + length(data$years) ) # share proc dev across sex 
-map_ln_fishel_devs[1,,-c(1,2),,2] <- NA
-
+# map_ln_fishel_devs[1,,1,1:2,1] <- 1:length(data$years) # share proc dev across sex
+# map_ln_fishel_devs[1,,2,1:2,1] <- (length(data$years) + 1):(length(data$years) + length(data$years) ) # share proc dev across sex 
+map_ln_fishel_devs[1,,,1,1] <- 1:(length(data$years) * length(data$ages))
+map_ln_fishel_devs[1,,,2,1] <- 1:(length(data$years) * length(data$ages))
+map_ln_fishel_devs[map_ln_fishel_devs == 0] <- NA
+mapping$ln_fishsel_devs <- factor(map_ln_fishel_devs)
+# mapping$ln_fishsel_devs <- factor(rep(NA,length(parameters$ln_fishsel_devs)))
+data$map_ln_fishel_devs <- array(as.numeric(mapping$ln_fishsel_devs), dim = dim(parameters$ln_fishsel_devs))
 
 # Fixing dirichlet mutlinomial stuff
 mapping$ln_FishAge_theta <- factor(rep(NA, length(parameters$ln_FishAge_theta)))
@@ -570,10 +569,8 @@ mapping$ln_FishLen_theta <- factor(rep(NA, length(parameters$ln_FishLen_theta)))
 mapping$ln_SrvAge_theta <- factor(rep(NA, length(parameters$ln_SrvAge_theta)))
 mapping$ln_SrvLen_theta <- factor(rep(NA, length(parameters$ln_SrvLen_theta)))
 
-
 # Movement
 mapping$move_pars <- factor(rep(NA, length(parameters$move_pars)))
-
 mapping$ln_Init_Tag_Mort <- factor(NA)
 mapping$ln_Tag_Shed <- factor(NA)
 mapping$Tag_Reporting_Pars <- factor(rep(NA, length.out = length(parameters$Tag_Reporting_Pars)))
@@ -590,9 +587,6 @@ data$fish_sel_blocks = data$fish_sel_blocks + 1
 data$srv_sel_blocks = data$srv_sel_blocks + 1
 data$bias_year = data$bias_year + 1
 data$sigmaR_switch = data$sigmaR_switch + 1
-
-# make AD model function
-options(digits = 7)
 
 sabie_rtmb_model <- RTMB::MakeADFun(cmb(sabie_RTMB, data), parameters = parameters, map = mapping)
 
@@ -612,6 +606,11 @@ try_improve <- tryCatch(expr =
 sabie_rtmb_model$optim <- sabie_optim # Save optimized model results
 sabie_rtmb_model$rep <- sabie_rtmb_model$report(sabie_rtmb_model$env$last.par.best) # Get report
 sabie_rtmb_model$sd_rep <- RTMB::sdreport(sabie_rtmb_model) # Get sd report
+
+devs = sabie_rtmb_model$sd_rep$par.fixed[names(sabie_rtmb_model$sd_rep$par.fixed) == 'ln_fishsel_devs']
+devs = array(devs, c(64,2))
+
+plot(1960:2023, devs[,2], type = 'l')
 
 # Check consistency -------------------------------------------------------
 
@@ -651,7 +650,7 @@ rec_se_series <- data.frame(Par = "Recruitment (SE)",
                             TMB = sabie_rtmb_model$sd_rep$sd[names(sabie_rtmb_model$sd_rep$value) == "Rec"],
                             ADMB = tem_par$se[str_detect(names(tem_par$se), "pred_rec")])
 
-ts_df <- rbind(ssb_se_series,rec_series, f_series, females_series, males_series, ssb_series, rec_se_series)
+ts_df <- rbind(rec_series, f_series, females_series, males_series, ssb_series)
 
 # Get selectivities
 dom_ll_fish_f1 <- data.frame(Age = 1:30,
@@ -782,3 +781,9 @@ ggplot() +
   labs(y = "Selex", color = "Model") +
   theme_sablefish()
 
+reshape2::melt(sabie_rtmb_model$rep$fish_sel[1,,,1,1]) %>%
+  filter(Var1 >= 36) %>%
+  ggplot(aes(x = Var2, y = value, color = Var1, group = Var1)) +
+  geom_line() +
+  scale_color_viridis_c() +
+  facet_wrap(~Var1)

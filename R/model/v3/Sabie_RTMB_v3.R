@@ -33,8 +33,10 @@ sabie_RTMB = function(pars, data) {
   source(here("R", "model", "v3", "Get_3d_precision.R")) # constructor algorithim for 3d precision matrix
   source(here("R", "model", "v3", "Get_Comp_Likelihoods_v3.R")) # selectivity options
   source(here("R", "model", "v3", "Distributions.R")) # distribution options
+  source(here("R", "model", "v3", "Get_PE_loglik.r")) # process error options
   
   RTMB::getAll(pars, data) # load in starting values and data
+  RTMB::ADoverload(x = c("[<-", "c", "diag<-"))
   
   # Model Set Up (Containers) -----------------------------------------------
   n_ages = length(ages) # number of ages
@@ -686,13 +688,10 @@ sabie_RTMB = function(pars, data) {
   
   # Need to add something to do with when to (or not to) apply likelihood
   for(f in 1:n_fish_fleets) {
-    sel_Pen = sel_Pen + - Get_PE_loglik(PE_model = cont_tv_fish_sel[r,f], # process error model
-                                        PE_pars = fishsel_pe_pars[,,,f, drop = FALSE], # process error parameters for a given fleet in list (correlaiton and sigmas) 
-                                        ln_devs = ln_fishsel_devs[,,,,f, drop = FALSE], # extract out process error dviations for a gien fleet in list (allows for different dimnesioning)
-                                        n_regions = n_regions, # number of regions 
-                                        n_yrs = n_yrs, # number of years 
-                                        n_ages = n_ages, # number of ages 
-                                        n_sexes = n_sexes) # number of sexes
+    sel_Pen = sel_Pen + - Get_sel_PE_loglik(PE_model = cont_tv_fish_sel[r,f], # process error model
+                                            PE_pars = fishsel_pe_pars[,,,f, drop = FALSE], # process error parameters for a given fleet in list (correlaiton and sigmas) 
+                                            ln_devs = ln_fishsel_devs[,,,,f, drop = FALSE], # extract out process error dviations for a gien fleet in list (allows for different dimnesioning)
+                                            map_sel_devs = map_ln_fishel_devs[,,,,f, drop = FALSE]) # number of sexes
   } # end f loop
   
   ### Recruitment (Penalty) ----------------------------------------------------
