@@ -40,22 +40,13 @@ Get_3d_precision <- function(n_ages,n_yrs, pcorr_age, pcorr_year, pcorr_cohort, 
       }
     } # end n loop
     
-    # Assemble SAR precision (should be sparse matrices)
-    # B = sparseMatrix(i = i, 
-    #                  j = j, 
-    #                  x = x, 
-    #                  dims = rep(n_ages*n_yrs,2))
+    # create B path matrix
+    B = matrix(0, nrow = n_ages * n_yrs, ncol = n_ages * n_yrs)
+    B[cbind(i, j)] = x
+    B = as(B, "sparseMatrix") 
     
-    B <- matrix(0, nrow = n_ages * n_yrs, ncol = n_ages * n_yrs)
-    B[cbind(i, j)] <- x
-
-    # Identity matrix
-    # I = sparseMatrix(i = seq_len(n_ages*n_yrs),
-    #                  j = seq_len(n_ages*n_yrs),
-    #                  x = rep(1,n_ages*n_yrs))
-    
-    I <- diag(1, n_ages * n_yrs, n_ages * n_yrs)
-    
+    # identity matrix
+    I = as(diag(1, n_ages * n_yrs, n_ages * n_yrs), "sparseMatrix")
 
     # Solve Omega recursively for stationary variance (accumulator function)
     if(Var_Type == 0) {
@@ -73,20 +64,13 @@ Get_3d_precision <- function(n_ages,n_yrs, pcorr_age, pcorr_year, pcorr_cohort, 
     
     if(Var_Type == 1) d = var_value # conditional variance (non-stationary variance)
     
-    # Omega_inv = sparseMatrix(i = seq_len(n_ages*n_yrs), 
-    #                          j = seq_len(n_ages*n_yrs),
-    #                          x = 1/d, 
-    #                          dims = rep(n_ages*n_yrs,2)) # get inverse of omega
-    
-    Omega_inv <- diag(1/d, n_ages * n_yrs, n_ages * n_yrs)
-    
-    Q = (I-t(B)) %*% Omega_inv %*% (I-B) # solve for precision
-    
+    # omega matrix
+    Omega_inv = diag(1/d, n_ages * n_yrs, n_ages * n_yrs)
+    Q = as((I-t(B)) %*% Omega_inv %*% (I-B), "sparseMatrix") # solve for precision
+
     return(Q)
   }
 
-# test_Q <- sparseMatrix(i = c(1,2,3), j = c(1,2,3), x = c(1,1,1))
-# RTMB::dgmrf(x = c(0.5, 0.5, 0.5), mu = 0, Q = test_Q, log = TRUE)
 
 
    

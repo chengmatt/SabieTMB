@@ -22,8 +22,7 @@
 # Tag integrated model incorporated using a Brownie Tag Attrition Model
 # Tag Reporting Rates, Tag Shedding, and Tag Induced Mortality are parameters that can be estimated
 # Beta priors for tag reporting rates, dirichlet priors for movement rates
-
-
+# Incorporated 3d correaltions for fishery selectivity
 
 sabie_RTMB = function(pars, data) {
   
@@ -161,8 +160,12 @@ sabie_RTMB = function(pars, data) {
       for(sf in 1:n_srv_fleets) {
         srv_sel_blk_idx = srv_sel_blocks[r,y,sf] # Get survey selectivity block index
         for(s in 1:n_sexes) {
-          tmp_srv_sel_vec = ln_srv_fixed_sel_pars[r,,srv_sel_blk_idx,s,sf] # extract temporary selectivity parameters
-          srv_sel[r,y,,s,sf] = Get_Selex(Selex_Model = srv_sel_model[r,y,sf],
+          
+          # extract temporary selectivity parameters
+          tmp_srv_sel_vec = ln_srv_fixed_sel_pars[r,,srv_sel_blk_idx,s,sf] 
+          
+          # Calculate selectivity
+          srv_sel[r,y,,s,sf] = Get_Selex(Selex_Model = srv_sel_model[r,y,sf], # selectivity model
                                          TimeVary_Model = 0, # no deviations allowed for survey (for now)
                                          ln_seldevs = NA, # no selex devs
                                          ln_Pars = tmp_srv_sel_vec,
@@ -685,13 +688,11 @@ sabie_RTMB = function(pars, data) {
   } #  if using fishing mortality penalty
   
   ### Selectivity (Penalty) ---------------------------------------------------
-  
-  # Need to add something to do with when to (or not to) apply likelihood
   for(f in 1:n_fish_fleets) {
     sel_Pen = sel_Pen + - Get_sel_PE_loglik(PE_model = cont_tv_fish_sel[r,f], # process error model
-                                            PE_pars = fishsel_pe_pars[,,,f, drop = FALSE], # process error parameters for a given fleet in list (correlaiton and sigmas) 
-                                            ln_devs = ln_fishsel_devs[,,,,f, drop = FALSE], # extract out process error dviations for a gien fleet in list (allows for different dimnesioning)
-                                            map_sel_devs = map_ln_fishel_devs[,,,,f, drop = FALSE]) # number of sexes
+                                            PE_pars = fishsel_pe_pars[,,,f, drop = FALSE], # process error parameters for a given fleet (correlaiton and sigmas) 
+                                            ln_devs = ln_fishsel_devs[,,,,f, drop = FALSE], # extract out process error deviations for a given fleet
+                                            map_sel_devs = map_ln_fishsel_devs[,,,,f, drop = FALSE]) # number of sexes
   } # end f loop
   
   ### Recruitment (Penalty) ----------------------------------------------------

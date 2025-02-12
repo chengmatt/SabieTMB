@@ -2,7 +2,6 @@
 #'
 
 #' @param PE_model 
-#'
 #' @param PE_pars 
 #' @param ln_devs 
 #' @param map_sel_devs 
@@ -69,41 +68,21 @@ Get_sel_PE_loglik <- function(PE_model, PE_pars, ln_devs, map_sel_devs) {
       s = unique_rs[idx,2] # get sex index
 
       # Construct precision matrix for 3d gmrf
-      Q = Get_3d_precision(n_ages = n_ages, # number of ages
-                           n_yrs = n_yrs,  # number of years
-                           pcorr_age = PE_pars[r,1,s,1], # unconstrained partial correaltion by age
-                           pcorr_year = PE_pars[r,2,s,1], # unconstrained partial correaltion by year
-                           pcorr_cohort = PE_pars[r,3,s,1], # unconstrained partial correaltion by cohort
-                           ln_var_value = PE_pars[r,4,s,1], # log variance
-                           Var_Type = Var_Type) # variance type, == 0 (marginal), == 1 (conditional)
-      
-      # apply gmrf likelihood
-      ll = ll + RTMB::dmvnorm(x = t(ln_devs[r,,,s,1]), mu = 0, Sigma = solve(Q), log = TRUE)
+      if(PE_model %in% c(3,4)) {
+        Q = Get_3d_precision(n_ages = n_ages, # number of ages
+                             n_yrs = n_yrs,  # number of years
+                             pcorr_age = PE_pars[r,1,s,1], # unconstrained partial correaltion by age
+                             pcorr_year = PE_pars[r,2,s,1], # unconstrained partial correaltion by year
+                             pcorr_cohort = PE_pars[r,3,s,1], # unconstrained partial correaltion by cohort
+                             ln_var_value = PE_pars[r,4,s,1], # log variance
+                             Var_Type = Var_Type) # variance type, == 0 (marginal), == 1 (conditional)
+        
+        # apply gmrf likelihood
+        ll = ll + RTMB::dgmrf(x = t(ln_devs[r,,,s,1]), mu = 0, Q = Q, log = TRUE)
+      } # end if
       
     } # end idx loop
   } # end 3dar1 process error
 
   return(ll)
 } # return log likelihood
-# 
-# # Construct precision matrix for 3d gmrf
-# Q = Get_3d_precision(n_ages = 3, # number of ages
-#                      n_yrs = 3,  # number of years
-#                      pcorr_age = 0.1, # unconstrained partial correaltion by age
-#                      pcorr_year = 0.1, # unconstrained partial correaltion by year
-#                      pcorr_cohort = 0.1, # unconstrained partial correaltion by cohort
-#                      ln_var_value = 0.1, # log variance
-#                      Var_Type = 1) # variance type, == 0 (marginal), == 1 (conditional)
-# 
-# ln_devs = matrix(0,)
-# 
-# ln_devs = matrix(0, 3,3)
-# 
-# # note that log deviations are dimensioned by region, year, age, sex but transposed 
-# # because of precision constructor is set up
-# RTMB::dgmrf(x = 1:9, mu = 0, Q = Q, log = TRUE)
-# 
-# Y_at = matrix( mvtnorm::rmvnorm(n=1, mean=rep(0,3*3), sigma=solve(Q)), nrow=3, ncol=3 )
-# 
-# dgmrf(t(matrix(1:10, 2, 5)), mu=0, Q=Matrix:::Diagonal(10), log=TRUE)
-

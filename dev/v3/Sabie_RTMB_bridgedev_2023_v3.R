@@ -532,36 +532,46 @@ mapping$ln_srv_fixed_sel_pars <- factor(c(1:3, 2, 4:6, 5,
 
 # Fixing sigmas for fishery catch and Fdevs here
 mapping$ln_sigmaC <- factor(rep(NA, length(parameters$ln_sigmaC)))
-
-# process error parameters (sigmas)
-parameters$fishsel_pe_pars <- array(log(0.05), dim = c(data$n_regions, 4, data$n_sexes, data$n_fish_fleets))
-
-# process error deviations (using ages as the max number of pars that can deviate, and then just map off if not using)
-parameters$ln_fishsel_devs <- array(0, dim = c(data$n_regions, length(data$years), length(data$ages), data$n_sexes, data$n_fish_fleets))
-
-
-data$cont_tv_fish_sel[] = c(4,0) # iid for testing
+# data$cont_tv_fish_sel[] = c(4,0) # iid for testing
 # parameters$fishsel_pe_pars[] <- log(0.5)
-parameters$fishsel_pe_pars[,,1:2, 1] <- c(0.2, 0.2, 0.4, log(0.3)) # fix these for 3dar1 testing
+# parameters$fishsel_pe_pars[,,1:2, 1] <- c(0, 0, 0, log(0.5)) # fix these for 3dar1 testing
 map_fishsel_pe_pars <- parameters$fishsel_pe_pars
-map_fishsel_pe_pars[1,,,2] <- NA # trawl not used
-map_fishsel_pe_pars[1,1,,1] <- NA # first parameter share sex
-map_fishsel_pe_pars[1,1,,1] <- NA # first parameter share sex
-map_fishsel_pe_pars[1,2,,1] <- NA # second parameter share sex
-map_fishsel_pe_pars[1,2,,1] <- NA # second parameter share sex
-map_fishsel_pe_pars[1,3:4,,1] <- NA # last 2 pars not used
+# map_fishsel_pe_pars[1,,,2] <- NA # trawl not used
+# # map_fishsel_pe_pars[1,1,,1] <- 1 # first parameter share sex
+# # map_fishsel_pe_pars[1,1,,1] <- 1 # first parameter share sex
+# # map_fishsel_pe_pars[1,2,,1] <- 2 # second parameter share sex
+# # map_fishsel_pe_pars[1,2,,1] <- 2 # second parameter share sex
+# # map_fishsel_pe_pars[1,3:4,,1] <- NA # last 2 pars not used
+# 
+# map_fishsel_pe_pars[1,1,,1] <- NA # first parameter share sex
+# map_fishsel_pe_pars[1,1,,1] <- NA # first parameter share sex
+# map_fishsel_pe_pars[1,2,,1] <- NA # second parameter share sex
+# map_fishsel_pe_pars[1,2,,1] <- NA # second parameter share sex
+# map_fishsel_pe_pars[1,3,,1] <- NA # last 2 pars share sex
+# map_fishsel_pe_pars[1,3,,1] <- NA # last 2 pars share sex
+# map_fishsel_pe_pars[1,4,,1] <- 1 # last 2 pars share sex
+# map_fishsel_pe_pars[1,4,,1] <- 1 # last 2 pars share sex
+map_fishsel_pe_pars[] = NA
 mapping$fishsel_pe_pars = factor(map_fishsel_pe_pars)
 
 # process error deviations (using ages as the max number of pars that can deviate, and then just map off if not using)
 map_ln_fishel_devs <- parameters$ln_fishsel_devs
 # map_ln_fishel_devs[1,,1,1:2,1] <- 1:length(data$years) # share proc dev across sex
-# map_ln_fishel_devs[1,,2,1:2,1] <- (length(data$years) + 1):(length(data$years) + length(data$years) ) # share proc dev across sex 
-map_ln_fishel_devs[1,,,1,1] <- 1:(length(data$years) * length(data$ages))
-map_ln_fishel_devs[1,,,2,1] <- 1:(length(data$years) * length(data$ages))
+# map_ln_fishel_devs[1,,2,1:2,1] <- (length(data$years) + 1):(length(data$years) + length(data$years) ) # share proc dev across sex
+
+# map_ln_fishel_devs[1,,,1,1] <- 1:(length(data$years))
+# map_ln_fishel_devs[1,,,2,1] <- 1:(length(data$years))
+
+# map_ln_fishel_devs[1,,11:20,1,1] <- (length(data$years) + 1):(length(data$years) * 2 )
+# map_ln_fishel_devs[1,,11:20,2,1] <- (length(data$years) + 1):(length(data$years) * 2 )
+# 
+# map_ln_fishel_devs[1,,21:30,1,1] <- (length(data$years) * 2 + 1):(length(data$years) * 3 )
+# map_ln_fishel_devs[1,,21:30,2,1] <- (length(data$years) * 2 + 1):(length(data$years) * 3 )
+
 map_ln_fishel_devs[map_ln_fishel_devs == 0] <- NA
 mapping$ln_fishsel_devs <- factor(map_ln_fishel_devs)
 # mapping$ln_fishsel_devs <- factor(rep(NA,length(parameters$ln_fishsel_devs)))
-data$map_ln_fishel_devs <- array(as.numeric(mapping$ln_fishsel_devs), dim = dim(parameters$ln_fishsel_devs))
+data$map_ln_fishsel_devs <- array(as.numeric(mapping$ln_fishsel_devs), dim = dim(parameters$ln_fishsel_devs))
 
 # Fixing dirichlet mutlinomial stuff
 mapping$ln_FishAge_theta <- factor(rep(NA, length(parameters$ln_FishAge_theta)))
@@ -595,7 +605,7 @@ sabie_optim <- stats::nlminb(sabie_rtmb_model$par, sabie_rtmb_model$fn, sabie_rt
                              control = list(iter.max = 1e5, eval.max = 1e5, rel.tol = 1e-15))
 # newton steps
 try_improve <- tryCatch(expr =
-                          for(i in 1:4) {
+                          for(i in 1:1) {
                             g = as.numeric(sabie_rtmb_model$gr(sabie_optim$par))
                             h = optimHess(sabie_optim$par, fn = sabie_rtmb_model$fn, gr = sabie_rtmb_model$gr)
                             sabie_optim$par = sabie_optim$par - solve(h,g)
@@ -603,14 +613,11 @@ try_improve <- tryCatch(expr =
                           }
                         , error = function(e){e}, warning = function(w){w})
 
+max(sabie_rtmb_model$gr())
+
 sabie_rtmb_model$optim <- sabie_optim # Save optimized model results
 sabie_rtmb_model$rep <- sabie_rtmb_model$report(sabie_rtmb_model$env$last.par.best) # Get report
 sabie_rtmb_model$sd_rep <- RTMB::sdreport(sabie_rtmb_model) # Get sd report
-
-devs = sabie_rtmb_model$sd_rep$par.fixed[names(sabie_rtmb_model$sd_rep$par.fixed) == 'ln_fishsel_devs']
-devs = array(devs, c(64,2))
-
-plot(1960:2023, devs[,2], type = 'l')
 
 # Check consistency -------------------------------------------------------
 
@@ -782,8 +789,22 @@ ggplot() +
   theme_sablefish()
 
 reshape2::melt(sabie_rtmb_model$rep$fish_sel[1,,,1,1]) %>%
-  filter(Var1 >= 36) %>%
-  ggplot(aes(x = Var2, y = value, color = Var1, group = Var1)) +
-  geom_line() +
+  # filter(Var1 >= 36) %>%
+  ggplot(aes(x = Var2, y = value, color = Var1 + 1959, group = Var1 + 1959)) +
+  geom_line(lwd = 1.3) +
   scale_color_viridis_c() +
-  facet_wrap(~Var1)
+  facet_wrap(~(Var1 + 1959))
+
+
+reshape2::melt(sabie_rtmb_model$rep$fish_sel[1,,,1,1]) %>%
+  # filter(Var1 >= 36) %>%
+  ggplot(aes(x = Var1 + 1959, y = Var2, fill = value)) +
+  geom_tile() +
+  scale_fill_viridis_c() 
+
+reshape2::melt(devs) %>% 
+  mutate(Cohort = Var2 - Var1) %>% 
+  ggplot(aes(x = Var2, y = exp(value), color = Cohort, group = Cohort)) +
+  geom_line(lwd = 1.3) +
+  scale_color_viridis_c() +
+  facet_wrap(~Cohort)

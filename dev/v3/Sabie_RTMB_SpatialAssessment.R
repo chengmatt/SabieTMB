@@ -378,10 +378,10 @@ parameters$ln_F_devs_AggCatch = array(0, dim = c(sum(data$Catch_Type == 0), data
 parameters$ln_F_mean_AggCatch = 0
 
 # Set up continuous fishery selectivity stuff (not used)
-parameters$ln_fishsel_dev1 <- array(0, dim = c(data$n_regions, length(data$years), data$n_sexes, data$n_fish_fleets))
-parameters$ln_fishsel_dev2 <- array(0, dim = c(data$n_regions, length(data$years), data$n_sexes, data$n_fish_fleets))
-parameters$ln_fishsel_dev1_sd <- array(0, dim = c(data$n_regions, data$n_sexes, data$n_fish_fleets))
-parameters$ln_fishsel_dev2_sd <- array(0, dim = c(data$n_regions, data$n_sexes, data$n_fish_fleets))
+# process error parameters (sigmas and corrs) (using 4 as the max number of pars that can deviate, and then just map off if not using)
+parameters$fishsel_pe_pars <- array(log(0.05), dim = c(data$n_regions, 4, data$n_sexes, data$n_fish_fleets))
+# process error deviations (using ages as the max number of pars that can deviate, and then just map off if not using)
+parameters$ln_fishsel_devs <- array(0, dim = c(data$n_regions, length(data$years), length(data$ages), data$n_sexes, data$n_fish_fleets))
 
 # Fixed Gear Fishery three time blocks
 max_fish_blks <- 2 # maximum number of fishery blocks for any fleet
@@ -495,10 +495,14 @@ map_ln_fish_fixed_sel_pars[,2,,2,2] <- 7 # delta, male, time block 1, trawl, gea
 mapping$ln_fish_fixed_sel_pars <- factor(as.vector(map_ln_fish_fixed_sel_pars)) 
 
 # Fixing continuous time-varying selecitvity stuff (not used)
-mapping$ln_fishsel_dev1 <- factor(rep(NA, length(parameters$ln_fishsel_dev1)))
-mapping$ln_fishsel_dev2 <- factor(rep(NA, length(parameters$ln_fishsel_dev2)))
-mapping$ln_fishsel_dev1_sd <- factor(rep(NA, length(parameters$ln_fishsel_dev1_sd)))
-mapping$ln_fishsel_dev2_sd <- factor(rep(NA, length(parameters$ln_fishsel_dev2_sd)))
+map_fishsel_pe_pars <- parameters$fishsel_pe_pars
+map_fishsel_pe_pars[] = NA
+mapping$fishsel_pe_pars = factor(map_fishsel_pe_pars)
+# sel devs
+map_ln_fishel_devs <- parameters$ln_fishsel_devs
+map_ln_fishel_devs[map_ln_fishel_devs == 0] <- NA
+mapping$ln_fishsel_devs <- factor(map_ln_fishel_devs)
+data$map_ln_fishsel_devs <- array(as.numeric(mapping$ln_fishsel_devs), dim = dim(parameters$ln_fishsel_devs))
 
 # Fix survey selectivity stuff
 map_ln_srv_fixed_sel_pars <- parameters$ln_srv_fixed_sel_pars # set up mapping factor stuff

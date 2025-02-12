@@ -397,10 +397,10 @@ parameters$ln_F_devs[1,,1] <- devs_ll_fish[1:length(data$years)] # longline fish
 parameters$ln_F_devs[1,,2] <- c(rep(0, 3), devs_ll_trwl ) # trwl fishery Fs
 
 # Set up continuous fishery selectivity stuff
-parameters$ln_fishsel_dev1 <- array(0, dim = c(data$n_regions, length(data$years), data$n_sexes, data$n_fish_fleets))
-parameters$ln_fishsel_dev2 <- array(0, dim = c(data$n_regions, length(data$years), data$n_sexes, data$n_fish_fleets))
-parameters$ln_fishsel_dev1_sd <- array(0.1, dim = c(data$n_regions, data$n_sexes, data$n_fish_fleets))
-parameters$ln_fishsel_dev2_sd <- array(0.1, dim = c(data$n_regions, data$n_sexes, data$n_fish_fleets))
+# process error parameters (sigmas and corrs) (using 4 as the max number of pars that can deviate, and then just map off if not using)
+parameters$fishsel_pe_pars <- array(log(0.05), dim = c(data$n_regions, 4, data$n_sexes, data$n_fish_fleets))
+# process error deviations (using ages as the max number of pars that can deviate, and then just map off if not using)
+parameters$ln_fishsel_devs <- array(0, dim = c(data$n_regions, length(data$years), length(data$ages), data$n_sexes, data$n_fish_fleets))
 
 # Fixed Gear Fishery three time blocks
 max_fish_blks <- 3 # maximum number of fishery blocks for any fleet
@@ -522,10 +522,14 @@ mapping$ln_sigmaC <- factor(rep(NA, length(parameters$ln_sigmaC)))
 
 
 # Fixing continuous time-varying selecitvity stuff
-mapping$ln_fishsel_dev1 <- factor(rep(NA, length(parameters$ln_fishsel_dev1)))
-mapping$ln_fishsel_dev2 <- factor(rep(NA, length(parameters$ln_fishsel_dev2)))
-mapping$ln_fishsel_dev1_sd <- factor(rep(NA, length(parameters$ln_fishsel_dev1_sd)))
-mapping$ln_fishsel_dev2_sd <- factor(rep(NA, length(parameters$ln_fishsel_dev2_sd)))
+map_fishsel_pe_pars <- parameters$fishsel_pe_pars
+map_fishsel_pe_pars[] = NA
+mapping$fishsel_pe_pars = factor(map_fishsel_pe_pars)
+# sel devs
+map_ln_fishel_devs <- parameters$ln_fishsel_devs
+map_ln_fishel_devs[map_ln_fishel_devs == 0] <- NA
+mapping$ln_fishsel_devs <- factor(map_ln_fishel_devs)
+data$map_ln_fishsel_devs <- array(as.numeric(mapping$ln_fishsel_devs), dim = dim(parameters$ln_fishsel_devs))
 
 # Fixing dirichlet mutlinomial stuff
 mapping$ln_FishAge_theta <- factor(rep(NA, length(parameters$ln_FishAge_theta)))
@@ -1406,10 +1410,10 @@ parameters$ln_F_devs[1,,1] <- devs_ll_fish[1:length(data$years)] # longline fish
 parameters$ln_F_devs[1,,2] <- c(rep(0, 3), devs_ll_trwl ) # trwl fishery Fs
 
 # Set up continuous fishery selectivity stuff
-parameters$ln_fishsel_dev1 <- array(0, dim = c(data$n_regions, length(data$years), data$n_sexes, data$n_fish_fleets))
-parameters$ln_fishsel_dev2 <- array(0, dim = c(data$n_regions, length(data$years), data$n_sexes, data$n_fish_fleets))
-parameters$ln_fishsel_dev1_sd <- array(0.1, dim = c(data$n_regions, data$n_sexes, data$n_fish_fleets))
-parameters$ln_fishsel_dev2_sd <- array(0.1, dim = c(data$n_regions, data$n_sexes, data$n_fish_fleets))
+# process error parameters (sigmas and corrs) (using 4 as the max number of pars that can deviate, and then just map off if not using)
+parameters$fishsel_pe_pars <- array(log(0.05), dim = c(data$n_regions, 4, data$n_sexes, data$n_fish_fleets))
+# process error deviations (using ages as the max number of pars that can deviate, and then just map off if not using)
+parameters$ln_fishsel_devs <- array(0, dim = c(data$n_regions, length(data$years), length(data$ages), data$n_sexes, data$n_fish_fleets))
 
 # Fixed Gear Fishery three time blocks
 max_fish_blks <- 3 # maximum number of fishery blocks for any fleet
@@ -1531,10 +1535,14 @@ mapping$ln_sigmaC <- factor(rep(NA, length(parameters$ln_sigmaC)))
 
 
 # Fixing continuous time-varying selecitvity stuff
-mapping$ln_fishsel_dev1 <- factor(rep(NA, length(parameters$ln_fishsel_dev1)))
-mapping$ln_fishsel_dev2 <- factor(rep(NA, length(parameters$ln_fishsel_dev2)))
-mapping$ln_fishsel_dev1_sd <- factor(rep(NA, length(parameters$ln_fishsel_dev1_sd)))
-mapping$ln_fishsel_dev2_sd <- factor(rep(NA, length(parameters$ln_fishsel_dev2_sd)))
+map_fishsel_pe_pars <- parameters$fishsel_pe_pars
+map_fishsel_pe_pars[] = NA
+mapping$fishsel_pe_pars = factor(map_fishsel_pe_pars)
+# sel devs
+map_ln_fishel_devs <- parameters$ln_fishsel_devs
+map_ln_fishel_devs[map_ln_fishel_devs == 0] <- NA
+mapping$ln_fishsel_devs <- factor(map_ln_fishel_devs)
+data$map_ln_fishsel_devs <- array(as.numeric(mapping$ln_fishsel_devs), dim = dim(parameters$ln_fishsel_devs))
 
 # Fixing dirichlet mutlinomial stuff
 mapping$ln_FishAge_theta <- factor(rep(NA, length(parameters$ln_FishAge_theta)))
@@ -2412,10 +2420,10 @@ parameters$ln_F_devs[1,,1] <- devs_ll_fish[1:length(data$years)] # longline fish
 parameters$ln_F_devs[1,,2] <- c(rep(0, 3), devs_ll_trwl ) # trwl fishery Fs
 
 # Set up continuous fishery selectivity stuff
-parameters$ln_fishsel_dev1 <- array(0, dim = c(data$n_regions, length(data$years), data$n_sexes, data$n_fish_fleets))
-parameters$ln_fishsel_dev2 <- array(0, dim = c(data$n_regions, length(data$years), data$n_sexes, data$n_fish_fleets))
-parameters$ln_fishsel_dev1_sd <- array(0.1, dim = c(data$n_regions, data$n_sexes, data$n_fish_fleets))
-parameters$ln_fishsel_dev2_sd <- array(0.1, dim = c(data$n_regions, data$n_sexes, data$n_fish_fleets))
+# process error parameters (sigmas and corrs) (using 4 as the max number of pars that can deviate, and then just map off if not using)
+parameters$fishsel_pe_pars <- array(log(0.05), dim = c(data$n_regions, 4, data$n_sexes, data$n_fish_fleets))
+# process error deviations (using ages as the max number of pars that can deviate, and then just map off if not using)
+parameters$ln_fishsel_devs <- array(0, dim = c(data$n_regions, length(data$years), length(data$ages), data$n_sexes, data$n_fish_fleets))
 
 # Fixed Gear Fishery three time blocks
 max_fish_blks <- 3 # maximum number of fishery blocks for any fleet
@@ -2537,10 +2545,14 @@ mapping$ln_sigmaC <- factor(rep(NA, length(parameters$ln_sigmaC)))
 
 
 # Fixing continuous time-varying selecitvity stuff
-mapping$ln_fishsel_dev1 <- factor(rep(NA, length(parameters$ln_fishsel_dev1)))
-mapping$ln_fishsel_dev2 <- factor(rep(NA, length(parameters$ln_fishsel_dev2)))
-mapping$ln_fishsel_dev1_sd <- factor(rep(NA, length(parameters$ln_fishsel_dev1_sd)))
-mapping$ln_fishsel_dev2_sd <- factor(rep(NA, length(parameters$ln_fishsel_dev2_sd)))
+map_fishsel_pe_pars <- parameters$fishsel_pe_pars
+map_fishsel_pe_pars[] = NA
+mapping$fishsel_pe_pars = factor(map_fishsel_pe_pars)
+# sel devs
+map_ln_fishel_devs <- parameters$ln_fishsel_devs
+map_ln_fishel_devs[map_ln_fishel_devs == 0] <- NA
+mapping$ln_fishsel_devs <- factor(map_ln_fishel_devs)
+data$map_ln_fishsel_devs <- array(as.numeric(mapping$ln_fishsel_devs), dim = dim(parameters$ln_fishsel_devs))
 
 # Fixing dirichlet mutlinomial stuff
 mapping$ln_FishAge_theta <- factor(rep(NA, length(parameters$ln_FishAge_theta)))
