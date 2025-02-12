@@ -45,7 +45,7 @@ data$init_age_strc <- 0 # iterative approach to calculate initial age structure
 
 # Movement stuff
 data$do_recruits_move <- 0 # recruits dont move
-data$use_fixed_movement <- 1 # use fixed movement
+data$use_fixed_movement <- 0 # use fixed movement
 data$Fixed_Movement <- array(0, dim = c(data$n_regions, data$n_regions, length(data$years), length(data$ages), data$n_sexes))
 data$Fixed_Movement[,,,1:6,] <- spatial_rep$movement_matrix[,,,1] # age block 1
 data$Fixed_Movement[,,,7:15,] <- spatial_rep$movement_matrix[,,,2] # age block 2
@@ -309,7 +309,7 @@ for(i in 1:nrow(rel_cohorts_df)) {
 
 data$tag_release_indicator <- as.matrix(tag_release_ind) # input releases of cohorts in
 data$n_tag_cohorts <- nrow(data$tag_release_indicator) # number of tag cohorts
-data$max_tag_liberty <- 15 # maximum liberty to track cohorts
+data$max_tag_liberty <- 10 # maximum liberty to track cohorts
 
 # Set up tagged fish
 data$Tagged_Fish <- array(0, dim = c(data$n_tag_cohorts, length(data$ages), data$n_sexes)) # tagged fish
@@ -382,6 +382,13 @@ parameters$ln_F_mean_AggCatch = 0
 parameters$fishsel_pe_pars <- array(log(0.05), dim = c(data$n_regions, 4, data$n_sexes, data$n_fish_fleets))
 # process error deviations (using ages as the max number of pars that can deviate, and then just map off if not using)
 parameters$ln_fishsel_devs <- array(0, dim = c(data$n_regions, length(data$years), length(data$ages), data$n_sexes, data$n_fish_fleets))
+
+# # Set up continuous fishery selectivity stuff (not used)
+# parameters$ln_fishsel_dev1 <- array(0, dim = c(data$n_regions, length(data$years), data$n_sexes, data$n_fish_fleets))
+# parameters$ln_fishsel_dev2 <- array(0, dim = c(data$n_regions, length(data$years), data$n_sexes, data$n_fish_fleets))
+# parameters$ln_fishsel_dev1_sd <- array(0, dim = c(data$n_regions, data$n_sexes, data$n_fish_fleets))
+# parameters$ln_fishsel_dev2_sd <- array(0, dim = c(data$n_regions, data$n_sexes, data$n_fish_fleets))
+
 
 # Fixed Gear Fishery three time blocks
 max_fish_blks <- 2 # maximum number of fishery blocks for any fleet
@@ -500,12 +507,18 @@ map_fishsel_pe_pars[] = NA
 mapping$fishsel_pe_pars = factor(map_fishsel_pe_pars)
 # sel devs
 map_ln_fishel_devs <- parameters$ln_fishsel_devs
-map_ln_fishel_devs[map_ln_fishel_devs == 0] <- NA
-mapping$ln_fishsel_devs <- factor(map_ln_fishel_devs)
-data$map_ln_fishsel_devs <- array(as.numeric(mapping$ln_fishsel_devs), dim = dim(parameters$ln_fishsel_devs))
+map_ln_fishel_devs[] = NA
+mapping$ln_fishsel_devs = factor(map_ln_fishel_devs)
+data$map_ln_fishsel_devs = array(as.numeric(mapping$ln_fishsel_devs), dim = dim(parameters$ln_fishsel_devs))
+
+# Fixing continuous time-varying selecitvity stuff (not used)
+# mapping$ln_fishsel_dev1 <- factor(rep(NA, length(parameters$ln_fishsel_dev1)))
+# mapping$ln_fishsel_dev2 <- factor(rep(NA, length(parameters$ln_fishsel_dev2)))
+# mapping$ln_fishsel_dev1_sd <- factor(rep(NA, length(parameters$ln_fishsel_dev1_sd)))
+# mapping$ln_fishsel_dev2_sd <- factor(rep(NA, length(parameters$ln_fishsel_dev2_sd)))
 
 # Fix survey selectivity stuff
-map_ln_srv_fixed_sel_pars <- parameters$ln_srv_fixed_sel_pars # set up mapping factor stuff
+map_ln_srv_fixed_sel_pars = parameters$ln_srv_fixed_sel_pars # set up mapping factor stuff
 
 # Coop survey
 map_ln_srv_fixed_sel_pars[,1,1,1,1] <- 1 # a50, coop survey, time block 1, female
@@ -719,14 +732,7 @@ data$sigmaR_switch <- length(1960:1975) # when to switch to late sigmaR
 
 # Run Model ---------------------------------------------------------------
 # make AD model function
-data$UseTagging = 1 # Using tagging data
-data$use_fixed_movement = 0
-data$Use_Movement_Prior = 1
-data$Movement_prior[] = 1.2 # prior to push away from edge
-data$Use_TagRep_Prior = 1 # prior to push away from edge
-
 sabie_rtmb_model <- RTMB::MakeADFun(cmb(sabie_RTMB, data), parameters = parameters, map = mapping)
-sabie_rtmb_model$rep <- sabie_rtmb_model$report(sabie_rtmb_model$env$last.par.best) # Get report
 
 # Now, optimize the function
 sabie_optim <- stats::nlminb(sabie_rtmb_model$par, sabie_rtmb_model$fn, sabie_rtmb_model$gr,
@@ -734,7 +740,7 @@ sabie_optim <- stats::nlminb(sabie_rtmb_model$par, sabie_rtmb_model$fn, sabie_rt
 
 # newton steps
 try_improve <- tryCatch(expr =
-                          for(i in 1:5) {
+                          for(i in 1:3) {
                             g = as.numeric(sabie_rtmb_model$gr(sabie_optim$par))
                             h = optimHess(sabie_optim$par, fn = sabie_rtmb_model$fn, gr = sabie_rtmb_model$gr)
                             sabie_optim$par = sabie_optim$par - solve(h,g)
@@ -743,115 +749,79 @@ try_improve <- tryCatch(expr =
                         , error = function(e){e}, warning = function(w){w})
 
 max(sabie_rtmb_model$gr())
-
 sabie_rtmb_model$optim <- sabie_optim # Save optimized model results
-sabie_rtmb_model$sd_rep <- RTMB::sdreport(sabie_rtmb_model) # Get sd report
+sabie_rtmb_model$sd_rep <- RTMB::sdreport(sabie_rtmb_model) # Get sd report ~ 13 mins
 sabie_rtmb_model$rep <- sabie_rtmb_model$report(sabie_rtmb_model$env$last.par.best) # Get report
-
-beepr::beep(3)
-
 sabie_rtmb_model$sd_rep$par.fixed[order(sabie_rtmb_model$sd_rep$gradient.fixed, decreasing = T)[1:10]]
-rowSums(sabie_rtmb_model$rep$Movement[,,1,1,2])
 
-sabie_rtmb_model$rep$Movement[,,1,1,1]
-sabie_rtmb_model$rep$Movement[,,1,1,2]
-
-sabie_rtmb_model$rep$Movement[,,1,13,1]
-sabie_rtmb_model$rep$Movement[,,1,13,2]
-
-sabie_rtmb_model$rep$Movement[,,1,30,1]
-sabie_rtmb_model$rep$Movement[,,1,30,2]
-
-sabie_rtmb_model$rep$Tag_Reporting
-sabie_rtmb_model$rep$R0
-sabie_rtmb_model$rep$srv_q
-sabie_rtmb_model$optim$par[names(sabie_rtmb_model$optim$par) == 'ln_tag_theta']
-sum(sabie_rtmb_model$rep$R0)
-
-plot(sabie_rtmb_model$rep$Init_NAA[5,-1,1])
+saveRDS(data, file.path("output", "Spatial Assessment", "data.RDS"))
+saveRDS(parameters, file.path("output", "Spatial Assessment", "parameters.RDS"))
+saveRDS(sabie_rtmb_model$rep, file.path("output", "Spatial Assessment", "mle_rep.RDS"))
+saveRDS(sabie_rtmb_model$sd_rep, file.path("output", "Spatial Assessment", "sd_rep.RDS"))
 
 # Plots -------------------------------------------------------------------
+data = readRDS(file.path("output", "Spatial Assessment", "data.RDS"))
+model_rep = readRDS(file.path("output", "Spatial Assessment", "mle_rep.RDS"))
 
-ssb_vals <- reshape2::melt(matrix(sabie_rtmb_model$sd_rep$value[names(sabie_rtmb_model$sd_rep$value) == 'SSB'], 5, 62))
-sd_vals <- reshape2::melt(matrix(sabie_rtmb_model$sd_rep$sd[names(sabie_rtmb_model$sd_rep$value) == 'SSB'], 5, 62)) %>% 
-  rename(sd = value)
-ssb_vals <- ssb_vals %>% left_join(sd_vals, by = c("Var1", "Var2")) %>% 
-  mutate(lwr = value - 2*sd,
-         upr = value + 2*sd,
-         value = value)
-
-ssb_vals %>% 
-  ggplot(aes(x = Var2, y = value, color = factor(Var1), fill = factor(Var1), ymin = lwr, ymax = upr)) +
-  geom_line(lwd = 1) +
-  geom_ribbon(alpha = 0.3, color = NA) +
-  facet_wrap(~Var1, nrow = 1)
-
-ssb_vals %>% 
-  ggplot(aes(x = Var2, y = value, color = factor(Var1), fill = factor(Var1), ymin = lwr, ymax = upr)) +
-  geom_line(lwd = 1) +
-  geom_ribbon(alpha = 0.3, color = NA) +
-  ylim(0,NA)
-
-reshape2::melt(sabie_rtmb_model$rep$Movement) %>% 
+reshape2::melt(model_rep$Movement) %>% 
   filter(Var3 == 1, Var4 %in% c(1, 13, 20)) %>% 
   ggplot(aes(x = Var2, y = Var1, fill = value, label = round(value, 3))) +
   geom_tile(alpha = 0.3) +
   geom_text() +
   facet_wrap(~Var4) +
   scale_fill_viridis_c()
-  
-  
-reshape2::melt(sabie_rtmb_model$rep$SSB) %>% 
+
+reshape2::melt(model_rep$SSB) %>% 
   ggplot(aes(x = Var2, y = value, color = factor(Var1))) +
   geom_line(lwd = 1) +
   facet_wrap(~Var1, nrow = 1)
-  
-reshape2::melt(sabie_rtmb_model$rep$SSB) %>% 
+
+reshape2::melt(model_rep$SSB) %>% 
   group_by(Var2) %>% 
   summarize(value = sum(value)) %>% 
   ggplot(aes(x = Var2, y = value)) +
   geom_line(lwd = 1) +
   ylim(0,NA)
 
-reshape2::melt(sabie_rtmb_model$rep$Total_Biom) %>% 
+reshape2::melt(model_rep$Total_Biom) %>% 
   ggplot(aes(x = Var2, y = value, color = factor(Var1))) +
   geom_line(lwd = 1) +
   facet_wrap(~Var1, nrow = 1)
 
-reshape2::melt(sabie_rtmb_model$rep$Rec) %>% 
+reshape2::melt(model_rep$Rec) %>% 
   group_by(Var2) %>% 
   summarize(value = sum(value)) %>% 
   ggplot(aes(x = Var2, y = value)) +
   geom_line(lwd = 1)
 
-reshape2::melt(sabie_rtmb_model$rep$Rec) %>% 
+reshape2::melt(model_rep$Rec) %>% 
   ggplot(aes(x = Var2, y = value, color = factor(Var1))) +
   geom_line(lwd = 1) +
   facet_wrap(~Var1, nrow = 1)
 
-reshape2::melt(sabie_rtmb_model$rep$Rec) %>% 
+reshape2::melt(model_rep$Rec) %>% 
   ggplot(aes(x = Var2, y = value, color = factor(Var1))) +
   geom_line(lwd = 1) 
-  # facet_wrap(~Var1, nrow = 1)
+# facet_wrap(~Var1, nrow = 1)
 
-reshape2::melt(sabie_rtmb_model$rep$Fmort) %>% 
+reshape2::melt(model_rep$Fmort) %>% 
   ggplot(aes(x = Var2, y = value, color = factor(Var1))) +
   geom_line(lwd = 1) +
   facet_grid(Var3~Var1, scales = "free_y")
 
-reshape2::melt(sabie_rtmb_model$rep$Fmort) %>% 
+reshape2::melt(model_rep$Fmort) %>% 
   ggplot(aes(x = Var2, y = value, color = factor(Var3))) +
   geom_line(lwd = 1)+
   facet_grid(~Var1, scales = "free_y")
 
-reshape2::melt(sabie_rtmb_model$rep$fish_sel) %>% 
+reshape2::melt(model_rep$fish_sel) %>% 
   rename(R = Var1, Y = Var2, A = Var3, S = Var4, Fl = Var5) %>% 
   filter(Y == 60) %>% 
   ggplot(aes(x = A, y = value)) +
   geom_line() +
   facet_grid(S~Fl, scales = "free_y")
 
-reshape2::melt(sabie_rtmb_model$rep$srv_sel) %>% 
+reshape2::melt(model_rep$srv_sel) %>% 
   rename(R = Var1, Y = Var2, A = Var3, S = Var4, Fl = Var5) %>% 
   filter(Y == 50) %>% 
   ggplot(aes(x = A, y = value)) +
@@ -860,74 +830,75 @@ reshape2::melt(sabie_rtmb_model$rep$srv_sel) %>%
 
 # Catch
 plot(data$ObsCatch[1,,1])
-lines(sabie_rtmb_model$rep$PredCatch[1,,1])
+lines(model_rep$PredCatch[1,,1])
 
 plot(data$ObsCatch[2,,1])
-lines(sabie_rtmb_model$rep$PredCatch[2,,1])
+lines(model_rep$PredCatch[2,,1])
 
 plot(data$ObsCatch[3,,1])
-lines(sabie_rtmb_model$rep$PredCatch[3,,1])
+lines(model_rep$PredCatch[3,,1])
 
 plot(data$ObsCatch[4,,1])
-lines(sabie_rtmb_model$rep$PredCatch[4,,1])
+lines(model_rep$PredCatch[4,,1])
 
 plot(data$ObsCatch[5,,1])
-lines(sabie_rtmb_model$rep$PredCatch[5,,1])
+lines(model_rep$PredCatch[5,,1])
 
 # Trawl catch
 plot(data$ObsCatch[1,,2])
-lines(sabie_rtmb_model$rep$PredCatch[1,,2])
+lines(model_rep$PredCatch[1,,2])
 
 plot(data$ObsCatch[2,,2])
-lines(sabie_rtmb_model$rep$PredCatch[2,,2])
+lines(model_rep$PredCatch[2,,2])
 
 plot(data$ObsCatch[3,,2])
-lines(sabie_rtmb_model$rep$PredCatch[3,,2])
+lines(model_rep$PredCatch[3,,2])
 
 plot(data$ObsCatch[4,,2])
-lines(sabie_rtmb_model$rep$PredCatch[4,,2])
+lines(model_rep$PredCatch[4,,2])
 
 plot(data$ObsCatch[5,,2])
-lines(sabie_rtmb_model$rep$PredCatch[5,,2])
+lines(model_rep$PredCatch[5,,2])
 
 
 # Coop Survey
 plot(data$ObsSrvIdx[1,data$UseSrvIdx[1,,1] == 1,1])
-lines(sabie_rtmb_model$rep$PredSrvIdx[1,data$UseSrvIdx[1,,1] == 1,1])
+lines(model_rep$PredSrvIdx[1,data$UseSrvIdx[1,,1] == 1,1])
 
 plot(data$ObsSrvIdx[2,data$UseSrvIdx[2,,1] == 1,1])
-lines(sabie_rtmb_model$rep$PredSrvIdx[2,data$UseSrvIdx[2,,1] == 1,1])
+lines(model_rep$PredSrvIdx[2,data$UseSrvIdx[2,,1] == 1,1])
 
 plot(data$ObsSrvIdx[3,data$UseSrvIdx[3,,1] == 1,1])
-lines(sabie_rtmb_model$rep$PredSrvIdx[3,data$UseSrvIdx[3,,1] == 1,1])
+lines(model_rep$PredSrvIdx[3,data$UseSrvIdx[3,,1] == 1,1])
 
 plot(data$ObsSrvIdx[4,data$UseSrvIdx[4,,1] == 1,1])
-lines(sabie_rtmb_model$rep$PredSrvIdx[4,data$UseSrvIdx[4,,1] == 1,1])
+lines(model_rep$PredSrvIdx[4,data$UseSrvIdx[4,,1] == 1,1])
 
 plot(data$ObsSrvIdx[5,data$UseSrvIdx[5,,1] == 1,1])
-lines(sabie_rtmb_model$rep$PredSrvIdx[5,data$UseSrvIdx[5,,1] == 1,1])
+lines(model_rep$PredSrvIdx[5,data$UseSrvIdx[5,,1] == 1,1])
 
 # domestic survey
 plot(data$ObsSrvIdx[1,data$UseSrvIdx[1,,2] == 1,2])
-lines(sabie_rtmb_model$rep$PredSrvIdx[1,data$UseSrvIdx[1,,2] == 1,2])
+lines(model_rep$PredSrvIdx[1,data$UseSrvIdx[1,,2] == 1,2])
 
 plot(data$ObsSrvIdx[2,data$UseSrvIdx[2,,2] == 1,2])
-lines(sabie_rtmb_model$rep$PredSrvIdx[2,data$UseSrvIdx[2,,2] == 1,2])
+lines(model_rep$PredSrvIdx[2,data$UseSrvIdx[2,,2] == 1,2])
 
 plot(data$ObsSrvIdx[3,data$UseSrvIdx[3,,2] == 1,2])
-lines(sabie_rtmb_model$rep$PredSrvIdx[3,data$UseSrvIdx[3,,2] == 1,2])
+lines(model_rep$PredSrvIdx[3,data$UseSrvIdx[3,,2] == 1,2])
 
 plot(data$ObsSrvIdx[4,data$UseSrvIdx[4,,2] == 1,2])
-lines(sabie_rtmb_model$rep$PredSrvIdx[4,data$UseSrvIdx[4,,2] == 1,2])
+lines(model_rep$PredSrvIdx[4,data$UseSrvIdx[4,,2] == 1,2])
 
 plot(data$ObsSrvIdx[5,data$UseSrvIdx[5,,2] == 1,2])
-lines(sabie_rtmb_model$rep$PredSrvIdx[5,data$UseSrvIdx[5,,2] == 1,2])
+lines(model_rep$PredSrvIdx[5,data$UseSrvIdx[5,,2] == 1,2])
 
 plot(as.vector(data$ObsFishAgeComps[2,56,,,1]))
-lines(as.vector(sabie_rtmb_model$rep$CAA[2,56,,,1] / sum(sabie_rtmb_model$rep$CAA[2,56,,,1])))
+lines(as.vector(model_rep$CAA[2,56,,,1] / sum(model_rep$CAA[2,56,,,1])))
 
-plot(rowSums(sabie_rtmb_model$rep$NAA[1,,,1] / rowSums(sabie_rtmb_model$rep$NAA[1,,,1]) * matrix(c(2:31), nrow = 63, ncol = 30, byrow = T)), type = 'l')
-plot(rowSums(sabie_rtmb_model$rep$NAA[2,,,1] / rowSums(sabie_rtmb_model$rep$NAA[2,,,1]) * matrix(c(2:31), nrow = 63, ncol = 30, byrow = T)), type = 'l')
-lines(rowSums(sabie_rtmb_model$rep$NAA[3,,,1] / rowSums(sabie_rtmb_model$rep$NAA[3,,,1]) * matrix(c(2:31), nrow = 63, ncol = 30, byrow = T)), type = 'l')
-lines(rowSums(sabie_rtmb_model$rep$NAA[4,,,1] / rowSums(sabie_rtmb_model$rep$NAA[4,,,1]) * matrix(c(2:31), nrow = 63, ncol = 30, byrow = T)), type = 'l')
-lines(rowSums(sabie_rtmb_model$rep$NAA[5,,,1] / rowSums(sabie_rtmb_model$rep$NAA[5,,,1]) * matrix(c(2:31), nrow = 63, ncol = 30, byrow = T)), type = 'l')
+plot(rowSums(model_rep$NAA[1,,,1] / rowSums(model_rep$NAA[1,,,1]) * matrix(c(2:31), nrow = 63, ncol = 30, byrow = T)), type = 'l')
+lines(rowSums(model_rep$NAA[2,,,1] / rowSums(model_rep$NAA[2,,,1]) * matrix(c(2:31), nrow = 63, ncol = 30, byrow = T)), type = 'l')
+lines(rowSums(model_rep$NAA[3,,,1] / rowSums(model_rep$NAA[3,,,1]) * matrix(c(2:31), nrow = 63, ncol = 30, byrow = T)), type = 'l')
+lines(rowSums(model_rep$NAA[4,,,1] / rowSums(model_rep$NAA[4,,,1]) * matrix(c(2:31), nrow = 63, ncol = 30, byrow = T)), type = 'l')
+lines(rowSums(model_rep$NAA[5,,,1] / rowSums(model_rep$NAA[5,,,1]) * matrix(c(2:31), nrow = 63, ncol = 30, byrow = T)), type = 'l')
+

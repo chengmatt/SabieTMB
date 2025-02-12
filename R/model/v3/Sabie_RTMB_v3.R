@@ -35,7 +35,6 @@ sabie_RTMB = function(pars, data) {
   source(here("R", "model", "v3", "Get_PE_loglik.r")) # process error options
   
   RTMB::getAll(pars, data) # load in starting values and data
-  RTMB::ADoverload(x = c("[<-", "c", "diag<-"))
   
   # Model Set Up (Containers) -----------------------------------------------
   n_ages = length(ages) # number of ages
@@ -689,10 +688,14 @@ sabie_RTMB = function(pars, data) {
   
   ### Selectivity (Penalty) ---------------------------------------------------
   for(f in 1:n_fish_fleets) {
-    sel_Pen = sel_Pen + - Get_sel_PE_loglik(PE_model = cont_tv_fish_sel[r,f], # process error model
-                                            PE_pars = fishsel_pe_pars[,,,f, drop = FALSE], # process error parameters for a given fleet (correlaiton and sigmas) 
-                                            ln_devs = ln_fishsel_devs[,,,,f, drop = FALSE], # extract out process error deviations for a given fleet
-                                            map_sel_devs = map_ln_fishsel_devs[,,,,f, drop = FALSE]) # number of sexes
+    for(r in 1:n_regions) {
+      if(cont_tv_fish_sel[r,f] > 0) {
+        sel_Pen = sel_Pen + - Get_sel_PE_loglik(PE_model = cont_tv_fish_sel[r,f], # process error model
+                                                PE_pars = fishsel_pe_pars[,,,f, drop = FALSE], # process error parameters for a given fleet (correlaiton and sigmas) 
+                                                ln_devs = ln_fishsel_devs[,,,,f, drop = FALSE], # extract out process error deviations for a given fleet
+                                                map_sel_devs = map_ln_fishsel_devs[,,,,f, drop = FALSE]) # number of sexes
+      } # end if
+    } # end r loop
   } # end f loop
   
   ### Recruitment (Penalty) ----------------------------------------------------
