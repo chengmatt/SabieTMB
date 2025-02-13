@@ -646,8 +646,8 @@ sabie_RTMB = function(pars, data) {
           # Set up observed inputs
           tmp_obs_c = (Obs_Tag_Recap[ry,tc,,,] + 1e-10) / tmp_n_tags_released # recaptured
           tmp_obs = c(tmp_obs_c, 1 - sum(tmp_obs_c)) # combine recaptured and non-recaptured
-          Tag_nLL[ry,tc,1,1,1] = -tmp_n_tags_released * sum((tmp_obs) * log(tmp_pred))
-        } # end if multinomial release conditioned
+          if(Tag_LikeType == 2) Tag_nLL[ry,tc,1,1,1] = -tmp_n_tags_released * sum((tmp_obs) * log(tmp_pred)) # multinomial
+        } # end if release conditioned
         
         # Multinomial likelihood (recapture conditioned)
         if(Tag_LikeType == 3) {

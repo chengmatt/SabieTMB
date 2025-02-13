@@ -532,26 +532,26 @@ mapping$ln_srv_fixed_sel_pars <- factor(c(1:3, 2, 4:6, 5,
 
 # Fixing sigmas for fishery catch and Fdevs here
 mapping$ln_sigmaC <- factor(rep(NA, length(parameters$ln_sigmaC)))
-# data$cont_tv_fish_sel[] = c(4,0) # iid for testing
-# parameters$fishsel_pe_pars[] <- log(0.5)
-# parameters$fishsel_pe_pars[,,1:2, 1] <- c(0, 0, 0, log(0.5)) # fix these for 3dar1 testing
+data$cont_tv_fish_sel[] = c(3,0) # iid for testing
+parameters$fishsel_pe_pars[] <- log(0.5)
+parameters$fishsel_pe_pars[,,1:2, 1] <- c(0, 0, 0, log(0.5)) # fix these for 3dar1 testing
 map_fishsel_pe_pars <- parameters$fishsel_pe_pars
-# map_fishsel_pe_pars[1,,,2] <- NA # trawl not used
+map_fishsel_pe_pars[1,,,2] <- NA # trawl not used
 # # map_fishsel_pe_pars[1,1,,1] <- 1 # first parameter share sex
 # # map_fishsel_pe_pars[1,1,,1] <- 1 # first parameter share sex
 # # map_fishsel_pe_pars[1,2,,1] <- 2 # second parameter share sex
 # # map_fishsel_pe_pars[1,2,,1] <- 2 # second parameter share sex
 # # map_fishsel_pe_pars[1,3:4,,1] <- NA # last 2 pars not used
 # 
-# map_fishsel_pe_pars[1,1,,1] <- NA # first parameter share sex
-# map_fishsel_pe_pars[1,1,,1] <- NA # first parameter share sex
-# map_fishsel_pe_pars[1,2,,1] <- NA # second parameter share sex
-# map_fishsel_pe_pars[1,2,,1] <- NA # second parameter share sex
-# map_fishsel_pe_pars[1,3,,1] <- NA # last 2 pars share sex
-# map_fishsel_pe_pars[1,3,,1] <- NA # last 2 pars share sex
-# map_fishsel_pe_pars[1,4,,1] <- 1 # last 2 pars share sex
-# map_fishsel_pe_pars[1,4,,1] <- 1 # last 2 pars share sex
-map_fishsel_pe_pars[] = NA
+map_fishsel_pe_pars[1,1,,1] <- NA # first parameter share sex
+map_fishsel_pe_pars[1,1,,1] <- NA # first parameter share sex
+map_fishsel_pe_pars[1,2,,1] <- NA # second parameter share sex
+map_fishsel_pe_pars[1,2,,1] <- NA # second parameter share sex
+map_fishsel_pe_pars[1,3,,1] <- NA # last 2 pars share sex
+map_fishsel_pe_pars[1,3,,1] <- NA # last 2 pars share sex
+map_fishsel_pe_pars[1,4,,1] <- 1 # last 2 pars share sex
+map_fishsel_pe_pars[1,4,,1] <- 1 # last 2 pars share sex
+# map_fishsel_pe_pars[] = NA
 mapping$fishsel_pe_pars = factor(map_fishsel_pe_pars)
 
 # process error deviations (using ages as the max number of pars that can deviate, and then just map off if not using)
@@ -559,8 +559,8 @@ map_ln_fishel_devs <- parameters$ln_fishsel_devs
 # map_ln_fishel_devs[1,,1,1:2,1] <- 1:length(data$years) # share proc dev across sex
 # map_ln_fishel_devs[1,,2,1:2,1] <- (length(data$years) + 1):(length(data$years) + length(data$years) ) # share proc dev across sex
 
-# map_ln_fishel_devs[1,,,1,1] <- 1:(length(data$years))
-# map_ln_fishel_devs[1,,,2,1] <- 1:(length(data$years))
+map_ln_fishel_devs[1,,,1,1] <- 1:(length(data$years))
+map_ln_fishel_devs[1,,,2,1] <- 1:(length(data$years))
 
 # map_ln_fishel_devs[1,,11:20,1,1] <- (length(data$years) + 1):(length(data$years) * 2 )
 # map_ln_fishel_devs[1,,11:20,2,1] <- (length(data$years) + 1):(length(data$years) * 2 )
@@ -569,7 +569,7 @@ map_ln_fishel_devs <- parameters$ln_fishsel_devs
 # map_ln_fishel_devs[1,,21:30,2,1] <- (length(data$years) * 2 + 1):(length(data$years) * 3 )
 
 map_ln_fishel_devs[map_ln_fishel_devs == 0] <- NA
-mapping$ln_fishsel_devs <- factor(map_ln_fishel_devs)
+mapping$ln_fishsel_devs <- factor(map_ln_fishsel_devs)
 # mapping$ln_fishsel_devs <- factor(rep(NA,length(parameters$ln_fishsel_devs)))
 data$map_ln_fishsel_devs <- array(as.numeric(mapping$ln_fishsel_devs), dim = dim(parameters$ln_fishsel_devs))
 
@@ -598,7 +598,7 @@ data$srv_sel_blocks = data$srv_sel_blocks + 1
 data$bias_year = data$bias_year + 1
 data$sigmaR_switch = data$sigmaR_switch + 1
 
-sabie_rtmb_model <- RTMB::MakeADFun(cmb(sabie_RTMB, data), parameters = parameters, map = mapping)
+sabie_rtmb_model <- RTMB::MakeADFun(cmb(sabie_RTMB, data), parameters = parameters, map = mapping, random = 'ln_fishsel_devs')
 
 # # Now, optimize the function
 sabie_optim <- stats::nlminb(sabie_rtmb_model$par, sabie_rtmb_model$fn, sabie_rtmb_model$gr,

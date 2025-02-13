@@ -51,7 +51,7 @@ Get_3d_precision <- function(n_ages,n_yrs, pcorr_age, pcorr_year, pcorr_cohort, 
     # Solve Omega recursively for stationary variance (accumulator function)
     if(Var_Type == 0) {
       L = solve(I-B) # solve to get accumulator function for stationary variance
-      d = rep(NA, nrow(index))
+      d = rep(0, nrow(index))
       for(n in 1:nrow(index) ){
         if(n==1){
           d[n] = var_value
